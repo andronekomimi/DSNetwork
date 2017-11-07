@@ -110,7 +110,8 @@ nodes <- data.frame(id = candidate_SNP$RsID,
                     #color.highlight.border = ifelse(test =myanno$Eigen_coding_or_noncoding == "c", yes = "darkgreen", no = "darkblue")
 )
 
-edges <- data.frame(from = snp_comb[1,], 
+edges <- data.frame(id = paste0("edge_ld_", 1:ncol(snp_comb)),
+                    from = snp_comb[1,], 
                     to = snp_comb[2,],
                     width = 3,
                     dashes = FALSE,
@@ -232,7 +233,8 @@ score_nodes <- data.frame(id = paste0("scores_",candidate_SNP$RsID),
                           font.size = 10,
                           group = paste0("Scores_",candidate_SNP$RsID))
 
-score_edges <-  data.frame(from = candidate_SNP$RsID, 
+score_edges <-  data.frame(id = paste0("edge_score_root_", 1:nrow(candidate_SNP)),
+                           from = candidate_SNP$RsID, 
                            to = paste0("scores_",candidate_SNP$RsID),
                            width = 1,
                            dashes = FALSE,
@@ -265,18 +267,22 @@ for(i in 1:nrow(sub_myanno_mapped)) {
   }
   
   if(is.null(subedges)){
-    subedges <- data.frame(from = paste0("scores_",rownames(sub_myanno_mapped)[i]),
-                           to = paste0(colnames(rs_annot),"_",i),
-                           width = 1,
-                           dashes = FALSE,
-                           color = "gray")
+    subedges <- data.frame(
+      id = paste0("edge_score_", colnames(rs_values),"_", i),
+      from = paste0("scores_",rownames(sub_myanno_mapped)[i]),
+      to = paste0(colnames(rs_annot),"_",i),
+      width = 1,
+      dashes = FALSE,
+      color = "gray")
   } else {
     subedges <- rbind(subedges, 
-                      data.frame(from = paste0("scores_",rownames(sub_myanno_mapped)[i]),
-                                 to = paste0(colnames(rs_annot),"_",i),
-                                 width = 1,
-                                 dashes = FALSE,
-                                 color = "gray"))
+                      data.frame(
+                        id = paste0("edge_score_", colnames(rs_values),"_", i),
+                        from = paste0("scores_",rownames(sub_myanno_mapped)[i]),
+                        to = paste0(colnames(rs_annot),"_",i),
+                        width = 1,
+                        dashes = FALSE,
+                        color = "gray"))
   }
 }
 
@@ -296,13 +302,15 @@ for(j in seq_along(b)){
     
     if(!is.null(corr_edges)){
       corr_edges <-  rbind(corr_edges, 
-                           data.frame(from = l[1],
+                           data.frame(id = paste0("edge_corr_",j,"_",k),
+                                      from = l[1],
                                       to = l[2],
                                       width = 1 + annot_corr[lcor[1],lcor[2]],
                                       dashes = ifelse(test = annot_corr[lcor[1],lcor[2]] == -1, yes = TRUE, no = FALSE),
                                       color = "black"))
     } else {
-      corr_edges <- data.frame(from = l[1],
+      corr_edges <- data.frame(id = paste0("edge_corr_",j,"_",k),
+                               from = l[1],
                                to = l[2],
                                width = 1 + annot_corr[lcor[1],lcor[2]],
                                dashes = ifelse(test = annot_corr[lcor[1],lcor[2]] == -1, yes = TRUE, no = FALSE),
