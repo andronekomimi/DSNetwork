@@ -139,7 +139,7 @@ server <- function(input, output, session) {
               oma = c(0,0,0,0) + 0.1,
               mar = c(0,0,1,1) + 0.1) 
     
-    colkey(side = 1, col = colormapping, 
+    colkey(side = 1, col = rev(colormapping), 
            clim = range(as.numeric(names(colormapping))), add = FALSE, clab = "LD",
            col.clab = "black", adj.clab = 0)
     
