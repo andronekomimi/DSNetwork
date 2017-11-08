@@ -305,21 +305,28 @@ for(j in seq_along(b)){
                            data.frame(id = paste0("edge_corr_",j,"_",k),
                                       from = l[1],
                                       to = l[2],
-                                      width = 1 + annot_corr[lcor[1],lcor[2]],
+                                      width = annot_corr[lcor[1],lcor[2]],
                                       dashes = ifelse(test = annot_corr[lcor[1],lcor[2]] == -1, yes = TRUE, no = FALSE),
                                       color = "black"))
     } else {
       corr_edges <- data.frame(id = paste0("edge_corr_",j,"_",k),
                                from = l[1],
                                to = l[2],
-                               width = 1 + annot_corr[lcor[1],lcor[2]],
+                               width = annot_corr[lcor[1],lcor[2]],
                                dashes = ifelse(test = annot_corr[lcor[1],lcor[2]] == -1, yes = TRUE, no = FALSE),
                                color = "black")
     }
   }
 }
 
+### adjust correlation edge width
 
+win.asp = .7
+asp_rescale_factor <- min(1, win.asp) / max(1, win.asp)
+DAT <- (corr_edges$width)
+unknown_corr <- which(DAT == -1)
+corr_edges$width <- asp_rescale_factor * 0.9 * abs(DAT) ^ 0.5 * 10
+corr_edges$width[unknown_corr] <- 1
 
 # annot_comb <- combn(x = selected_annotations, m = 2)
 # annot_values_mapped <- rep(x = 1, times = ncol(annot_comb))
@@ -358,4 +365,3 @@ for (snp in candidate_SNP$RsID){
 
 # require(plot3D)
 # colkey(side = 3, add = F, col = rev(cadd_colpalette), clim = range(as.numeric(names(cadd_colpalette))))
-

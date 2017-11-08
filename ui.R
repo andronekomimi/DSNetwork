@@ -5,20 +5,25 @@ dashboardPage(
   sidebar = dashboardSidebar(
     sidebarMenu(
       menuItem("Data", tabName = "load_data", icon = icon("th")),
-      menuItem("Network", tabName = "network", icon = icon("dashboard"), selected = T)
+      menuItem("Network", tabName = "network", icon = icon("snowflake-o"), selected = T)
     )
   ),
   body = dashboardBody(
     tabItems(
       tabItem(tabName = "load_data",
               h3("Data loading"),
+              tags$ul(
+                tags$li("Load new dataframe"), 
+                tags$li("Load custom object")
+              ),
               h3("Data processing"),
               tags$ul(
                 tags$li("Get snp position from id (hg19)"), 
                 tags$li("Run ANNOVAR annotation"), 
                 tags$li("Fetch LD information"),
                 tags$li("Combine for network visualization")
-              )
+              ),
+              h3("Save data for external or further usage (Recommended)")
       ),
       tabItem(tabName = "network",
               fluidRow(
@@ -52,8 +57,8 @@ dashboardPage(
                              paste("This option enables to select the set of prediction and",
                                    "scoring algorithms used to create the network."
                              )
-                           )
-                           #,actionButton("zoomButton", "Zoom to fit buses")
+                           ),
+                           actionButton("update_annotations", "Update")
                        ),
                        box(width = NULL, status = "warning",
                            selectInput("focus", "Focus on",
@@ -62,8 +67,6 @@ dashboardPage(
                                        ),
                                        selected = -1
                            ),
-                           #uiOutput("timeSinceLastUpdate"),
-                           #actionButton("refresh", "Refresh now"),
                            p(class = "text-muted",
                              br(),
                              "This option enables to focus the network on a particular variant"
@@ -75,7 +78,8 @@ dashboardPage(
                            p(class = "text-muted",
                              br(),
                              "This option enables to select the interval of LD values represented between variants"
-                           )
+                           ),
+                           actionButton("update_ld", "Update")
                        )
                 )
               )

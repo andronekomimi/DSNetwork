@@ -20,7 +20,7 @@ server <- function(input, output, session) {
   })
   
   # LD range
-  observe({ 
+  observeEvent(input$update_ld, { 
     # data.frame edges, use colomapping
     color_2_keep <- colormapping[(names(colormapping) <=  input$ld_range[2] & names(colormapping) >= input$ld_range[1])]
     edges_2_remove <- as.character(edges[!edges$color %in% color_2_keep, ]$id)
@@ -34,18 +34,18 @@ server <- function(input, output, session) {
   
   
   # Annotations
-  # observe({ 
-  #   wanted_annotations <- selected_annotations[as.numeric(input$annotations)]
-  #   wanted_annotations <- paste(wanted_annotations, collapse = "|")
-  #   wanted_annotations <- gsub(x = wanted_annotations, pattern = "\\+\\+gt2", replacement = "")
-  #   nodes_2_remove <- as.character(subnodes[!grepl(x = subnodes$id, pattern = paste(wanted_annotations, collapse = "|"), perl = T),]$id)
-  #   visNetworkProxy("network_hello") %>%
-  #     visUpdateNodes(my_nodes) %>%
-  #     visUpdateEdges(my_edges)
-  #   
-  #   visNetworkProxy("network_hello") %>%
-  #     visRemoveNodes(id = nodes_2_remove)
-  # })
+  observeEvent(input$update_annotations, {
+    wanted_annotations <- selected_annotations[as.numeric(input$annotations)]
+    wanted_annotations <- paste(wanted_annotations, collapse = "|")
+    wanted_annotations <- gsub(x = wanted_annotations, pattern = "\\+\\+gt2", replacement = "")
+    nodes_2_remove <- as.character(subnodes[!grepl(x = subnodes$id, pattern = paste(wanted_annotations, collapse = "|"), perl = T),]$id)
+    visNetworkProxy("network_hello") %>%
+      visUpdateNodes(my_nodes) %>%
+      visUpdateEdges(my_edges)
+
+    visNetworkProxy("network_hello") %>%
+      visRemoveNodes(id = nodes_2_remove)
+  })
   
   createNetwork <- function(){
     vn <- visNetwork(my_nodes, my_edges) %>%
