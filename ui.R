@@ -41,6 +41,26 @@ dashboardPage(
                 ),
                 column(width = 3,
                        box(width = NULL, status = "warning",
+                           checkboxGroupInput("metascore", "Meta-score",
+                                              choices = c(
+                                                CADD13_PHRED = 1,
+                                                Eigen = 2,
+                                                FATHMM_noncoding = 3,
+                                                `gerp++gt2` = 4,
+                                                GWAVA_region_score = 5,
+                                                LINSIGHT = 6
+                                              ),
+                                              selected = 1:6
+                           ),
+                           actionButton("update_metascore", "Update"),
+                           p(
+                             class = "text-muted",
+                             paste("This option enables to select the set of prediction and",
+                                   "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
+                             )
+                           )
+                       ),
+                       box(width = NULL, status = "warning",
                            checkboxGroupInput("annotations", "Predictors",
                                               choices = c(
                                                 CADD13_PHRED = 1,
@@ -52,13 +72,13 @@ dashboardPage(
                                               ),
                                               selected = 1:6
                            ),
+                           actionButton("update_annotations", "Update"),
                            p(
                              class = "text-muted",
                              paste("This option enables to select the set of prediction and",
-                                   "scoring algorithms used to create the network."
+                                   "scoring algorithms represented in the network "
                              )
-                           ),
-                           actionButton("update_annotations", "Update")
+                           )
                        ),
                        box(width = NULL, status = "warning",
                            selectInput("focus", "Focus on",
@@ -75,11 +95,11 @@ dashboardPage(
                        box(width = NULL, status = "warning",
                            sliderInput("ld_range", "LD range",
                                        min = 0, max = 1, value = c(0, 1)),
+                           actionButton("update_ld", "Update"),
                            p(class = "text-muted",
                              br(),
                              "This option enables to select the interval of LD values represented between variants"
-                           ),
-                           actionButton("update_ld", "Update")
+                           )
                        )
                 )
               )

@@ -226,8 +226,40 @@ for(i in unique(sub_myanno$LINSIGHT)){
 sub_myanno_mapped$LINSIGHT <- lin_values_mapped
 
 
+gerp_colpalette <- gerp_colpalette[names(gerp_colpalette) != "."]
+lin_colpalette <- lin_colpalette[names(lin_colpalette) != "."]
+
+all_palettes <- list(cadd_colpalette, eigen_colpalette, fathmm_colpalette, gerp_colpalette, gwava_colpalette, lin_colpalette)
+names(all_palettes) <- selected_annotations
+
+meta_scores <- rep(0, times = nrow(candidate_SNP))
+b <- split(subnodes, f = subnodes$group)
+
+for(i in seq_along(b)){ 
+  meta_score <- 0
+  
+  for(j in seq_along(selected_annotations)){
+    classement <- which(as.character(b[[i]]$color[j]) == all_palettes[[j]])
+    if(length(classement) == 0){
+      classement <- nrow(candidate_SNP)
+    }
+    meta_score <- meta_score + classement
+  }
+  meta_scores[i] <- meta_score
+}
+
+meta_colpalette <- colfunc(n = length(unique(meta_scores)))
+names(meta_colpalette) <- sort(unique(meta_scores), decreasing = F)
+
+meta_values_mapped <- meta_scores
+for(i in unique(meta_scores)){
+  meta_values_mapped[meta_values_mapped == i] <- meta_colpalette[names(meta_colpalette) == i]
+}
+
+
+
 score_nodes <- data.frame(id = paste0("scores_",candidate_SNP$RsID), 
-                          color = NA,
+                          color = meta_values_mapped,
                           label = paste0("scores_",candidate_SNP$RsID),
                           shape = "database",
                           font.size = 10,
@@ -239,6 +271,8 @@ score_edges <-  data.frame(id = paste0("edge_score_root_", 1:nrow(candidate_SNP)
                            width = 1,
                            dashes = FALSE,
                            color = "black")
+
+nodes$color <- meta_values_mapped
 
 subnodes <- NULL
 subedges <- NULL
@@ -328,21 +362,6 @@ unknown_corr <- which(DAT == -1)
 corr_edges$width <- asp_rescale_factor * 0.9 * abs(DAT) ^ 0.5 * 10
 corr_edges$width[unknown_corr] <- 1
 
-# annot_comb <- combn(x = selected_annotations, m = 2)
-# annot_values_mapped <- rep(x = 1, times = ncol(annot_comb))
-# for(i in selected_annotations){
-#   annot_values_mapped[annot_values_mapped == i] <- 
-# }
-# 
-# annot_edges <- data.frame(from = annot_comb[1,], 
-#                     to = annot_comb[2,],
-#                     width = annot_values_mapped,
-#                     color = NA)
-
-
-
-
-
 lnodes <- data.frame(shape = c("star","dot"),
                      # color = c("lightgreen","lightblue"),
                      label = c("Coding","Non-coding"), title = "Variants")
@@ -354,7 +373,7 @@ ledges <- data.frame(color = colormapping,
 vn <- visNetwork(rbind(nodes, score_nodes, subnodes), rbind(edges, score_edges, subedges,corr_edges), width = "100%", height = "1000px") %>%
   visLegend(addEdges = ledges, addNodes = lnodes, useGroups = F) %>%
   visOptions(highlightNearest = TRUE, selectedBy = "group") %>%
-  visClusteringByGroup(groups = paste0("Scores_",candidate_SNP$RsID), label = "") %>%
+  visClusteringByGroup(groups = paste0("Scores_",candidate_SNP$RsID), label = "", color = meta_values_mapped, force = T) %>%
   visPhysics(solver = "forceAtlas2Based", maxVelocity = 10,
              forceAtlas2Based = list(gravitationalConstant = -300))
 
@@ -362,6 +381,7 @@ for (snp in candidate_SNP$RsID){
   vn <- vn %>% visGroups(groupname = paste0("Scores_",snp), background = "#97C2FC", 
                          color = "#2B7CE9", shape = "square")
 }
+
 
 # require(plot3D)
 # colkey(side = 3, add = F, col = rev(cadd_colpalette), clim = range(as.numeric(names(cadd_colpalette))))

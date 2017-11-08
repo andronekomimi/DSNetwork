@@ -7,8 +7,17 @@ load(file = 'demo/demo.RData')
 
 server <- function(input, output, session) {
   
-  my_nodes <- rbind(nodes, score_nodes, subnodes)
+  values <- reactiveValues()
+  values$nodes <- nodes
+  values$score_nodes <- score_nodes
+  values$subnodes <- subnodes
+  
+  isolate(my_nodes <- rbind(values$nodes, values$score_nodes, values$subnodes))
   my_edges <- rbind(edges, score_edges, subedges,corr_edges)
+  
+  current_nodes <- my_nodes
+  current_edges <- my_edges
+  
   
   # MAJ des wigdets
   observe({ 
@@ -25,6 +34,8 @@ server <- function(input, output, session) {
     color_2_keep <- colormapping[(names(colormapping) <=  input$ld_range[2] & names(colormapping) >= input$ld_range[1])]
     edges_2_remove <- as.character(edges[!edges$color %in% color_2_keep, ]$id)
     
+    current_edges <<- my_edges[!my_edges$id %in% edges_2_remove,]
+      
     visNetworkProxy("network_hello") %>%
       visUpdateEdges(my_edges)
     
@@ -39,12 +50,53 @@ server <- function(input, output, session) {
     wanted_annotations <- paste(wanted_annotations, collapse = "|")
     wanted_annotations <- gsub(x = wanted_annotations, pattern = "\\+\\+gt2", replacement = "")
     nodes_2_remove <- as.character(subnodes[!grepl(x = subnodes$id, pattern = paste(wanted_annotations, collapse = "|"), perl = T),]$id)
-    visNetworkProxy("network_hello") %>%
-      visUpdateNodes(my_nodes) %>%
-      visUpdateEdges(my_edges)
+    
+    current_nodes <<- my_nodes[!my_nodes$id %in% nodes_2_remove,]
+    # print(current_edges)
+    # print(current_nodes)
+    # # visNetworkProxy("network_hello") %>%
+    # #   visUpdateNodes(current_nodes) %>%
+    # #   visUpdateEdges(current_edges)
+    # 
+    # visNetworkProxy("network_hello") %>%
+    #   visUpdateEdges(current_edges) %>%
+    #   visRemoveNodes(id = nodes_2_remove)
+  })
+  
+  # Meta-score
+  observeEvent(input$update_metascore, {
+    
+    meta_scores <- rep(0, times = nrow(candidate_SNP))
+    b <- split(subnodes, f = subnodes$group)
 
+    for(i in seq_along(b)){
+      meta_score <- 0
+
+      for(j in as.numeric(input$metascore)){
+        classement <- which(as.character(b[[i]]$color[j]) == all_palettes[[j]])
+        if(length(classement) == 0){
+          classement <- nrow(candidate_SNP)
+        }
+        meta_score <- meta_score + classement
+      }
+      meta_scores[i] <- meta_score
+    }
+    
+    print(meta_scores)
+
+    meta_colpalette <- colfunc(n = length(unique(meta_scores)))
+    names(meta_colpalette) <- sort(unique(meta_scores), decreasing = F)
+
+    meta_values_mapped <- meta_scores
+    for(i in unique(meta_scores)){
+      meta_values_mapped[meta_values_mapped == i] <- meta_colpalette[names(meta_colpalette) == i]
+    }
+    
+    values$nodes$color <- meta_values_mapped
+    values$score_nodes$color <- meta_values_mapped
+    
     visNetworkProxy("network_hello") %>%
-      visRemoveNodes(id = nodes_2_remove)
+      visUpdateNodes(rbind(values$nodes, values$score_nodes, values$subnodes))
   })
   
   createNetwork <- function(){
@@ -82,9 +134,6 @@ server <- function(input, output, session) {
   
   #### LEGENDS ####
   drawLegendPlot <- function(){
-    
-    gerp_colpalette <- gerp_colpalette[names(gerp_colpalette) != "."]
-    lin_colpalette <- lin_colpalette[names(lin_colpalette) != "."]
     
     op <- par(mfrow = c(2,4),
               oma = c(0,0,0,0) + 0.1,
