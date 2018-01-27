@@ -1,25 +1,88 @@
-require(shinydashboard)
+library(shinydashboard)
+library(visNetwork)
+
+populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
+                 "African Ancestry in Southwest US (ASW)" = 'ASW',
+                 "Bengali in Bangladesh (BEB)" = 'BEB',
+                 "Chinese Dai in Xishuangbanna, China (CDX)" = 'CDX',
+                 "Utah residents with Northern and Western Europen ancestry (CEU)" = 'CEU',
+                 "Han Chinese in Bejing, China (CHB)" = 'CHB',
+                 "Southern Han Chinese, China (CHS)" = 'CHS',
+                 "Colombian in Medellin, Colombia (CLM)" = 'CLM',
+                 "Esan in Nigeria (ESN)" = 'ESN',
+                 "Finnish in Finland (FIN)" = 'FIN',
+                 "British in England and Scotland (GBR)" = 'GBR',
+                 "Gujarati Indian in Houston, TX (GIH)" = 'GIH',
+                 "Iberian populations in Spain (IBS)" = 'IBS',
+                 "Indian Telugu in the UK (ITU)" = 'ITU',
+                 "Japanese in Tokyo, Japan (JPT)" = 'JPT',
+                 "Kinh in Ho Chi Minh City, Vietnam (KHV)" = 'KHV',
+                 "Luhya in Webuye, Kenya (LWK)" = 'LWK',
+                 "Mandinka in The Gambia (MAG)" = 'MAG',
+                 "Mende in Sierra Leone (MSL)" = 'MSL',
+                 "Mexican Ancestry in Los Angeles, California (MXL)" = 'MXL',
+                 "Peruvian in Lima, Peru (PEL)" = 'PEL',
+                 "Punjabi in Lahore, Pakistan (PJL)" = 'PJL',
+                 "Puerto Rican in Puerto Rico (PUR)" = 'PUR',
+                 "Sri Lankan Tamil in the UK (STU)" = 'STU',
+                 "Toscani in Italy (TSI)" = 'TSI',
+                 "Yoruba in Ibadan, Nigeria (YRI)" = 'YRI')
 
 dashboardPage(
   header = dashboardHeader(title = "DSNetwork"),
   sidebar = dashboardSidebar(
     sidebarMenu(
+      textAreaInput("query", "Query", "", rows = 5, 
+                    placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
+      actionButton("transform_query", "Search for annotations", icon = icon("search")),
+          selectInput(inputId = 'population',
+                      label = 'Choose the population to use',
+                      choices = populations),
+          shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
+                   icon = icon("gear")),
       menuItem("Data", tabName = "load_data", icon = icon("th")),
-      menuItem("Network", tabName = "network", icon = icon("snowflake-o"), selected = T)
+      menuItem("Network", tabName = "network", icon = icon("snowflake-o"))
     )
   ),
   body = dashboardBody(
     tabItems(
       tabItem(tabName = "load_data",
-              h3("Data loading"),
-              tags$ul(
-                tags$li("Load new dataframe"), 
-                tags$li("Load custom object")
+              fluidRow(
+                box(title = "Infos", status = "warning", width = 4, 
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = FALSE,
+                    br(),
+                    verbatimTextOutput("transform_res"),
+                    tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
+                    br(),
+                    verbatimTextOutput("runld_res"),
+                    tags$style(type="text/css", "#runld_res {white-space: pre-wrap;}"),
+                    br(),
+                    verbatimTextOutput("query_res"),
+                    tags$style(type="text/css", "#query_res {white-space: pre-wrap;}")
+                ),
+                box(title = "Populations data", status = "primary", width = 8, 
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = FALSE,
+                    br(),
+                    DT::dataTableOutput("populations")
+                )
               ),
-              h3("Data processing"),
+              fluidRow(
+                
+              ),
+              fluidRow(
+                box(title = "Network", status = "success", width = 12, 
+                    solidHeader = TRUE, collapsible = TRUE, 
+                    shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',  
+                                      icon = icon("gear")),
+                    br(),
+                    h1('N  E  T  W  O  R  K'),
+                    visNetworkOutput("my_network",
+                                     height = "800", width = "auto")
+                )
+              ),
               tags$ul(
                 tags$li("Get snp position from id (hg19)"), 
-                tags$li("Run ANNOVAR annotation"), 
+                tags$li("Run ANNOVAR annotation"),
                 tags$li("Fetch LD information"),
                 tags$li("Combine for network visualization")
               ),
