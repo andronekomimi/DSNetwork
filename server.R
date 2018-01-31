@@ -15,6 +15,10 @@ server <- function(input, output, session) {
   
   values <- reactiveValues()
   values$maf_infos <- as.matrix(data.frame(waiting = ""))
+  values$annotations <- as.matrix(data.frame(waiting = ""))
+  values$edges <- NULL
+  values$nodes <- NULL
+  
   
   #### INPUT DATA MANAGEMENT ####
   transform_query <- function(string){
@@ -37,7 +41,6 @@ server <- function(input, output, session) {
     return(modstring)
   }
   
-  
   query_control <- eventReactive(input$transform_query, {
     modstring <- transform_query(input$query)
     fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
@@ -51,10 +54,11 @@ server <- function(input, output, session) {
   
   output$transform_res <- renderText({ query_control() })
   
-  
   #### FETCH ANNOTATIONS ####
   observeEvent(input$transform_query, {
     values$maf_infos <- as.matrix(data.frame(waiting = ""))
+    values$annotations <- as.matrix(data.frame(waiting = ""))
+    
     modstring <- transform_query(input$query)
     valid_transfo <- modstring[!grepl(x = modstring, pattern = 'FAIL')]
     if(length(valid_transfo) > 0){
@@ -62,27 +66,60 @@ server <- function(input, output, session) {
       
       res <- as.data.frame(getVariants(hgvsids = valid_transfo,
                                        verbose = F, return.as = "DataFrame",
-                                       fields = c("dbsnp","cadd","dbnsfp")))
+                                       fields = c("dbsnp","cadd","dbnsfp")), 
+                           stringsAsFactors = TRUE)
       save(res, file = 'res.rda')
       values$res <- res
       
       if(!is.null(values$res) && nrow(values$res) > 0){
+        
+        #### population freq
         maf_infos <- values$res[,grepl(x = colnames( values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
-        #maf_infos <- maf_infos[apply(X = maf_infos, MARGIN = 1, FUN = function(x) sum(is.na(x)) != (length(x) - 1)),] # suppriner NA rows
         colnames(maf_infos) <- gsub(x = colnames(maf_infos), pattern = "cadd.1000g.(.*)", replacement = "MAF_\\1_1000G")
         row.names(maf_infos) <- NULL
-        #dbsnp_infos <- data.frame(lapply(dbsnp_infos, function(x) unlist(lapply(x, paste, collapse = ","))))
         values$maf_infos <- as.matrix(maf_infos)
+        
+        #### raw annotations
+        annotations_infos <- data.frame(values$res, stringsAsFactors = FALSE)
+        
+        # supprimer not found
+        if("notfound" %in% colnames(annotations_infos)){
+          annotations_infos <- annotations_infos[is.na(annotations_infos$notfound),]
+          annotations_infos$notfound <- NULL
+        }
+        
+        # supprimer licence
+        annotations_infos <- annotations_infos[,!grepl(x = colnames(annotations_infos), pattern = "license")]
+        
+        # suppriner un niveau de nested
+        annotations_infos <- data.frame(lapply(annotations_infos, 
+                                               function(x) unlist(lapply(x, paste, collapse = ","))))
+        # suppriner NA column
+        # annotations_infos <- annotations_infos[apply(X = annotations_infos, MARGIN = 1, FUN = function(x) sum(is.na(x)) != (length(x) - 1)),]
+        
+        values$annotations <- as.matrix(annotations_infos)
+        
+        my_ranges <- apply(X = values$res, MARGIN = 1, FUN = function(x) hgvsToGRange(hgvs_id = x[[2]], query_id = x[[1]]))
+        my_ranges <- do.call("c", my_ranges) 
+        my_ranges <- sort(unique(my_ranges))
+        save(my_ranges, file = "my_ranges.rda")
+        values$my_ranges <- my_ranges
       }
     } 
   })
   
   output$query_res <- renderText({ 
     if(!is.null(values$res) && nrow(values$res) > 0){
-      notfound_id <- values$res[!is.na(values$res$notfound),"query"]
+      
+      if("notfound" %in% colnames(values$res)){
+        notfound_id <- values$res[!is.na(values$res$notfound),"query"]
+      } else {
+        notfound_id <- NULL
+      }
+      
       ifelse(test = length(notfound_id) > 0, 
              yes = paste0("No Annotations for the following variants: ", 
-                                                          paste(notfound_id, collapse = ","),"."), 
+                          paste(notfound_id, collapse = ","),"."), 
              no = "Annotations found for all variants")  
     }
   })
@@ -92,57 +129,32 @@ server <- function(input, output, session) {
                   options = list(scrollX = TRUE))
   })
   
+  output$raw_data <- DT::renderDataTable({
+    DT::datatable(values$annotations,
+                  options = list(scrollX = TRUE))
+  })
+  
+  output$downloadRawTable <- downloadHandler(
+    filename = "annotations_table.csv",
+    content = function(file) {
+      write.csv(values$annotations, file)
+    }
+  )
+  
+  output$downloadFreqTable <- downloadHandler(
+    filename = "frequencies_table.csv",
+    content = function(file) {
+      write.csv(values$maf_infos, file)
+    }
+  )
+  
   #### FETCH LD INFOS ####
   runLD <- eventReactive(input$runLD,{
-    print('Yo')
     
-    hgvsToGRange <- function(hgvs_id, query_id){
-      if(is.na(hgvs_id))
-        return(GRanges())
-      
-      chr <- gsub(x = hgvs_id, pattern = "(.*):.*", replacement = "\\1")
-      start_pos <- as.numeric(gsub(x = hgvs_id, pattern = ".*:.*[a-z]\\.([0-9]+).*", replacement = "\\1"))
-      hgvs_id <- unlist(strsplit(x = hgvs_id, split = ">"))
-      if(length(hgvs_id) == 2){
-        svn_type <- "snp"
-        end_pos <- start_pos
-        ref <- ""
-        alt <- hgvs_id[2]
-      } else {
-        hgvs_id <- unlist(strsplit(x = hgvs_id, split = "ins"))
-        if(length(hgvs_id) == 2){
-          svn_type <- "ins"
-          end_pos <- start_pos+1
-          ref <- ""
-          alt <- hgvs_id[2]
-        } else {
-          svn_type <- "del"
-          end_pos <- as.numeric(gsub(x = hgvs_id, pattern = ".*_([0-9]+).*", replacement = "\\1"))
-          ref <- ""
-          alt <- ""
-        }
-      }
-      
-      GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
-              query= query_id, type = svn_type)
-    }
-    
-    setStudyRange <- function(granges, selection){
-      granges[unlist(strsplitAsListOfIntegerVectors(x = selection, sep = "_"))]
-    }
-    
-    setStudyRegion <- function(studyrange){
-      studyrange <- range(studyrange)
-      return(paste0(as.character(seqnames(studyrange)), ":", start(studyrange), "-", end(studyrange)))
-    }
-    
-    granges <- apply(X = values$res, MARGIN = 1, FUN = function(x) hgvsToGRange(hgvs_id = x[[2]], query_id = x[[1]]))
-    granges <- do.call("c", granges) 
-    granges <- sort(granges)
-    values$granges <- granges
+    my_ranges <- values$my_ranges
     
     # build ilets
-    hits <- findOverlaps(query = granges, subject = granges, maxgap = 1000000)
+    hits <- findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000000) #1Mbp
     ilets <- c()
     
     for(i in queryHits(hits)){
@@ -152,7 +164,7 @@ server <- function(input, output, session) {
     ilets <- unique(ilets)
     
     ld_results <- sapply(ilets, function(selection){
-      current_range  <- setStudyRange(granges, selection)
+      current_range  <- setStudyRange(my_ranges, selection)
       if(length(current_range) > 1){
         region <- setStudyRegion(current_range)
         tryCatch({
@@ -186,12 +198,49 @@ server <- function(input, output, session) {
   
   #### BUILDING NETWORK ####
   buildNetwork <- eventReactive(input$buildNetwork,{
-    vn <- build_network(annotations = values$res, ld_results = values$ld)
+    snv_edges_range = switch (input$snv_edges_type,
+      "0" = input$dist_range,
+      "1" = input$ld_range
+    )
+    
+    values$edges <- build_snv_edges(values, input$snv_edges_type, snv_edges_range)
+    values$nodes <- build_snv_nodes(values)
+    
+    vn <- visNetwork(rbind(values$nodes), rbind(values$edges), width = "100%", height = "1000px") %>%
+      visOptions(highlightNearest = TRUE) %>%
+      visPhysics(solver = "forceAtlas2Based", maxVelocity = 10,
+                 forceAtlas2Based = list(gravitationalConstant = -300))
+    
     return(vn)
   })
   
   output$my_network <- renderVisNetwork({
     buildNetwork()
+  })
+  
+  #### UPDATE NETWORK ####
+  observeEvent(input$update_ld, {
+    # data.frame edges, use colomapping
+    edges_2_keep <- values$edges[(values$edges$xvalue <= input$ld_range[2]) & (values$edges$xvalue >= input$ld_range[1]),]
+    edges_id_2_remove <- values$edges[! values$edges$id %in% edges_2_keep$id,]$id
+
+    visNetworkProxy("my_network") %>%
+      visUpdateEdges(edges = edges_2_keep)
+
+    visNetworkProxy("my_network") %>%
+      visRemoveEdges(id = edges_id_2_remove)
+  })
+  
+  observeEvent(input$update_dist, {
+    # data.frame edges, use colomapping
+    edges_2_keep <- values$edges[(values$edges$xvalue <= (1000 * input$dist_range)),]
+    edges_id_2_remove <- values$edges[! values$edges$id %in% edges_2_keep$id,]$id
+    
+    visNetworkProxy("my_network") %>%
+      visUpdateEdges(edges = edges_2_keep)
+    
+    visNetworkProxy("my_network") %>%
+      visRemoveEdges(id = edges_id_2_remove)
   })
   
   # values$nodes <- nodes

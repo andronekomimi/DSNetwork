@@ -5,13 +5,47 @@ require(ggplot2)
 require(grDevices) 
 
 
+hgvsToGRange <- function(hgvs_id, query_id){
+  if(is.na(hgvs_id))
+    return(GRanges())
+  
+  chr <- gsub(x = hgvs_id, pattern = "(.*):.*", replacement = "\\1")
+  start_pos <- as.numeric(gsub(x = hgvs_id, pattern = ".*:.*[a-z]\\.([0-9]+).*", replacement = "\\1"))
+  hgvs_id <- unlist(strsplit(x = hgvs_id, split = ">"))
+  if(length(hgvs_id) == 2){
+    svn_type <- "snp"
+    end_pos <- start_pos
+    ref <- ""
+    alt <- hgvs_id[2]
+  } else {
+    hgvs_id <- unlist(strsplit(x = hgvs_id, split = "ins"))
+    if(length(hgvs_id) == 2){
+      svn_type <- "ins"
+      end_pos <- start_pos+1
+      ref <- ""
+      alt <- hgvs_id[2]
+    } else {
+      svn_type <- "del"
+      end_pos <- as.numeric(gsub(x = hgvs_id, pattern = ".*_([0-9]+).*", replacement = "\\1"))
+      ref <- ""
+      alt <- ""
+    }
+  }
+  
+  GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
+          query= query_id, type = svn_type)
+}
 
+setStudyRange <- function(my_ranges, selection){
+  my_ranges[unlist(strsplitAsListOfIntegerVectors(x = selection, sep = "_"))]
+}
 
-##################################################
+setStudyRegion <- function(studyrange){
+  studyrange <- range(studyrange)
+  return(paste0(as.character(seqnames(studyrange)), ":", start(studyrange), "-", end(studyrange)))
+}
 
-## Modified from LDheatmap::LDheatmap function  ##
-
-##################################################
+#### Modified from LDheatmap::LDheatmap functions #####
 LDheatmapCustom <- function (gdat, genetic.distances = NULL, distances = "physical", 
                              LDmeasure = "r", title = "Pairwise LD", add.map = TRUE, add.key = TRUE, 
                              geneMapLocation = 0.15, geneMapLabelX = NULL, geneMapLabelY = NULL, 
@@ -284,12 +318,7 @@ LDheatmapCustom <- function (gdat, genetic.distances = NULL, distances = "physic
   invisible(ldheatmap)
 }
 
-#####################################################
-
-## Modified from genetics::LD.data.frame function  ##
-
-#####################################################
-
+#### Modified from genetics::LD.data.frame function  ####
 LD.data.frame.custom <- function(g1, updateProgress = NULL, ...){
   require(shiny)
   gvars <- sapply( g1, function(x) (is.genotype(x) && nallele(x)==2) )
@@ -344,7 +373,6 @@ LD.data.frame.custom <- function(g1, updateProgress = NULL, ...){
   retval
 }
 
-
 computeLDHeatmap <- function(region, requested_variants, results_dir, 
                              vcf_dir, population, tempDir, tabix_path, i, isShiny = TRUE){
   require(genetics)
@@ -373,11 +401,11 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
                         stringsAsFactors = F)
   
   found_variants <- read.table(paste0(results_dir, "/",region, ".info"),
-                                 stringsAsFactors = F)
+                               stringsAsFactors = F)
   
   header <- c('family', 'individus','pater', 'mater', 'sex', 'pheno', found_variants$V1)
   colnames(genotypes) <- header
-
+  
   variants <- c(requested_variants,found_variants$V1)[duplicated(c(requested_variants,found_variants$V1))]
   notfound = requested_variants[!requested_variants %in% variants]
   
@@ -446,9 +474,9 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
     ldheatmap$LDmatrix <- ldheatmap$LDmatrix^2
     
     return(list( notfound = notfound,
-                filepath = ld_file,
-                data = ldheatmap,
-                SNP.name = variants))
+                 filepath = ld_file,
+                 data = ldheatmap,
+                 SNP.name = variants))
   } else {
     return(list(notfound = requested_variants,
                 filepath = '',
@@ -538,35 +566,112 @@ build1000GenomeLDMatrixLDlink <- function(variantsID, population, tempDir, updat
   return(NULL)
 }
 
-build_network <- function(annotations, ld_results){
+build_snv_edges <- function(session_values, edges_type, edges_range){
   
-  ### step 1 : LD edges
-  nodes_edges <- c()
-
-  for(i in ncol(ld_results)){
-    ld <- ld_results[,i]$data$LDmatrix
-    if(!is.null(ld)){
-      ld_comb <- combn(x = colnames(ld), m = 2)
-      ld_values <- rep(x = NA, times = ncol(ld_comb))
-      for (j in 1:ncol(ld_comb)) { 
-        out_j = ld_comb[,j] ; 
-        ld_values[j] <- ld[out_j[1], colnames(ld) == out_j[2]]
+  edges <- NULL
+  
+  if(edges_type == "0") { #distance
+    print("distance")
+    
+    my_ranges <- session_values$my_ranges
+    hits <- findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000 * as.numeric(edges_range)) # range in kb
+    ilets <- c()
+    
+    for(i in unique(queryHits(hits))){
+      ilets <- c(ilets, paste(subjectHits(hits[queryHits(hits) == i]), collapse = "_"))
+    }
+    
+    ilets <- strsplitAsListOfIntegerVectors(x = unique(ilets), sep = "_")
+    
+    if(sum(lengths(ilets) > 1) > 0){ # presence de cluster
+      for(i in seq_along(ilets)){
+        ilet <- ilets[[i]]
+        if(length(ilet) > 1) {
+          x <- my_ranges[ilet]
+          dist_comb <- combn(x = x$query, m = 2)
+          if(is.matrix(dist_comb)){
+            new_row <- data.frame(id = paste0("edge_dist_", i, "_", 1:ncol(dist_comb)),
+                                  from = dist_comb[1,], 
+                                  to = dist_comb[2,],
+                                  width = 3,
+                                  dashes = FALSE,
+                                  xvalue = apply(dist_comb, 2, function(y) width(range(x[x$query==y[1]], x[x$query==y[2]]))),
+                                  color = "black")
+          } else {
+            new_row <- data.frame(id = paste0("edge_dist_", i, "_", seq_along(dist_comb)),
+                                  from = dist_comb[1], 
+                                  to = dist_comb[2],
+                                  width = 3,
+                                  dashes = FALSE,
+                                  xvalue = width(range(x[x$query==dist_comb[1]], x[x$query==dist_comb[2]])),
+                                  color = "black")
+          }
+          
+          if(is.null(edges)){
+            edges <- new_row
+          } else {
+            edges <- rbind(edges, new_row)
+          }
+        }
       }
-      names(ld_values) <- apply(ld_comb, 2, function(x) paste(x, collapse = "_"))
-      nodes_edges <- c(nodes_edges, ld_values)
     }
   }
-
-  colfunc<-colorRampPalette(c("red","yellow","springgreen"))
-  colormapping <- colfunc(n = length(unique(nodes_edges)))
-  names(colormapping) <- sort(unique(nodes_edges), decreasing = T)
   
-  ld_values_mapped <- nodes_edges
-  for(i in unique(nodes_edges)){
-    ld_values_mapped[ld_values_mapped == i] <- colormapping[names(colormapping) == i]
+  if(edges_type == "1"){ #linkage
+    print("linkage")
+    ld_results <- session_values$ld
+    nodes_edges <- c()
+    
+    if(!is.null(ld_results)){
+      for(i in 1:ncol(ld_results)){
+        ld <- ld_results[,i]$data$LDmatrix
+        if(!is.null(ld)){
+          ld_comb <- combn(x = colnames(ld), m = 2)
+          ld_values <- rep(x = NA, times = ncol(ld_comb))
+          for (j in 1:ncol(ld_comb)) { 
+            out_j = ld_comb[,j] ; 
+            ld_values[j] <- ld[out_j[1], colnames(ld) == out_j[2]]
+          }
+          names(ld_values) <- apply(ld_comb, 2, function(x) paste(x, collapse = "_"))
+          nodes_edges <- c(nodes_edges, ld_values)
+        }
+      }
+      
+      colfunc<-colorRampPalette(c("red","yellow","springgreen"))
+      colormapping <- colfunc(n = length(unique(nodes_edges)))
+      names(colormapping) <- sort(unique(nodes_edges), decreasing = T)
+      
+      ld_values_mapped <- nodes_edges
+      for(i in unique(nodes_edges)){
+        ld_values_mapped[ld_values_mapped == i] <- colormapping[names(colormapping) == i]
+      }
+      
+      snp_comb <- unlist(strsplit(x = names(ld_values_mapped), split = "_"))
+      edges <- data.frame(id = paste0("edge_ld_", 1:length(ld_values_mapped)),
+                          from = snp_comb[(1:length(snp_comb) %% 2 != 0)], 
+                          to = snp_comb[(1:length(snp_comb) %% 2 == 0)],
+                          width = 3,
+                          dashes = FALSE,
+                          xvalue = nodes_edges,
+                          color = ld_values_mapped)
+    }
   }
   
-  node_names <- unique(annotations[is.na(annotations$notfound),"query"])
+  return(edges)
+} 
+
+build_snv_nodes <- function(session_values){
+  
+  nodes <- NULL
+  
+  annotations <- session_values$res
+  
+  if("notfound" %in% colnames(annotations)){
+    node_names <- unique(annotations[is.na(annotations$notfound),"query"])
+  } else {
+    node_names <- unique(annotations$query)
+  }
+  
   nodes <- data.frame(id = node_names, 
                       color = NA,
                       label = node_names,
@@ -579,36 +684,12 @@ build_network <- function(annotations, ld_results){
                       #color.highlight.border = ifelse(test =myanno$Eigen_coding_or_noncoding == "c", yes = "darkgreen", no = "darkblue")
   )
   
-  snp_comb <- unlist(strsplit(x = names(ld_values_mapped), split = "_"))
-  edges <- data.frame(id = paste0("edge_ld_", 1:length(ld_values_mapped)),
-                      from = snp_comb[(1:length(snp_comb) %% 2 != 0)], 
-                      to = snp_comb[(1:length(snp_comb) %% 2 == 0)],
-                      width = 3,
-                      dashes = FALSE,
-                      color = ld_values_mapped)
-  
-  vn <- visNetwork(rbind(nodes), rbind(edges), width = "100%", height = "1000px") %>%
-    visOptions(highlightNearest = TRUE, selectedBy = "group") %>%
-    visPhysics(solver = "forceAtlas2Based", maxVelocity = 10,
-               forceAtlas2Based = list(gravitationalConstant = -300))
-  
-  return(vn)
-  
+  return(nodes)
 }
 
 
-
-
-
-
-
-
-
-
-##############################################################################################################
 ## This function has been copied from 
 ## http://stackoverflow.com/questions/7014081/capture-both-exit-status-and-output-from-a-system-call-in-r
-##############################################################################################################
 robust.system <- function (cmd, stdoutFile = NULL) {
   stderrFile = tempfile(pattern="R_robust.system_stderr", fileext=as.character(Sys.getpid()))
   if (is.null(stdoutFile)) stdoutFile = tempfile(pattern="R_robust.system_stdout", fileext=as.character(Sys.getpid()))
