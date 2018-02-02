@@ -42,3 +42,7 @@ misc/*
 # Mac garbage files
 .DS_Store
 
+.Rproj.user
+
+# R object
+*.rda
