@@ -47,7 +47,7 @@ dashboardPage(
                       column(width = 6,
                              textAreaInput("query", "", "", rows = 5, 
                                            placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
-                             actionButton("transform_query", "Search for annotations", icon = icon("search"))
+                             actionButton("fetch_annotations", "Fetch Annotations", icon = icon("search"))
                       ), 
                       column(width = 6, 
                              verbatimTextOutput("transform_res"),
@@ -126,16 +126,23 @@ dashboardPage(
                                               )
                                           ),
                                           box(width = NULL, status = "warning",
-                                              checkboxGroupInput("metascore", "Meta-score",
-                                                                 choices = c(
-                                                                   CADD13_PHRED = 1,
-                                                                   Eigen = 2,
-                                                                   FATHMM_noncoding = 3,
-                                                                   `gerp++gt2` = 4,
-                                                                   GWAVA_region_score = 5,
-                                                                   LINSIGHT = 6
-                                                                 ),
-                                                                 selected = 1:6
+                                              selectInput("focus", "Focus on",
+                                                          choices = c(
+                                                            "None" = -1
+                                                          ),
+                                                          selected = -1
+                                              ),
+                                              p(class = "text-muted",
+                                                br(),
+                                                "This option enables to focus the network on a particular variant"
+                                              )
+                                          ),
+                                          box(width = NULL, status = "warning",
+                                              checkboxGroupInput("adj_scores", "Adjusted scores",
+                                                                 choices = c()
+                                              ),
+                                              checkboxGroupInput("raw_scores", "Raw scores",
+                                                                 choices = c()
                                               ),
                                               actionButton("update_metascore", "Update"),
                                               p(
@@ -146,7 +153,7 @@ dashboardPage(
                                               )
                                           ),
                                           box(width = NULL, status = "warning",
-                                              checkboxGroupInput("annotations", "Predictors",
+                                              checkboxGroupInput("predictors", "Predictors",
                                                                  choices = c(
                                                                    CADD13_PHRED = 1,
                                                                    Eigen = 2,
@@ -163,18 +170,6 @@ dashboardPage(
                                                 paste("This option enables to select the set of prediction and",
                                                       "scoring algorithms represented in the network "
                                                 )
-                                              )
-                                          ),
-                                          box(width = NULL, status = "warning",
-                                              selectInput("focus", "Focus on",
-                                                          choices = c(
-                                                            "None" = -1
-                                                          ),
-                                                          selected = -1
-                                              ),
-                                              p(class = "text-muted",
-                                                br(),
-                                                "This option enables to focus the network on a particular variant"
                                               )
                                           )
                                    )

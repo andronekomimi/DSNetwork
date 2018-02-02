@@ -596,7 +596,7 @@ build_snv_edges <- function(session_values, edges_type, edges_range){
                                   width = 3,
                                   dashes = FALSE,
                                   xvalue = apply(dist_comb, 2, function(y) width(range(x[x$query==y[1]], x[x$query==y[2]]))),
-                                  color = "black")
+                                  color = "black", stringsAsFactors = FALSE)
           } else {
             new_row <- data.frame(id = paste0("edge_dist_", i, "_", seq_along(dist_comb)),
                                   from = dist_comb[1], 
@@ -604,13 +604,13 @@ build_snv_edges <- function(session_values, edges_type, edges_range){
                                   width = 3,
                                   dashes = FALSE,
                                   xvalue = width(range(x[x$query==dist_comb[1]], x[x$query==dist_comb[2]])),
-                                  color = "black")
+                                  color = "black", stringsAsFactors = FALSE)
           }
           
           if(is.null(edges)){
             edges <- new_row
           } else {
-            edges <- rbind(edges, new_row)
+            edges <- rbind(edges, new_row, stringsAsFactors = FALSE)
           }
         }
       }
@@ -653,7 +653,7 @@ build_snv_edges <- function(session_values, edges_type, edges_range){
                           width = 3,
                           dashes = FALSE,
                           xvalue = nodes_edges,
-                          color = ld_values_mapped)
+                          color = ld_values_mapped, stringsAsFactors = FALSE)
     }
   }
   
@@ -667,15 +667,16 @@ build_snv_nodes <- function(session_values){
   annotations <- session_values$res
   
   if("notfound" %in% colnames(annotations)){
-    node_names <- unique(annotations[is.na(annotations$notfound),"query"])
-  } else {
-    node_names <- unique(annotations$query)
+    annotations <- annotations[is.na(annotations$notfound),]
+    annotations$notfound <- NULL
   }
+  
+  node_names <- unique(annotations$query)
   
   nodes <- data.frame(id = node_names, 
                       color = NA,
                       label = node_names,
-                      #shape = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "star", no = "dot"),
+                      shape = "dot",
                       font.size = 30,
                       group = "Variants"
                       #color.background = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "lightgreen", no = "lightblue"),
@@ -687,6 +688,133 @@ build_snv_nodes <- function(session_values){
   return(nodes)
 }
 
+
+build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores){
+  nodes <- as.character(session_values$annotations$query)
+  nodes_data <- data.frame(nodes = nodes)
+  selected_scores <- c(selected_adj_scores, selected_raw_scores)
+  
+  if(length(selected_adj_scores) > 0){
+    a_scores <- session_values$adjusted_scores[selected_adj_scores]
+    nodes_data <- cbind(nodes_data, as.data.frame(a_scores))
+  }
+  
+  if(length(selected_raw_scores) > 0){
+    r_scores <- session_values$raw_scores[selected_raw_scores]
+    nodes_data <- cbind(nodes_data, as.data.frame(r_scores))
+  }
+  
+  # supprimer les lignes vides
+  nodes_data <- nodes_data[(apply(X = nodes_data,
+                                  MARGIN = 1, 
+                                  FUN = function(x) sum(is.na(x))) < ncol(nodes_data) - 1), ]
+  nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
+  
+  meta_values_mapped <- "blue"
+  root_score_nodes <- data.frame(id = paste0("root_scores_",nodes_data$nodes), 
+                            color = meta_values_mapped,
+                            label = paste0("scores_",nodes_data$nodes),
+                            shape = "database",
+                            font.size = 10,
+                            group = paste0("Scores_",nodes_data$nodes))
+  
+  root_score_edges <-  data.frame(id = paste0("edge_score_root_", 1:nrow(nodes_data)),
+                                  from = nodes_data$nodes,
+                                  to = paste0("root_scores_",nodes_data$nodes),
+                                  width = 1,
+                                  dashes = FALSE,
+                                  xvalue = "",
+                                  color = "black")
+  
+  if(ncol(nodes_data) > 1){
+    score_nodes <- NULL
+    score_edges <- NULL
+    
+    # les scores à proprement parler
+    for(n in nodes_data$nodes){
+      scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
+      new_n_rows <- data.frame(id = paste0(selected_scores, "_",n), 
+                             color = "red",
+                             label = as.character(scores_values),
+                             shape = "triangle",
+                             font.size = 10,
+                             group = paste0("Scores_",n))
+      
+      if(is.null(score_nodes)){
+        score_nodes <- new_n_rows
+      } else {
+        score_nodes <- rbind(score_nodes, new_n_rows)
+      }
+      
+      new_e_rows <-  data.frame(id = paste0("edge_scores_", n, "_", seq_along(selected_scores)),
+                                from = paste0("root_scores_",n),
+                                to = paste0(selected_scores, "_",n),
+                                width = 1,
+                                dashes = FALSE,
+                                xvalue = "",
+                                color = "green")
+      
+      if(is.null(score_edges)){
+        score_edges <- new_e_rows
+      } else {
+        score_edges <- rbind(score_edges, new_e_rows)
+      }
+    }
+    
+    root_score_nodes <- rbind(root_score_nodes, score_nodes)
+    root_score_edges <- rbind(root_score_edges, score_edges)
+  }
+  
+  
+  return(list(nodes = root_score_nodes, edges = root_score_edges))
+  
+  # if("notfound" %in% colnames(annotations)){
+  #   annotations <- annotations[is.na(annotations$notfound),]
+  #   annotations$notfound <- NULL
+  # }
+  # 
+  # node_names <- unique(annotations$query)
+  # 
+  # nodes <- data.frame(id = node_names, 
+  #                     color = NA,
+  #                     label = node_names,
+  #                     #shape = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "star", no = "dot"),
+  #                     font.size = 30,
+  #                     group = "Variants"
+  #                     #color.background = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "lightgreen", no = "lightblue"),
+  #                     #color.border = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "lightgreen", no = "lightblue"),
+  #                     #color.highlight.background = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "darkgreen", no = "darkblue"),
+  #                     #color.highlight.border = ifelse(test =myanno$Eigen_coding_or_noncoding == "c", yes = "darkgreen", no = "darkblue")
+  # )
+  # 
+  # return(nodes)
+}
+
+
+mean_score <- function(x){
+  suppressWarnings(mean(x = as.numeric(unlist(strsplit(x = x, split= ","))), na.rm= T))
+}
+
+extract_score_and_convert <- function(annotations_infos, score_name, sub_score_name = NULL){
+  if(sum(colnames(annotations_infos) == score_name) == 1){
+    x <- as.character(annotations_infos[,score_name])
+    x <- sapply(x, mean_score)
+    return(x)
+  } else {
+    if(!is.null(sub_score_name)){
+      if(sum(colnames(annotations_infos) == sub_score_name) == 1){
+        x <- as.character(annotations_infos[,sub_score_name])
+        x <- sapply(x, mean_score)
+        return(x)
+      } else {
+        return(NULL)
+      }
+    } else {
+      return(NULL)
+    }
+    return(NULL)
+  }
+}
 
 ## This function has been copied from 
 ## http://stackoverflow.com/questions/7014081/capture-both-exit-status-and-output-from-a-system-call-in-r
