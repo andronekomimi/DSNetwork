@@ -1,6 +1,8 @@
 library(shiny)
 library(plot3D)
 library(visNetwork)
+library(myvariant)
+
 options(shiny.trace = TRUE)
 #### load demo data ####
 ### load(file = 'demo/demo.RData')
@@ -19,12 +21,29 @@ server <- function(input, output, session) {
   values$edges <- NULL
   values$nodes <- NULL
   
+  observeEvent(input$query, ({
+    if(nchar(input$query) > 0){
+      shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
+                            disabled = FALSE)
+    } else {
+      shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
+                            disabled = TRUE)
+    }
+  }))
+  
+  observeEvent(input$fill_small_entry, {
+    updateTextAreaInput(session = session, inputId = "query", value = "rs11102694\nrs2358994\nrs2358995\nrs7547478\nrs7513707\nrs79390941\nrs77848624\nrs28512361\nrs56092335\nrs114425206\nrs187833133\nrs145824370\nrs139660119")
+  })
+  
+  observeEvent(input$fill_big_entry, {
+    updateTextAreaInput(session = session, inputId = "query", value = "rs11102694\nrs2358994\nrs2358995\nrs7547478\nrs7513707\nrs12022378\nrs3761936\nrs11102701\nrs11102702\nrs12046289\nrs112974454\nrs80521\nrs136031\nrs136038\nrs6007174\nrs79390941\nrs77848624\nrs28512361\nrs56092335\nrs114425206\nrs187833133\nrs145824370\nrs139660119\nrs140232887\n3:87037268:A:G\nrs1436638\n3:87037493:A:G\nrs13066793j\nrs191581452\n3:87037838:G:A\nrs181567456\nrs72918113\nrs2043663\nrs56346369\nrs117470528\nrs143019817")
+  })
   
   #### INPUT DATA MANAGEMENT ####
   transform_query <- function(string){
     string <- unlist(strsplit(x = string, split = "\n"))
     string <- gsub(x = string, pattern = " +$", replacement = "")
-    print(string)
+    
     modstring <- sapply(X = string,  FUN = function(x) {
       if(base::startsWith(x = x, prefix = "rs")){
         return(x)
@@ -42,6 +61,7 @@ server <- function(input, output, session) {
   }
   
   query_control <- eventReactive(input$fetch_annotations, {
+    
     modstring <- transform_query(input$query)
     fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
     if(length(modstring) > 0){
@@ -60,7 +80,8 @@ server <- function(input, output, session) {
     values$annotations <- as.matrix(data.frame(waiting = ""))
     
     modstring <- transform_query(input$query)
-    valid_transfo <- modstring[!grepl(x = modstring, pattern = 'FAIL')]
+    valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
+    
     if(length(valid_transfo) > 0){
       #### run myvariant ####
       res <- as.data.frame(getVariants(hgvsids = valid_transfo,
@@ -72,6 +93,19 @@ server <- function(input, output, session) {
       values$res <- res
       
       if(!is.null(values$res) && nrow(values$res) > 0){
+        
+        #### suppression des doublons ####
+        duplicated_entries <- values$res$query[duplicated(res$query)]
+        row_2_delete <- c() 
+        if(length(duplicated_entries) > 0){
+          for(duplicated_entry in duplicated_entries){
+           b <- values$res[values$res$query == duplicated_entry,]
+           minimum_na_row <- which.min(apply(b, 1, function(x) sum(is.na(x))))
+           row_2_delete <- c(row_2_delete, 
+                             as.numeric(row.names(b)[! row.names(b) %in% names(minimum_na_row)]))
+          }
+        }
+        values$res <- data.frame(values$res[-row_2_delete,], row.names = NULL)
         
         #### ranges ####
         my_ranges <- apply(X = values$res, MARGIN = 1, 
@@ -93,19 +127,19 @@ server <- function(input, output, session) {
               hit <- hits[i]
               query <- my_ranges[queryHits(hit)]$query
               value <- gr[subjectHits(hit)]$score
-              res[res$query == query,"linsight"] <- value
+              values$res[values$res$query == query,"linsight"] <- value
             }
           }
         }
-        if(sum(is.na(res$linsight)) == length(res$linsight)){ # no lINSIGHT RESULTS
-          res$linsight <- NULL
+        if(sum(is.na(values$res$linsight)) == length(values$res$linsight)){ # no lINSIGHT RESULTS
+          values$res$linsight <- NULL
         }
         
-        values$res <- res
+        #values$res <- res
         save(res, file = 'res.rda')
         
         #### population freq ####
-        maf_infos <- values$res[,grepl(x = colnames( values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
+        maf_infos <- values$res[,grepl(x = colnames(values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
         colnames(maf_infos) <- gsub(x = colnames(maf_infos), pattern = "cadd.1000g.(.*)", replacement = "MAF_\\1_1000G")
         row.names(maf_infos) <- NULL
         values$maf_infos <- as.matrix(maf_infos)
@@ -199,7 +233,15 @@ server <- function(input, output, session) {
         values$raw_scores <- raw_scores
         values$adjusted_scores <- adjusted_scores
       }
-    } 
+    }
+    
+    if(!is.null(values$res)){
+      shinyBS::updateButton(session = session, inputId = "runLD", 
+                            disabled = FALSE)
+    } else {
+      shinyBS::updateButton(session = session, inputId = "runLD", 
+                            disabled = TRUE)
+    }
   })
   
   output$query_res <- renderText({ 
@@ -259,6 +301,8 @@ server <- function(input, output, session) {
     
     ld_results <- sapply(ilets, function(selection){
       current_range  <- setStudyRange(my_ranges, selection)
+      ld <- matrix(current_range$query) # notfound set to all
+      
       if(length(current_range) > 1){
         region <- setStudyRegion(current_range)
         tryCatch({
@@ -273,10 +317,19 @@ server <- function(input, output, session) {
           print(e)
         })
       }
+      return(ld)
     })
     
     values$ld <- ld_results
     save(ld_results, file = "ld_results.rda")
+    
+    if(!is.null(values$ld)){
+      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
+                            disabled = FALSE)
+    } else {
+      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
+                            disabled = TRUE)
+    }
   })
   
   output$runld_res <- renderText({ 
@@ -290,22 +343,44 @@ server <- function(input, output, session) {
     }
   })
   
+  
+  
   #### BUILDING NETWORK ####
-  buildNetwork <- eventReactive(input$buildNetwork,{
-    snv_edges_range = switch (input$snv_edges_type,
-                              "0" = input$dist_range,
-                              "1" = input$ld_range
+  
+  observeEvent(input$buildNetwork, {
+    updateTabsetPanel(session, "results_tabset",
+                      selected = "network_results"
     )
+  })
+  
+  buildNetwork <- eventReactive(input$buildNetwork,{
     
-    values$edges <- build_snv_edges(values, input$snv_edges_type, snv_edges_range)
-    values$nodes <- build_snv_nodes(values)
-    values$roots_score <- build_score_nodes(values, 
-                                            selected_adj_scores = input$adj_scores, 
-                                            selected_raw_scores = input$raw_scores)
+    # snv_edges_range = switch (input$snv_edges_type,
+    #                           "0" = input$dist_range,
+    #                           "1" = input$ld_range
+    # )
     
-    vn <- visNetwork(rbind(values$nodes,values$roots_score$nodes), 
-                     rbind(values$edges,values$roots_score$edges), width = "100%", height = "1000px") %>%
+    # snv_edges <- build_snv_edges(values, input$snv_edges_type, snv_edges_range)
+    snv_dist_edges <- build_snv_edges(values, "0", 2000) #default
+    snv_ld_edges <- build_snv_edges(values, "1", NULL) #default
+    snv_edges <- rbind(snv_dist_edges, snv_ld_edges)
+    snv_nodes <- build_snv_nodes(values)
+    
+    scores_data <- build_score_nodes(values,selected_adj_scores = input$adj_scores, 
+                                     selected_raw_scores = input$raw_scores)
+    
+    values$nodes <- rbind(snv_nodes,scores_data$nodes)
+    values$edges <- rbind(snv_edges,scores_data$edges)
+    
+    x <- list(nodes = rbind(snv_nodes,scores_data$nodes),
+              edges = rbind(snv_edges,scores_data$edges))
+    
+    save(x, file = "values.rda")
+
+    vn <- visNetwork(values$nodes, 
+                     values$edges, width = "100%", height = "1000px") %>%
       visOptions(highlightNearest = TRUE) %>%
+      visInteraction(keyboard = TRUE, tooltipDelay = 0, hover = T) %>%
       visPhysics(solver = "forceAtlas2Based", maxVelocity = 10,
                  forceAtlas2Based = list(gravitationalConstant = -300))
     
@@ -320,9 +395,24 @@ server <- function(input, output, session) {
   
   #### LD ####
   observeEvent(input$update_ld, {
-    # data.frame edges, use colomapping
-    edges_2_keep <- values$edges[(values$edges$xvalue <= input$ld_range[2]) & (values$edges$xvalue >= input$ld_range[1]),]
-    edges_id_2_remove <- values$edges[! values$edges$id %in% edges_2_keep$id,]$id
+    # supprimer les edges de type dist
+    dist_edges_id_2_remove <- values$edges[values$edges$type == "snv_dist_edges",]$id
+    ld_edgess <- values$edges[(values$edges$type == "snv_ld_edges"),]
+    
+    # supprimer les edges entre les nodes trop eloignés
+    max_ld <- input$ld_range[2]
+    min_ld <- input$ld_range[1]
+    
+    ld_edges_id_2_remove <- ld_edgess[(as.numeric(ld_edgess$xvalue) < min_ld) | (as.numeric(ld_edgess$xvalue) >= max_ld),]$id
+    
+    
+    edges_id_2_remove <- c(ld_edges_id_2_remove, dist_edges_id_2_remove)
+    # edges a garder
+    edges_2_keep <- values$edges[!values$edges$id %in% edges_id_2_remove,]    
+    
+    
+    # edges_2_keep <- values$edges[(values$edges$xvalue <= input$ld_range[2]) & (values$edges$xvalue >= input$ld_range[1]),]
+    # edges_id_2_remove <- values$edges[! values$edges$id %in% edges_2_keep$id,]$id
     
     visNetworkProxy("my_network") %>%
       visUpdateEdges(edges = edges_2_keep)
@@ -333,9 +423,20 @@ server <- function(input, output, session) {
   
   #### DISTANCE ####
   observeEvent(input$update_dist, {
-    # data.frame edges, use colomapping
-    edges_2_keep <- values$edges[(values$edges$xvalue <= (1000 * input$dist_range)),]
-    edges_id_2_remove <- values$edges[! values$edges$id %in% edges_2_keep$id,]$id
+    # supprimer les edges de type ld
+    ld_edges_id_2_remove <- values$edges[values$edges$type == "snv_ld_edges",]$id
+    
+    # supprimer les edges entre les nodes trop eloignés
+    max_dist <- 1000 * input$dist_range
+    dist_edges_id_2_remove <- values$edges[(values$edges$type == "snv_dist_edges"),]
+    dist_edges_id_2_remove <- dist_edges_id_2_remove[as.numeric(dist_edges_id_2_remove$xvalue) > max_dist,]$id
+    
+    edges_id_2_remove <- c(ld_edges_id_2_remove, dist_edges_id_2_remove)
+    # edges a garder
+    edges_2_keep <- values$edges[!values$edges$id %in% edges_id_2_remove,]
+    
+    #edges_2_keep <- values$edges[(values$edges$xvalue <= max_dist),]
+    #edges_id_2_remove <- values$edges[! values$edges$id %in% edges_2_keep$id,]$id
     
     visNetworkProxy("my_network") %>%
       visUpdateEdges(edges = edges_2_keep)
@@ -576,13 +677,13 @@ server <- function(input, output, session) {
   # 
   # #### LEGENDS ####
   # drawLegendPlot <- function(){
-  #   
+  # 
   #   op <- par(mfrow = c(2,4),
   #             oma = c(0,0,0,0) + 0.1,
-  #             mar = c(0,0,1,1) + 0.1) 
-  #   
-  #   colkey(side = 1, col = rev(colormapping), 
-  #          clim = range(as.numeric(names(colormapping))), add = FALSE, clab = "LD",
+  #             mar = c(0,0,1,1) + 0.1)
+  # 
+  #   colkey(side = 1, col = rev(values$legends$LD),
+  #          clim = range(as.numeric(names(values$legends$LD))), add = FALSE, clab = "LD",
   #          col.clab = "black", adj.clab = 0)
   #   
   #   colkey(side = 1, col = rev(cadd_colpalette), 

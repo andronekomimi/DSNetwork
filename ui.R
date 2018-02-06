@@ -42,140 +42,155 @@ dashboardPage(
     tabItems(
       tabItem(tabName = "main",
               fluidRow(
-                box(title = "Query", status = "primary", width = 12, 
+                box(title = "Data", status = "primary", width = 12, 
                     fluidRow(
-                      column(width = 6,
-                             textAreaInput("query", "", "", rows = 5, 
+                      column(width = 5,
+                             textAreaInput("query", "1) Query", "", rows = 5, 
                                            placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
-                             actionButton("fetch_annotations", "Fetch Annotations", icon = icon("search"))
-                      ), 
-                      column(width = 6, 
+                             actionButton("fill_small_entry", "Fill small query", icon = icon("android")),
+                             actionButton("fill_big_entry", "Fill big query", icon = icon("android")),
+                             shinyBS::bsButton(inputId = "fetch_annotations", 
+                                               label = "Fetch Annotations", 
+                                               icon = icon("search"), disabled = TRUE),
                              verbatimTextOutput("transform_res"),
                              tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
                              br(),
-                             verbatimTextOutput("runld_res"),
-                             tags$style(type="text/css", "#runld_res {white-space: pre-wrap;}"),
-                             br(),
                              verbatimTextOutput("query_res"),
                              tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
+                             br()
+                      ), 
+                      column(width = 5,
+                             selectInput(inputId = 'population',
+                                         label = '2) LD data : choose the population to use',
+                                         choices = populations),
+                             shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
+                                               icon = icon("gear"), disabled = TRUE),
                              br(),
+                             br(),
+                             verbatimTextOutput("runld_res"),
+                             tags$style(type="text/css", "#runld_res {white-space: pre-wrap;}"),
+                             br()
+                      ),
+                      column(width = 2, 
                              shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
-                                               disabled = FALSE, icon = icon("gear"))
-                             
-                             
+                                               disabled = TRUE, icon = icon("gear")),
+                             br()
                       )
                     )
                 )
               ),
               fluidRow(
                 tabBox( width = 12,
-                        tabPanel(h5("Raw results"),
-                                 DT::dataTableOutput("raw_data"),
-                                 downloadButton('downloadRawTable', 'Download')
-                        ),
+                        tabsetPanel(id = "results_tabset",
+                        tabPanel(title = h5("Raw results"),
+                                 value = "raw_results",
+                                 conditionalPanel(condition="input.fetch_annotations",
+                                                  DT::dataTableOutput("raw_data"),
+                                                  downloadButton('downloadRawTable', 'Download')
+                                 )),
                         # tabPanel(h5("Population Frequencies"),
                         #          DT::dataTableOutput("populations"),
                         #          downloadButton('downloadFreqTable', 'Download')
                         # ),
-                        tabPanel(h5("Network"),
-                                 fluidRow(
-                                   column(width = 9,
-                                          box(width = NULL, title = "Network", collapsible = TRUE, 
-                                              visNetworkOutput("my_network",
-                                                               height = "800", width = "auto")
-                                          ),
-                                          box(width = NULL, status = "info", title = "Legends", height = "auto",
-                                              collapsible = T, 
-                                              fluidRow(
-                                                column(width = 12, plotOutput(outputId = "color_key", height = "200"))
-                                              )
-                                          )
-                                   ),
-                                   column(width = 3,
-                                          box(width = NULL, status = "warning",
-                                              selectInput("snv_edges_type", "SNV Edges",
-                                                          choices = c(
-                                                            "Distance" = 0,
-                                                            "Linkage" = 1
-                                                          ),
-                                                          selected = 0
-                                              ),
-                                              conditionalPanel(condition="input.snv_edges_type=='0'",
-                                                               sliderInput("dist_range", "Distance (kb)",
-                                                                           min = 0, max = 2000, step = 1, value = 1000),
-                                                               actionButton("update_dist", "Update"),
-                                                               p(class = "text-muted",
-                                                                 br(),
-                                                                 "This option enables to select the interval of 
-                                                                 distance represented between variants"
-                                                               )
+                        tabPanel(title = h5("Network"),
+                                 value = "network_results",
+                                 conditionalPanel(condition="input.buildNetwork",
+                                                  fluidRow(
+                                                    column(width = 9,
+                                                           box(width = NULL, title = "Network", collapsible = TRUE, 
+                                                               visNetworkOutput("my_network",
+                                                                                height = "1000", width = "auto")
+                                                           )
+                                                           # ,
+                                                           # box(width = NULL, status = "info", title = "Legends", height = "auto",
+                                                           #     collapsible = T, 
+                                                           #     fluidRow(
+                                                           #       column(width = 12, plotOutput(outputId = "color_key", height = "200"))
+                                                           #     )
+                                                           # )
+                                                    ),
+                                                    column(width = 3,
+                                                           box(width = NULL, status = "warning",
+                                                               selectInput("snv_edges_type", "SNV Edges",
+                                                                           choices = c(
+                                                                             "Distance" = 0,
+                                                                             "Linkage" = 1
+                                                                           ),
+                                                                           selected = 0
                                                                ),
-                                              conditionalPanel(condition="input.snv_edges_type=='1'",
-                                                               selectInput(inputId = 'population',
-                                                                           label = 'Choose the population to use',
-                                                                           choices = populations),
-                                                               shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
-                                                                                 icon = icon("gear"), disabled = FALSE),
-                                                               sliderInput("ld_range", "LD range",
-                                                                           min = 0, max = 1, value = c(0, 1)),
-                                                               actionButton("update_ld", "Update"),
+                                                               conditionalPanel(condition="input.snv_edges_type=='0'",
+                                                                                sliderInput("dist_range", "Distance (kb)",
+                                                                                            min = 0, max = 2000, step = 1, value = 2000),
+                                                                                actionButton("update_dist", "Update"),
+                                                                                p(class = "text-muted",
+                                                                                  br(),
+                                                                                  "This option enables to select the interval of 
+                                                                 distance represented between variants"
+                                                                                )
+                                                               ),
+                                                               conditionalPanel(condition="input.snv_edges_type=='1'",
+                                                                                sliderInput("ld_range", "LD range",
+                                                                                            min = 0, max = 1, value = c(0, 1)),
+                                                                                actionButton("update_ld", "Update"),
+                                                                                p(class = "text-muted",
+                                                                                  br(),
+                                                                                  "This option enables to select the interval of LD values represented between variants"
+                                                                                )
+                                                               )
+                                                           ),
+                                                           box(width = NULL, status = "warning",
+                                                               selectInput("focus", "Focus on",
+                                                                           choices = c(
+                                                                             "None" = -1
+                                                                           ),
+                                                                           selected = -1
+                                                               ),
                                                                p(class = "text-muted",
                                                                  br(),
-                                                                 "This option enables to select the interval of LD values represented between variants"
+                                                                 "This option enables to focus the network on a particular variant"
                                                                )
-                                              )
-                                          ),
-                                          box(width = NULL, status = "warning",
-                                              selectInput("focus", "Focus on",
-                                                          choices = c(
-                                                            "None" = -1
-                                                          ),
-                                                          selected = -1
-                                              ),
-                                              p(class = "text-muted",
-                                                br(),
-                                                "This option enables to focus the network on a particular variant"
-                                              )
-                                          ),
-                                          box(width = NULL, status = "warning",
-                                              checkboxGroupInput("adj_scores", "Adjusted scores",
-                                                                 choices = c()
-                                              ),
-                                              checkboxGroupInput("raw_scores", "Raw scores",
-                                                                 choices = c()
-                                              ),
-                                              actionButton("update_metascore", "Update"),
-                                              p(
-                                                class = "text-muted", br(),
-                                                paste("This option enables to select the set of prediction and",
-                                                      "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
-                                                )
-                                              )
-                                          ),
-                                          box(width = NULL, status = "warning",
-                                              checkboxGroupInput("predictors", "Predictors",
-                                                                 choices = c(
-                                                                   CADD13_PHRED = 1,
-                                                                   Eigen = 2,
-                                                                   FATHMM_noncoding = 3,
-                                                                   `gerp++gt2` = 4,
-                                                                   GWAVA_region_score = 5,
-                                                                   LINSIGHT = 6
-                                                                 ),
-                                                                 selected = 1:6
-                                              ),
-                                              actionButton("update_annotations", "Update"),
-                                              p(
-                                                class = "text-muted", br(),
-                                                paste("This option enables to select the set of prediction and",
-                                                      "scoring algorithms represented in the network "
-                                                )
-                                              )
-                                          )
-                                   )
+                                                           ),
+                                                           box(width = NULL, status = "warning",
+                                                               checkboxGroupInput("adj_scores", "Adjusted scores",
+                                                                                  choices = c()
+                                                               ),
+                                                               checkboxGroupInput("raw_scores", "Raw scores",
+                                                                                  choices = c()
+                                                               ),
+                                                               actionButton("update_metascore", "Update"),
+                                                               p(
+                                                                 class = "text-muted", br(),
+                                                                 paste("This option enables to select the set of prediction and",
+                                                                       "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
+                                                                 )
+                                                               )
+                                                           ),
+                                                           box(width = NULL, status = "warning",
+                                                               checkboxGroupInput("predictors", "Predictors",
+                                                                                  choices = c(
+                                                                                    CADD13_PHRED = 1,
+                                                                                    Eigen = 2,
+                                                                                    FATHMM_noncoding = 3,
+                                                                                    `gerp++gt2` = 4,
+                                                                                    GWAVA_region_score = 5,
+                                                                                    LINSIGHT = 6
+                                                                                  ),
+                                                                                  selected = 1:6
+                                                               ),
+                                                               actionButton("update_annotations", "Update"),
+                                                               p(
+                                                                 class = "text-muted", br(),
+                                                                 paste("This option enables to select the set of prediction and",
+                                                                       "scoring algorithms represented in the network "
+                                                                 )
+                                                               )
+                                                           )
+                                                    )
+                                                  )
                                  )
                         )
                 )
+              )
               )
       ),
       tabItem(tabName = "readme",

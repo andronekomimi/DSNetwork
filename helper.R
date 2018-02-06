@@ -566,6 +566,7 @@ build1000GenomeLDMatrixLDlink <- function(variantsID, population, tempDir, updat
   return(NULL)
 }
 
+
 build_snv_edges <- function(session_values, edges_type, edges_range){
   
   edges <- NULL
@@ -590,20 +591,26 @@ build_snv_edges <- function(session_values, edges_type, edges_range){
           x <- my_ranges[ilet]
           dist_comb <- combn(x = x$query, m = 2)
           if(is.matrix(dist_comb)){
+            snv_dist <- apply(dist_comb, 2, function(y) width(range(x[x$query==y[1]], x[x$query==y[2]])))
             new_row <- data.frame(id = paste0("edge_dist_", i, "_", 1:ncol(dist_comb)),
                                   from = dist_comb[1,], 
                                   to = dist_comb[2,],
                                   width = 3,
                                   dashes = FALSE,
-                                  xvalue = apply(dist_comb, 2, function(y) width(range(x[x$query==y[1]], x[x$query==y[2]]))),
+                                  xvalue = snv_dist,
+                                  type = "snv_dist_edges",
+                                  title = paste0(snv_dist/1000, "Kbp"),
                                   color = "black", stringsAsFactors = FALSE)
           } else {
+            snv_dist <-  width(range(x[x$query==dist_comb[1]], x[x$query==dist_comb[2]])) 
             new_row <- data.frame(id = paste0("edge_dist_", i, "_", seq_along(dist_comb)),
                                   from = dist_comb[1], 
                                   to = dist_comb[2],
                                   width = 3,
                                   dashes = FALSE,
-                                  xvalue = width(range(x[x$query==dist_comb[1]], x[x$query==dist_comb[2]])),
+                                  xvalue = snv_dist,
+                                  type = "snv_dist_edges",
+                                  title =  paste0(snv_dist/1000, "Kbp"),
                                   color = "black", stringsAsFactors = FALSE)
           }
           
@@ -624,16 +631,26 @@ build_snv_edges <- function(session_values, edges_type, edges_range){
     
     if(!is.null(ld_results)){
       for(i in 1:ncol(ld_results)){
-        ld <- ld_results[,i]$data$LDmatrix
-        if(!is.null(ld)){
-          ld_comb <- combn(x = colnames(ld), m = 2)
-          ld_values <- rep(x = NA, times = ncol(ld_comb))
-          for (j in 1:ncol(ld_comb)) { 
-            out_j = ld_comb[,j] ; 
-            ld_values[j] <- ld[out_j[1], colnames(ld) == out_j[2]]
+        if("LDmatrix" %in% names(ld_results[,i]$data)){
+          ld <- ld_results[,i]$data$LDmatrix
+          if(!is.null(ld)){
+            ld_comb <- combn(x = colnames(ld), m = 2)
+            
+            if(is.matrix(ld_comb)){
+              ld_values <- rep(x = NA, times = ncol(ld_comb))
+              for (j in 1:ncol(ld_comb)) { 
+                out_j = ld_comb[,j] ; 
+                ld_values[j] <- ld[out_j[1], colnames(ld) == out_j[2]]
+              }
+              names(ld_values) <- apply(ld_comb, 2, function(x) paste(x, collapse = "_"))
+            } else {
+              ld_values <- ld[ld_comb[1], colnames(ld) == ld_comb[2]] 
+              names(ld_values) <- paste0(ld_comb[1], "_", ld_comb[2])
+            }
+            
+            nodes_edges <- c(nodes_edges, ld_values) 
+            
           }
-          names(ld_values) <- apply(ld_comb, 2, function(x) paste(x, collapse = "_"))
-          nodes_edges <- c(nodes_edges, ld_values)
         }
       }
       
@@ -653,6 +670,8 @@ build_snv_edges <- function(session_values, edges_type, edges_range){
                           width = 3,
                           dashes = FALSE,
                           xvalue = nodes_edges,
+                          type = "snv_ld_edges",
+                          title = round(x = nodes_edges, digits = 2),
                           color = ld_values_mapped, stringsAsFactors = FALSE)
     }
   }
@@ -688,8 +707,8 @@ build_snv_nodes <- function(session_values){
   return(nodes)
 }
 
-
 build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores){
+  colfunc <- colorRampPalette(c("red","yellow","springgreen"))
   nodes <- as.character(session_values$annotations$query)
   nodes_data <- data.frame(nodes = nodes)
   selected_scores <- c(selected_adj_scores, selected_raw_scores)
@@ -709,36 +728,66 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
                                   MARGIN = 1, 
                                   FUN = function(x) sum(is.na(x))) < ncol(nodes_data) - 1), ]
   nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
-  
+  save(nodes_data, selected_scores, file = "toutcala.rda")
   meta_values_mapped <- "blue"
   root_score_nodes <- data.frame(id = paste0("root_scores_",nodes_data$nodes), 
-                            color = meta_values_mapped,
-                            label = paste0("scores_",nodes_data$nodes),
-                            shape = "database",
-                            font.size = 10,
-                            group = paste0("Scores_",nodes_data$nodes))
+                                 color = meta_values_mapped,
+                                 label = paste0("scores_",nodes_data$nodes),
+                                 shape = "database",
+                                 font.size = 10,
+                                 group = paste0("Scores_",nodes_data$nodes))
   
   root_score_edges <-  data.frame(id = paste0("edge_score_root_", 1:nrow(nodes_data)),
                                   from = nodes_data$nodes,
                                   to = paste0("root_scores_",nodes_data$nodes),
                                   width = 1,
                                   dashes = FALSE,
-                                  xvalue = "",
+                                  xvalue = 0,
+                                  type = "root_score_edges",
+                                  title = "",
                                   color = "black")
   
   if(ncol(nodes_data) > 1){
     score_nodes <- NULL
     score_edges <- NULL
     
+    scores_values_mapped <- list()
+    
+    # créer les echelles coloriques pour chaque scores
+    for(selected_score in selected_scores){
+      d <-  nodes_data[[selected_score]]
+      d[is.na(d)] <- "NA"
+      colpalette <- colfunc(n = length(unique(d)))
+      names(colpalette) <- sort(unique(d), decreasing = T)
+      
+      values_mapped <- d
+      for(i in unique(d)){
+        if(i == "NA"){
+          values_mapped[values_mapped == i] <- "#CCCCCC"
+        } else {
+          values_mapped[values_mapped == i] <- colpalette[names(colpalette) == i]
+        }
+        
+      }
+      
+      scores_values_mapped[[selected_score]] <- values_mapped
+    }
+    
+    scores_values_mapped <- data.frame(scores_values_mapped, 
+                                       row.names = nodes_data$nodes, 
+                                       stringsAsFactors = FALSE)
+
+    
     # les scores à proprement parler
     for(n in nodes_data$nodes){
+
       scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
       new_n_rows <- data.frame(id = paste0(selected_scores, "_",n), 
-                             color = "red",
-                             label = as.character(scores_values),
-                             shape = "triangle",
-                             font.size = 10,
-                             group = paste0("Scores_",n))
+                               color = scores_values_mapped[row.names(scores_values_mapped) == n,],
+                               label = as.character(scores_values),
+                               shape = "triangle",
+                               font.size = 10,
+                               group = paste0("Scores_",n))
       
       if(is.null(score_nodes)){
         score_nodes <- new_n_rows
@@ -751,7 +800,9 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
                                 to = paste0(selected_scores, "_",n),
                                 width = 1,
                                 dashes = FALSE,
-                                xvalue = "",
+                                xvalue = 0,
+                                type = "score_edges",
+                                title = "",
                                 color = "green")
       
       if(is.null(score_edges)){
