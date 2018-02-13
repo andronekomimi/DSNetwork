@@ -4,36 +4,54 @@ require(GenomicRanges)
 require(ggplot2)
 require(grDevices) 
 
+path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
+
+ld_breaks <- seq(0,1, by = 0.01)
+colfunc <- colorRampPalette(c("yellow","red"))
+ld_color_breaks <- colfunc(length(seq(0,1, by = 0.01)))
+names(ld_color_breaks) <- sort(ld_breaks, decreasing = F)
+
+cor_breaks <- signif(x = seq(-1,1, by = 0.01), digits = 2)
+cor_colfunc <- colorRampPalette(c("blue","white","red"))
+cor_color_breaks <- cor_colfunc(length(cor_breaks))
+names(cor_color_breaks) <- sort(cor_breaks, decreasing = F)
 
 hgvsToGRange <- function(hgvs_id, query_id){
+  
   if(is.na(hgvs_id))
     return(GRanges())
   
   chr <- gsub(x = hgvs_id, pattern = "(.*):.*", replacement = "\\1")
   start_pos <- as.numeric(gsub(x = hgvs_id, pattern = ".*:.*[a-z]\\.([0-9]+).*", replacement = "\\1"))
-  hgvs_id <- unlist(strsplit(x = hgvs_id, split = ">"))
-  if(length(hgvs_id) == 2){
+  
+  if(grepl(x = hgvs_id, pattern = ">")){ # snp
     svn_type <- "snp"
+    hgvs_id <- unlist(strsplit(x = hgvs_id, split = ">"))
     end_pos <- start_pos
-    ref <- ""
-    alt <- hgvs_id[2]
-  } else {
-    hgvs_id <- unlist(strsplit(x = hgvs_id, split = "ins"))
-    if(length(hgvs_id) == 2){
-      svn_type <- "ins"
-      end_pos <- start_pos+1
-      ref <- ""
-      alt <- hgvs_id[2]
-    } else {
-      svn_type <- "del"
-      end_pos <- as.numeric(gsub(x = hgvs_id, pattern = ".*_([0-9]+).*", replacement = "\\1"))
-      ref <- ""
-      alt <- ""
-    }
+    return(GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
+                   query= query_id, type = svn_type))
   }
   
-  GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
-          query= query_id, type = svn_type)
+  if(grepl(x = hgvs_id, pattern = "del")){ #deletion
+    svn_type <- "del"
+    hgvs_id <- unlist(strsplit(x = hgvs_id, split = "_"))
+    if(length(hgvs_id) == 2){
+      end_pos <- as.numeric(gsub(x = hgvs_id[2], pattern = "([0-9]+)del", replacement = "\\1"))
+    } else {
+      end_pos <- start_pos
+    }
+    return(GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
+                   query= query_id, type = svn_type))
+  }
+  
+  if(grepl(x = hgvs_id, pattern = "ins")){
+    svn_type <- "ins"
+    hgvs_id <- unlist(strsplit(x = hgvs_id, split = "ins"))
+    end_pos <- start_pos+1
+    return(GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
+                   query= query_id, type = svn_type))
+  }
+  
 }
 
 setStudyRange <- function(my_ranges, selection){
@@ -566,7 +584,7 @@ build1000GenomeLDMatrixLDlink <- function(variantsID, population, tempDir, updat
   return(NULL)
 }
 
-
+#### Network Building ####
 build_snv_edges <- function(session_values, edges_type, edges_range){
   
   edges <- NULL
@@ -649,36 +667,38 @@ build_snv_edges <- function(session_values, edges_type, edges_range){
             }
             
             nodes_edges <- c(nodes_edges, ld_values) 
-            
           }
         }
       }
       
-      colfunc<-colorRampPalette(c("red","yellow","springgreen"))
-      colormapping <- colfunc(n = length(unique(nodes_edges)))
-      names(colormapping) <- sort(unique(nodes_edges), decreasing = T)
-      
-      ld_values_mapped <- nodes_edges
-      for(i in unique(nodes_edges)){
-        ld_values_mapped[ld_values_mapped == i] <- colormapping[names(colormapping) == i]
+      if(length(nodes_edges) > 0){
+        # colfunc<-colorRampPalette(c("red","yellow","springgreen"))
+        # colormapping <- colfunc(n = length(unique(nodes_edges)))
+        # names(colormapping) <- sort(unique(nodes_edges), decreasing = T)
+        
+        nodes_edges <- round(x = nodes_edges, digits = 2)
+        ld_values_mapped <- nodes_edges
+        
+        for(i in unique(nodes_edges)){
+          ld_values_mapped[ld_values_mapped == i] <- ld_color_breaks[names(ld_color_breaks) == i]
+        }
+        
+        snp_comb <- unlist(strsplit(x = names(ld_values_mapped), split = "_"))
+        edges <- data.frame(id = paste0("edge_ld_", 1:length(ld_values_mapped)),
+                            from = snp_comb[(1:length(snp_comb) %% 2 != 0)], 
+                            to = snp_comb[(1:length(snp_comb) %% 2 == 0)],
+                            width = 1,
+                            dashes = FALSE,
+                            xvalue = nodes_edges,
+                            type = "snv_ld_edges",
+                            title = nodes_edges,
+                            color = ld_values_mapped, stringsAsFactors = FALSE)
       }
-      
-      snp_comb <- unlist(strsplit(x = names(ld_values_mapped), split = "_"))
-      edges <- data.frame(id = paste0("edge_ld_", 1:length(ld_values_mapped)),
-                          from = snp_comb[(1:length(snp_comb) %% 2 != 0)], 
-                          to = snp_comb[(1:length(snp_comb) %% 2 == 0)],
-                          width = 3,
-                          dashes = FALSE,
-                          xvalue = nodes_edges,
-                          type = "snv_ld_edges",
-                          title = round(x = nodes_edges, digits = 2),
-                          color = ld_values_mapped, stringsAsFactors = FALSE)
     }
   }
   
   return(edges)
 } 
-
 build_snv_nodes <- function(session_values){
   
   nodes <- NULL
@@ -693,21 +713,20 @@ build_snv_nodes <- function(session_values){
   node_names <- unique(annotations$query)
   
   nodes <- data.frame(id = node_names, 
-                      color = NA,
+                      color = "blue",
                       label = node_names,
-                      shape = "dot",
+                      shape = "circularImage",
+                      image = paste0("scores_figures/pie_scores_",node_names,".png"),
                       font.size = 30,
+                      size = 50,
                       group = "Variants"
-                      #color.background = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "lightgreen", no = "lightblue"),
-                      #color.border = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "lightgreen", no = "lightblue"),
-                      #color.highlight.background = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "darkgreen", no = "darkblue"),
-                      #color.highlight.border = ifelse(test =myanno$Eigen_coding_or_noncoding == "c", yes = "darkgreen", no = "darkblue")
   )
   
   return(nodes)
 }
 
 build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores){
+  load('data/scores_correlation_matrice.rda')
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
   nodes <- as.character(session_values$annotations$query)
   nodes_data <- data.frame(nodes = nodes)
@@ -723,29 +742,53 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
     nodes_data <- cbind(nodes_data, as.data.frame(r_scores))
   }
   
-  # supprimer les lignes vides
+  save(nodes_data, file = "objets/nodes_data.rda")
+  
+  ### correlation between annotations
+  score_comb <- combn2(selected_scores)
+  template_edges <- data.frame(id = paste0("correlation_edge_",1:nrow(score_comb)),
+                               from = score_comb[,1],
+                               to = score_comb[,2],
+                               width = 1,
+                               dashes = FALSE,
+                               xvalue = "",
+                               type = "correlation_edges",
+                               title = NA,
+                               color = "", stringsAsFactors = F)
+  
+  for(s in 1:nrow(score_comb)){
+    val <- signif(x = scores_correlation_matrice[score_comb[s,1], score_comb[s,2]], digits = 2)
+    template_edges[s,]$xvalue <- template_edges[s,]$title <- val
+    template_edges[s,]$color <- cor_color_breaks[names(cor_color_breaks) == val]
+    
+  }
+  
+  ### supprimer les lignes vides
   nodes_data <- nodes_data[(apply(X = nodes_data,
                                   MARGIN = 1, 
                                   FUN = function(x) sum(is.na(x))) < ncol(nodes_data) - 1), ]
   nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
-  save(nodes_data, selected_scores, file = "toutcala.rda")
-  meta_values_mapped <- "blue"
-  root_score_nodes <- data.frame(id = paste0("root_scores_",nodes_data$nodes), 
-                                 color = meta_values_mapped,
-                                 label = paste0("scores_",nodes_data$nodes),
-                                 shape = "database",
-                                 font.size = 10,
-                                 group = paste0("Scores_",nodes_data$nodes))
   
-  root_score_edges <-  data.frame(id = paste0("edge_score_root_", 1:nrow(nodes_data)),
-                                  from = nodes_data$nodes,
-                                  to = paste0("root_scores_",nodes_data$nodes),
-                                  width = 1,
-                                  dashes = FALSE,
-                                  xvalue = 0,
-                                  type = "root_score_edges",
-                                  title = "",
-                                  color = "black")
+  ### creation des score roots nodes and edges : A SUPPRIMER
+  # meta_values_mapped <- "blue"
+  # root_score_nodes <- data.frame(id = paste0("root_scores_",nodes_data$nodes),
+  #                                color = meta_values_mapped,
+  #                                label = paste0("scores_",nodes_data$nodes),
+  #                                shape = "database",
+  #                                image = NA,
+  #                                font.size = 30,
+  #                                size = 30,
+  #                                group = paste0("Scores_",nodes_data$nodes))
+  # 
+  # root_score_edges <-  data.frame(id = paste0("edge_score_root_", 1:nrow(nodes_data)),
+  #                                 from = nodes_data$nodes,
+  #                                 to = paste0("root_scores_",nodes_data$nodes),
+  #                                 width = 1,
+  #                                 dashes = FALSE,
+  #                                 xvalue = 0,
+  #                                 type = "root_score_edges",
+  #                                 title = "",
+  #                                 color = "black")
   
   if(ncol(nodes_data) > 1){
     score_nodes <- NULL
@@ -776,17 +819,19 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
     scores_values_mapped <- data.frame(scores_values_mapped, 
                                        row.names = nodes_data$nodes, 
                                        stringsAsFactors = FALSE)
-
+    
     
     # les scores à proprement parler
     for(n in nodes_data$nodes){
-
+      
       scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
-      new_n_rows <- data.frame(id = paste0(selected_scores, "_",n), 
-                               color = scores_values_mapped[row.names(scores_values_mapped) == n,],
+      new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
+                               color = as.character(scores_values_mapped[row.names(scores_values_mapped) == n,]),
                                label = as.character(scores_values),
-                               shape = "triangle",
+                               shape = "square",
+                               image = NA,
                                font.size = 10,
+                               size = 30,
                                group = paste0("Scores_",n))
       
       if(is.null(score_nodes)){
@@ -795,50 +840,97 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
         score_nodes <- rbind(score_nodes, new_n_rows)
       }
       
-      new_e_rows <-  data.frame(id = paste0("edge_scores_", n, "_", seq_along(selected_scores)),
-                                from = paste0("root_scores_",n),
-                                to = paste0(selected_scores, "_",n),
-                                width = 1,
-                                dashes = FALSE,
-                                xvalue = 0,
-                                type = "score_edges",
-                                title = "",
-                                color = "green")
+      
+      
+      ## creation des figures
+      new_n_rows$h <- 1
+      new_n_rows$id <- gsub(x = new_n_rows$id, pattern = paste0("_",n), replacement = "")
+      new_n_rows$id <- as.character(new_n_rows$id)
+      new_n_rows$label <- as.character(new_n_rows$label)
+      new_n_rows$color <- as.character(new_n_rows$color)
+      custom_colors <- new_n_rows$color
+      names(custom_colors) <- new_n_rows$label
+      
+      ## pies
+      png(paste0(path_to_images,"pie_scores_",n,".png"), width = 2000, height = 2000,
+          units = "px")
+      par(lwd = 0.001)
+      pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
+      dev.off()
+      par(lwd = 1)
+      
+      ## barcharts
+      png(paste0(path_to_images,"bar_scores_",n,".png"))
+      p <- ggplot(new_n_rows, aes(x=id, y=h, fill = label)) +
+        geom_bar(stat="identity")
+      p <- p + scale_fill_manual(values = custom_colors)
+      p <- p + theme_minimal() + guides(fill=FALSE) +
+        labs(x = NULL, y = NULL, main = n) + 
+        theme(axis.title.y = element_blank(),
+              axis.text.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.text.x = element_text(angle=90, size = 11))
+      p <- p + geom_text(aes(x = id,
+                             y = h - 0.5,
+                             angle = 90,
+                             label=format(as.numeric(new_n_rows$label), digits=2)),
+                         hjust=0.5, 
+                         size=4,
+                         color=rgb(0,0,0, maxColorValue=255))
+      print(p)
+      dev.off()
+      
+      # new_node_image_row <- data.frame(id = paste0("node_score_image_",n), 
+      #                                  color = "white",
+      #                                  label = paste0("Scores for ",n),
+      #                                  shape = "image",
+      #                                  image = paste0("scores_figures/bar_scores_",n,".png"),
+      #                                  font.size = 30,
+      #                                  size = 200,
+      #                                  group = paste0("Scores_",n))
+      # 
+      # if(is.null(score_nodes)){
+      #   score_nodes <- new_node_image_row
+      # } else {
+      #   score_nodes <- rbind(score_nodes, new_node_image_row)
+      # }
+      
+      ### edges between scores
+      new_e_rows <- template_edges
+      new_e_rows$id <- paste0(new_e_rows$id, "_", n)
+      new_e_rows$from <- paste0(new_e_rows$from, "_", n)
+      new_e_rows$to <- paste0(new_e_rows$to, "_", n)
+      
+      
+      # new_edge_image_row <-  data.frame(id = paste0("edge_score_image_",n),
+      #                                   from = paste0("root_scores_",n),
+      #                                   to = paste0("node_score_image_",n),
+      #                                   width = 1,
+      #                                   dashes = TRUE,
+      #                                   xvalue = 0,
+      #                                   type = "score_edges",
+      #                                   title = NA,
+      #                                   color = "green")
       
       if(is.null(score_edges)){
         score_edges <- new_e_rows
       } else {
         score_edges <- rbind(score_edges, new_e_rows)
       }
+      
+      # if(is.null(score_edges)){
+      #   score_edges <- new_edge_image_row
+      # } else {
+      #   score_edges <- rbind(score_edges, new_edge_image_row)
+      # }
     }
     
-    root_score_nodes <- rbind(root_score_nodes, score_nodes)
-    root_score_edges <- rbind(root_score_edges, score_edges)
+    #root_score_nodes <- rbind(root_score_nodes, score_nodes)
+    #root_score_edges <- rbind(root_score_edges, score_edges)
   }
+
   
-  
-  return(list(nodes = root_score_nodes, edges = root_score_edges))
-  
-  # if("notfound" %in% colnames(annotations)){
-  #   annotations <- annotations[is.na(annotations$notfound),]
-  #   annotations$notfound <- NULL
-  # }
-  # 
-  # node_names <- unique(annotations$query)
-  # 
-  # nodes <- data.frame(id = node_names, 
-  #                     color = NA,
-  #                     label = node_names,
-  #                     #shape = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "star", no = "dot"),
-  #                     font.size = 30,
-  #                     group = "Variants"
-  #                     #color.background = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "lightgreen", no = "lightblue"),
-  #                     #color.border = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "lightgreen", no = "lightblue"),
-  #                     #color.highlight.background = ifelse(test = myanno$Eigen_coding_or_noncoding == "c", yes = "darkgreen", no = "darkblue"),
-  #                     #color.highlight.border = ifelse(test =myanno$Eigen_coding_or_noncoding == "c", yes = "darkgreen", no = "darkblue")
-  # )
-  # 
-  # return(nodes)
+  return(list(nodes = score_nodes, edges = score_edges))
 }
 
 
@@ -867,6 +959,120 @@ extract_score_and_convert <- function(annotations_infos, score_name, sub_score_n
   }
 }
 
+#### Friedman Test : compute and plot ####
+## This function has been copied from mlr/R/plotCritDifferences.R and modified to fit with our purpose
+plotCritDifferences <- function(nodes_data, baseline){
+  ranked_nodes_data <- apply(X = nodes_data[,-1], MARGIN = 2, FUN = function(x) data.table::frankv(x, na.last = T, order = -1))
+  rownames(ranked_nodes_data) <- nodes_data$nodes
+  n.tasks <- ncol(ranked_nodes_data)
+  n.learners =  nrow(ranked_nodes_data)
+  
+  p.value = 0.05
+  test = "bd"
+  mean.rank = rowMeans(ranked_nodes_data)
+  
+  df = data.frame(mean.rank,
+                  learner.id = names(mean.rank),
+                  rank = rank(mean.rank, ties.method = "average"))
+  
+  
+  # Orientation of descriptive lines yend(=y-value of horizontal line)
+  right = df$rank > median(df$rank)
+  # Better learners are ranked ascending
+  df$yend[!right] = rank(df$rank[!right], ties.method = "first") - 0.5
+  # Worse learners ranked descending
+  df$yend[right] = rank(-df$rank[right], ties.method = "first") - 0.5
+  # Better half of learner have lines to left / others right.
+  df$xend = ifelse(!right, 0L, max(df$rank) + 1L)
+  # Save orientation, can be used for vjust of text later on
+  df$right = as.numeric(right)
+  df$short.name = names(mean.rank)
+  
+  # Perform nemenyi test
+  # require("PMCMR")
+  f.test = friedman.test(t(ranked_nodes_data))
+  f.rejnull = f.test$p.value < p.value
+  if (!is.na(f.test$p.value)) {
+    f.rejnull = f.test$p.value < p.value
+    if (!f.rejnull)
+      warning("Cannot reject null hypothesis of overall Friedman test,
+              returning overall Friedman test.")
+  } else {
+    f.rejnull = FALSE
+    warning("P-value not computable. Learner performances might be exactly equal.")
+  }
+  
+  q.nemenyi = qtukey(1 - p.value, n.learners, 1e+06) / sqrt(2L)
+  cd.nemenyi = q.nemenyi * sqrt(n.learners * (n.learners + 1L) / (6L * n.tasks))
+  q.bd = qtukey(1L - (p.value / (n.learners - 1L)), 2L, 1e+06) / sqrt(2L)
+  cd.bd = q.bd * sqrt(n.learners * (n.learners + 1L) / (6L * n.tasks))
+  
+  if (f.rejnull) {
+    nem.test = PMCMR::posthoc.friedman.nemenyi.test(t(ranked_nodes_data))
+    nem.test$crit.difference = list("nemenyi" = cd.nemenyi, "bd" = cd.bd)
+    nem.test$f.rejnull = f.rejnull
+    #return(nem.test)
+  } else {
+    f.test$f.rejnull = f.rejnull
+    f.test$crit.difference = list("nemenyi" = cd.nemenyi, "bd" = cd.bd)
+    #return(f.test)
+  }
+  
+  # Store Info for plotting the cricital differences
+  cd.info = list("test" = test,
+                 "cd" = nem.test$crit.difference[[test]],
+                 "x" = df$mean.rank[df$learner.id == baseline],
+                 "y" = 0.1)
+  
+  # Plot the critical difference bars
+  cd.x = df$mean.rank[df$learner.id == baseline]
+  cd.y = cd.info$y
+  cd = cd.info$cd
+  
+  # Plot descritptive lines and learner names
+  p = ggplot(df)
+  # Point at mean rank
+  p = p + geom_point(aes_string("mean.rank", 0, colour = "learner.id"), size = 3)
+  # Horizontal descriptive bar
+  p = p + geom_segment(aes_string("mean.rank", 0, xend = "mean.rank", yend = "yend",
+                                  color = "learner.id"), size = 1)
+  # Vertical descriptive bar
+  p = p + geom_segment(aes_string("mean.rank", "yend", xend = "xend",
+                                  yend = "yend", color = "learner.id"), size = 1)
+  # Plot Learner name
+  p = p + geom_text(aes_string("xend", "yend", label = "learner.id", color = "learner.id",
+                               hjust = "right"), vjust = -1)
+  p = p + xlab("Average Rank")
+  # Change appearance
+  p = p + scale_x_continuous(breaks = c(0:max(df$xend)))
+  p = p + theme(axis.text.y = element_blank(),
+                axis.ticks.y = element_blank(),
+                axis.title.y = element_blank(),
+                legend.position = "none",
+                panel.background = element_blank(),
+                panel.border = element_blank(),
+                axis.line = element_line(size = 1),
+                axis.line.y = element_blank(),
+                panel.grid.major = element_blank(),
+                plot.background = element_blank())
+  
+  # Add horizontal bar arround baseline
+  p = p + annotate("segment", x = cd.x + cd, xend = cd.x - cd, y = cd.y, yend = cd.y,
+                   alpha = 0.5, color = "darkgrey", size = 2)
+  # Add intervall limiting bar's
+  p = p + annotate("segment", x = cd.x + cd, xend = cd.x + cd, y = cd.y - 0.05,
+                   yend = cd.y + 0.05, color = "darkgrey", size = 1)
+  p = p + annotate("segment", x = cd.x - cd, xend = cd.x - cd, y = cd.y - 0.05,
+                   yend = cd.y + 0.05, color = "darkgrey", size = 1)
+  # Add point at learner
+  p = p + annotate("point", x = cd.x, y = cd.y, alpha = 0.5)
+  # Add critical difference text
+  p = p + annotate("text", label = paste("Critical Difference =", round(cd, 2), sep = " "),
+                   x = cd.x, y = cd.y + 0.05)
+  return(p)
+}
+
+#### robust system call ####
 ## This function has been copied from 
 ## http://stackoverflow.com/questions/7014081/capture-both-exit-status-and-output-from-a-system-call-in-r
 robust.system <- function (cmd, stdoutFile = NULL) {

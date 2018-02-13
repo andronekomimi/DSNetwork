@@ -1,5 +1,7 @@
 library(shinydashboard)
 library(visNetwork)
+library(shinyBS)
+library(d3heatmap)
 
 populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
                  "African Ancestry in Southwest US (ASW)" = 'ASW',
@@ -28,6 +30,15 @@ populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
                  "Toscani in Italy (TSI)" = 'TSI',
                  "Yoruba in Ibadan, Nigeria (YRI)" = 'YRI')
 
+preload_loci <- c("Locus 2 [chr1:113948389-14948389]" = "locus_2",
+                  "Locus 6 [chr1:201687176-202687176]" = "locus_6",
+                  "Locus 38 [chr7:143574929-144574929]" = "locus_38",
+                  "Locus 60 [chr13:32468810-33472626]" = "locus_60",
+                  "Locus 70 [chr17:77281387-78281725]" = "locus_70",
+                  "Locus 78 [chr22:40376234-41527870]" = "locus_78",
+                  "Locus 80 [chr3:86537543-8753754]" = "locus_80"
+                  )
+
 dashboardPage(
   header = dashboardHeader(title = "DSNetwork"),
   sidebar = dashboardSidebar(
@@ -47,8 +58,10 @@ dashboardPage(
                       column(width = 5,
                              textAreaInput("query", "1) Query", "", rows = 5, 
                                            placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
-                             actionButton("fill_small_entry", "Fill small query", icon = icon("android")),
-                             actionButton("fill_big_entry", "Fill big query", icon = icon("android")),
+                             selectInput(inputId = 'preload',
+                                         label = '0) Load preset query',
+                                         choices = preload_loci),
+                             actionButton("preload_loci", "Load preset query", icon = icon("caret-right")),
                              shinyBS::bsButton(inputId = "fetch_annotations", 
                                                label = "Fetch Annotations", 
                                                icon = icon("search"), disabled = TRUE),
@@ -87,7 +100,8 @@ dashboardPage(
                                  conditionalPanel(condition="input.fetch_annotations",
                                                   DT::dataTableOutput("raw_data"),
                                                   downloadButton('downloadRawTable', 'Download')
-                                 )),
+                                 )
+                        ),
                         # tabPanel(h5("Population Frequencies"),
                         #          DT::dataTableOutput("populations"),
                         #          downloadButton('downloadFreqTable', 'Download')
@@ -99,7 +113,14 @@ dashboardPage(
                                                     column(width = 9,
                                                            box(width = NULL, title = "Network", collapsible = TRUE, 
                                                                visNetworkOutput("my_network",
-                                                                                height = "1000", width = "auto")
+                                                                                height = "500", width = "auto")
+                                                           ), 
+                                                           box(width = NULL, status = "info", title = "Scores Stats", height = "auto",
+                                                               collapsible = T,
+                                                               fluidRow(
+                                                                 column(width = 6, DT::dataTableOutput(outputId = "scores_stats")),
+                                                                 column(width = 6, d3heatmapOutput(outputId = "scores_corr"))
+                                                               )
                                                            )
                                                            # ,
                                                            # box(width = NULL, status = "info", title = "Legends", height = "auto",
@@ -116,11 +137,11 @@ dashboardPage(
                                                                              "Distance" = 0,
                                                                              "Linkage" = 1
                                                                            ),
-                                                                           selected = 0
+                                                                           selected = 1
                                                                ),
                                                                conditionalPanel(condition="input.snv_edges_type=='0'",
                                                                                 sliderInput("dist_range", "Distance (kb)",
-                                                                                            min = 0, max = 2000, step = 1, value = 2000),
+                                                                                            min = 0, max = 1000, step = 1, value = 1000),
                                                                                 actionButton("update_dist", "Update"),
                                                                                 p(class = "text-muted",
                                                                                   br(),
@@ -130,7 +151,7 @@ dashboardPage(
                                                                ),
                                                                conditionalPanel(condition="input.snv_edges_type=='1'",
                                                                                 sliderInput("ld_range", "LD range",
-                                                                                            min = 0, max = 1, value = c(0, 1)),
+                                                                                            min = 0, max = 1, value = c(0.8, 1)),
                                                                                 actionButton("update_ld", "Update"),
                                                                                 p(class = "text-muted",
                                                                                   br(),
@@ -149,6 +170,80 @@ dashboardPage(
                                                                  br(),
                                                                  "This option enables to focus the network on a particular variant"
                                                                )
+                                                           )
+                                                           ,
+                                                           box(width = NULL, status = "warning",
+                                                               selectInput("highlight", "Highlight variants",
+                                                                           choices = c(
+                                                                             "None"
+                                                                           ),
+                                                                           selected = "None"
+                                                               ),
+                                                               p(class = "text-muted",
+                                                                 br(),
+                                                                 paste("This option enables to highlight particular variants according to their type.",
+                                                                       " Replacing the lightblue circles by red stars.")
+                                                               )
+                                                           )
+                                                           # ,
+                                                           # box(width = NULL, status = "warning",
+                                                           #     checkboxGroupInput("adj_scores", "Adjusted scores",
+                                                           #                        choices = c()
+                                                           #     ),
+                                                           #     checkboxGroupInput("raw_scores", "Raw scores",
+                                                           #                        choices = c()
+                                                           #     ),
+                                                           #     actionButton("update_metascore", "Update"),
+                                                           #     p(
+                                                           #       class = "text-muted", br(),
+                                                           #       paste("This option enables to select the set of prediction and",
+                                                           #             "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
+                                                           #       )
+                                                           #     )
+                                                           # )
+                                                    )
+                                                  )
+                                 )
+                        ),
+                        tabPanel(title = h5("Scores details"),
+                                 value = "scores_details",
+                                 conditionalPanel(condition="input.buildNetwork",
+                                                  fluidRow(
+                                                    column(width = 9,
+                                                           box(width = NULL, title = "Network", collapsible = TRUE, 
+                                                               visNetworkOutput("my_subnetwork",
+                                                                                height = "500", width = "auto")
+                                                           ), 
+                                                           box(width = NULL, status = "info", title = "Variant Stats", height = "auto",
+                                                               collapsible = T,
+                                                               fluidRow(
+                                                                 column(width = 12, plotOutput(outputId = "critical_dist"))
+                                                               )
+                                                           )
+                                                    ),
+                                                    column(width = 3,
+                                                           box(width = NULL, status = "warning",
+                                                               sliderInput("neg_cor_range", "Negative correlation range",
+                                                                           min = -1, max = 0, value = c(-1, -0.8)),
+                                                               sliderInput("pos_cor_range", "Positive correlation range",
+                                                                           min = 0, max = 1, value = c(0.8, 1)),
+                                                               actionButton("update_cor", "Update"),
+                                                               p(class = "text-muted",
+                                                                 br(),
+                                                                 "This option enables to select the interval of correlation values represented between annotations"
+                                                               )
+                                                           ),
+                                                           box(width = NULL, status = "warning",
+                                                               selectInput("cor_focus", "Focus on",
+                                                                           choices = c(
+                                                                             "None" = -1
+                                                                           ),
+                                                                           selected = -1
+                                                               ),
+                                                               p(class = "text-muted",
+                                                                 br(),
+                                                                 "This option enables to focus the network on a particular annotation"
+                                                               )
                                                            ),
                                                            box(width = NULL, status = "warning",
                                                                checkboxGroupInput("adj_scores", "Adjusted scores",
@@ -164,29 +259,10 @@ dashboardPage(
                                                                        "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
                                                                  )
                                                                )
-                                                           ),
-                                                           box(width = NULL, status = "warning",
-                                                               checkboxGroupInput("predictors", "Predictors",
-                                                                                  choices = c(
-                                                                                    CADD13_PHRED = 1,
-                                                                                    Eigen = 2,
-                                                                                    FATHMM_noncoding = 3,
-                                                                                    `gerp++gt2` = 4,
-                                                                                    GWAVA_region_score = 5,
-                                                                                    LINSIGHT = 6
-                                                                                  ),
-                                                                                  selected = 1:6
-                                                               ),
-                                                               actionButton("update_annotations", "Update"),
-                                                               p(
-                                                                 class = "text-muted", br(),
-                                                                 paste("This option enables to select the set of prediction and",
-                                                                       "scoring algorithms represented in the network "
-                                                                 )
-                                                               )
                                                            )
                                                     )
                                                   )
+                                                  
                                  )
                         )
                 )
