@@ -46,3 +46,6 @@ misc/*
 
 # R object
 *.rda
+
+# figures
+www/scores_figures/.*

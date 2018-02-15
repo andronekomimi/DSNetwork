@@ -1,4 +1,4 @@
-#VEXOR EVOL
+#DSNETWORK
 
 require(GenomicRanges)
 require(ggplot2)
@@ -68,7 +68,7 @@ LDheatmapCustom <- function (gdat, genetic.distances = NULL, distances = "physic
                              LDmeasure = "r", title = "Pairwise LD", add.map = TRUE, add.key = TRUE, 
                              geneMapLocation = 0.15, geneMapLabelX = NULL, geneMapLabelY = NULL, 
                              SNP.name = NULL, color = NULL, newpage = TRUE, name = "ldheatmap", 
-                             vp.name = NULL, pop = FALSE, flip = NULL, text = FALSE, updateProgress = NULL) {
+                             vp.name = NULL, pop = FALSE, flip = NULL, text = FALSE, updateProgress = NULL, results_file = "") {
   makeImageRect <- function(nrow, ncol, cols, name, byrow = TRUE) {
     xx <- (1:ncol)/ncol
     yy <- (1:nrow)/nrow
@@ -285,6 +285,7 @@ LDheatmapCustom <- function (gdat, genetic.distances = NULL, distances = "physic
                                                               "snpc"), y = 0.6, angle = -45, name = "flipVP")
   if (color[1] == "blueToRed") 
     color = rainbow(20, start = 4/6, end = 0, s = 0.7)[20:1]
+  png(filename = results_file, width = 500, height = 500, bg = NA)
   if (newpage) 
     grid.newpage()
   mybreak <- 0:length(color)/length(color)
@@ -329,6 +330,7 @@ LDheatmapCustom <- function (gdat, genetic.distances = NULL, distances = "physic
     downViewport(heatmapVP$name)
     popViewport()
   }
+  dev.off()
   ldheatmap <- list(LDmatrix = LDmatrix, LDheatmapGrob = LDheatmapGrob, 
                     heatmapVP = heatmapVP, flipVP = geneMapVP, genetic.distances = genetic.distances, 
                     distances = distances, color = color)
@@ -456,7 +458,8 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
     
     ldheatmap <- LDheatmapCustom(gdat = data, 
                                  genetic.distances = variants_pos$V2,
-                                 updateProgress = updateProgress, SNP.name = variants)
+                                 updateProgress = updateProgress, SNP.name = variants,
+                                 results_file = paste0(results_dir,"/ld_figures/LD_plot_", region, ".png"))
     
     ### add lost variants in LDheatmap
     lost_variants <- variants[!variants %in% colnames(ldheatmap$LDmatrix)]
@@ -699,6 +702,7 @@ build_snv_edges <- function(session_values, edges_type, edges_range){
   
   return(edges)
 } 
+
 build_snv_nodes <- function(session_values){
   
   nodes <- NULL
@@ -719,6 +723,7 @@ build_snv_nodes <- function(session_values){
                       image = paste0("scores_figures/pie_scores_",node_names,".png"),
                       font.size = 30,
                       size = 50,
+                      fixed = F, x = NA, y = NA,
                       group = "Variants"
   )
   
@@ -840,6 +845,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
         score_nodes <- rbind(score_nodes, new_n_rows)
       }
       
+      #save(score_nodes, file = "objets/score_nodes.rda")
       
       
       ## creation des figures
@@ -860,7 +866,8 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       par(lwd = 1)
       
       ## barcharts
-      png(paste0(path_to_images,"bar_scores_",n,".png"))
+      png(paste0(path_to_images,"bar_scores_",n,".png"), width = 500, height = 500,
+          units = "px")
       p <- ggplot(new_n_rows, aes(x=id, y=h, fill = label)) +
         geom_bar(stat="identity")
       p <- p + scale_fill_manual(values = custom_colors)
@@ -933,6 +940,21 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   return(list(nodes = score_nodes, edges = score_edges))
 }
 
+build_snv_scores_detail_node <- function(id){
+  
+  node <- data.frame(id = "snv_scores_detail", 
+                      color = "black",
+                      label = paste0("Score details for : ",id),
+                      shape = "image",
+                      image = paste0("scores_figures/bar_scores_",id,".png"),
+                      font.size = 30,
+                      size = 175,
+                      fixed = F, x = NA, y = NA,
+                      group = "Detail"
+  )
+  
+  return(node)
+}
 
 mean_score <- function(x){
   suppressWarnings(mean(x = as.numeric(unlist(strsplit(x = x, split= ","))), na.rm= T))
