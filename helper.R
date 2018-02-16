@@ -747,8 +747,6 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
     nodes_data <- cbind(nodes_data, as.data.frame(r_scores))
   }
   
-  save(nodes_data, file = "objets/nodes_data.rda")
-  
   ### correlation between annotations
   score_comb <- combn2(selected_scores)
   template_edges <- data.frame(id = paste0("correlation_edge_",1:nrow(score_comb)),
@@ -773,6 +771,8 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
                                   MARGIN = 1, 
                                   FUN = function(x) sum(is.na(x))) < ncol(nodes_data) - 1), ]
   nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
+  
+  save(nodes_data, file = "objets/nodes_data.rda") # keep this one #
   
   ### creation des score roots nodes and edges : A SUPPRIMER
   # meta_values_mapped <- "blue"
@@ -935,7 +935,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
     #root_score_nodes <- rbind(root_score_nodes, score_nodes)
     #root_score_edges <- rbind(root_score_edges, score_edges)
   }
-
+  
   
   return(list(nodes = score_nodes, edges = score_edges))
 }
@@ -943,14 +943,14 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
 build_snv_scores_detail_node <- function(id){
   
   node <- data.frame(id = "snv_scores_detail", 
-                      color = "black",
-                      label = paste0("Score details for : ",id),
-                      shape = "image",
-                      image = paste0("scores_figures/bar_scores_",id,".png"),
-                      font.size = 30,
-                      size = 175,
-                      fixed = F, x = NA, y = NA,
-                      group = "Detail"
+                     color = "black",
+                     label = paste0("Score details for : ",id),
+                     shape = "image",
+                     image = paste0("scores_figures/bar_scores_",id,".png"),
+                     font.size = 30,
+                     size = 175,
+                     fixed = F, x = NA, y = NA,
+                     group = "Detail"
   )
   
   return(node)
@@ -980,6 +980,89 @@ extract_score_and_convert <- function(annotations_infos, score_name, sub_score_n
     return(NULL)
   }
 }
+
+#### Basic Ranking ####
+basic_ranking <- function(){
+  colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+  load("objets/nodes_data.rda")
+  nodes <- as.character(nodes_data$nodes)
+  
+  # compute RANK for each classifier 
+  ranked_nodes_data_na_last <- apply(X = nodes_data[,-1], MARGIN = 2, 
+                                     FUN = function(x) data.table::frankv(x, na.last = T, order = -1))
+  
+  # replace NA by mean
+  nodes_data_na_mean <- apply(X = nodes_data[,-1], MARGIN = 2, FUN = function(x) {
+    x[is.na(x)] <- mean(x = x, na.rm =T)
+    return(x)
+  })
+  
+  ranked_nodes_data_na_mean <- apply(X = nodes_data_na_mean, MARGIN = 2, 
+                                     FUN = function(x) data.table::frankv(x, na.last = F, order = -1))
+  
+  
+  rownames(ranked_nodes_data_na_last) <- rownames(ranked_nodes_data_na_mean) <- nodes
+  
+  # compute MEAN RANK accross all the classifier 
+  mean.rank_na_last = rowMeans(ranked_nodes_data_na_last)
+  mean.rank_na_mean = rowMeans(ranked_nodes_data_na_mean)
+  
+  # compute FINAL RANK
+  rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
+  rank_na_mean = as.numeric(rank(mean.rank_na_mean, ties.method = "average"))
+  
+  colpalette_na_last <- colfunc(n = length(unique(rank_na_last)))
+  colpalette_na_mean <- colfunc(n = length(unique(rank_na_mean)))
+  
+  names(colpalette_na_last) <- sort(unique(rank_na_last), decreasing = T) # plus petit ranking = meilleur = plus rouge
+  names(colpalette_na_mean) <- sort(unique(rank_na_mean), decreasing = T)
+  
+  
+  values_mapped_na_last <- as.character(rank_na_last)
+  for(i in unique(rank_na_last)){
+    values_mapped_na_last[values_mapped_na_last == i] <- colpalette_na_last[names(colpalette_na_last) == i]
+  }
+  
+  values_mapped_na_mean <- as.character(rank_na_mean)
+  for(i in unique(rank_na_mean)){
+    values_mapped_na_mean[values_mapped_na_mean == i] <- colpalette_na_mean[names(colpalette_na_mean) == i]
+  }
+  
+  df = data.frame(id = nodes,
+                  mean.rank_na_last,
+                  final_rank_na_last = rank_na_last,
+                  col_na_last = as.character(values_mapped_na_last),
+                  mean.rank_na_mean,
+                  final_rank_na_mean = rank_na_mean,
+                  col_na_mean = as.character(values_mapped_na_mean),
+                  stringsAsFactors = F,
+                  row.names = NULL)
+  
+  apply(X = df, MARGIN = 1, FUN = function(n){
+    ## pies
+    png(paste0(path_to_images,"pie_rank_na_last_",n[names(n) == "id"],".png"),
+        width = 2000, height = 2000,
+        units = "px")
+    par(lwd = 0.001)
+    pie(x = 1, col = n[names(n) == "col_na_last"], labels = n[names(n) == "final_rank_na_last"])
+    dev.off()
+    par(lwd = 1)
+    
+    png(paste0(path_to_images,"pie_rank_na_mean_",n[names(n) == "id"],".png"),
+        width = 2000, height = 2000,
+        units = "px")
+    par(lwd = 0.001)
+    pie(x = 1, col = n[names(n) == "col_na_mean"], labels = n[names(n) == "final_rank_na_mean"])
+    dev.off()
+    par(lwd = 1)
+  })
+  
+  
+  
+  
+}
+
+
 
 #### Friedman Test : compute and plot ####
 ## This function has been copied from mlr/R/plotCritDifferences.R and modified to fit with our purpose

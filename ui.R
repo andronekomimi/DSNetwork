@@ -140,10 +140,12 @@ dashboardPage(
                                                                        box(width = NULL, status = "warning", height = "auto",
                                                                            selectInput("snv_nodes_type", "SNV Nodes",
                                                                                        choices = c(
-                                                                                         "Scores Pie" = 0,
-                                                                                         "Metascore" = 1
+                                                                                         "Scores Pie" = 'pie_scores',
+                                                                                         "Metascore" = 'pie_metascores', 
+                                                                                         "Rank (NA last)" = 'pie_rank_na_last',
+                                                                                         "Rank (NA mean)" = 'pie_rank_na_mean'
                                                                                        ),
-                                                                                       selected = 0
+                                                                                       selected = 'pie_scores'
                                                                            )
                                                                        ),
                                                                        box(width = NULL, status = "warning",

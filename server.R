@@ -404,7 +404,8 @@ server <- function(input, output, session) {
     non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
     scores_data <- build_score_nodes(values,selected_adj_scores = non_null_adj_scores, 
                                      selected_raw_scores = non_null_raw_scores)
-    
+    basic_ranking()
+      
     values$scores_data <- scores_data
     values$all_nodes <- snv_nodes
     values$all_edges <- snv_edges
@@ -438,7 +439,7 @@ server <- function(input, output, session) {
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = T, keyboard = T) %>%
       # visOptions(highlightNearest = F, clickToUse = F, manipulation = F) %>%
       visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
-      visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -300)) %>%
+      visPhysics(solver = "forceAtlas2Based", minVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
       visLayout(randomSeed = 2)
     # visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
@@ -457,6 +458,26 @@ server <- function(input, output, session) {
   })
   
   #### UPDATE NETWORK ####
+  
+  #### NODES FIGURES ####
+  observe({
+    
+    svn_nodes <- values$current_nodes[values$current_nodes$shape == "circularImage",]
+    svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+    
+    visNetworkProxy("my_network") %>%
+      visUpdateNodes(nodes = svn_nodes) %>%
+      visFit()
+    
+    # if(input$snv_nodes_type != "None"){
+    #   visNetworkProxy("my_network") %>%
+    #     visFocus(id = input$focus, scale = 1)
+    # } else {
+    #   visNetworkProxy("my_network") %>%
+    #     visFit()
+    # }
+  })
+  
   
   #### LD ####
   observeEvent(input$update_ld, {
