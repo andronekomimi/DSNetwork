@@ -36,8 +36,7 @@ preload_loci <- c("Locus 2 [chr1:113948389-14948389]" = "locus_2",
                   "Locus 60 [chr13:32468810-33472626]" = "locus_60",
                   "Locus 70 [chr17:77281387-78281725]" = "locus_70",
                   "Locus 78 [chr22:40376234-41527870]" = "locus_78",
-                  "Locus 80 [chr3:86537543-8753754]" = "locus_80"
-)
+                  "Locus 80 [chr3:86537543-8753754]" = "locus_80")
 
 dashboardPage(
   header = dashboardHeader(title = "DSNetwork"),
@@ -117,38 +116,62 @@ dashboardPage(
                                              conditionalPanel(condition="input.buildNetwork",
                                                               fluidRow(
                                                                 column(width = 9,
-                                                                       box(width = NULL, status = "success", title = "Network", collapsible = TRUE, 
+                                                                       box(width = NULL, status = "success", title = "Network", 
+                                                                           collapsible = TRUE, height = "600px",
                                                                            visNetworkOutput("my_network",
-                                                                                            height = "750px", width = "auto")
-                                                                       ),
-                                                                       box(width = NULL, status = "info", title = "Scores Stats", height = "auto",
-                                                                           collapsible = T,
-                                                                           fluidRow(
-                                                                             column(width = 6, plotOutput(outputId = "scores_stats",
-                                                                                                          height = "500px")),
-                                                                           column(width = 6,
-                                                                                  #plotOutput(outputId = "scores_corr", height = "500px")
-                                                                                  d3heatmapOutput(outputId = "scores_corr", height = "500px")
-                                                                                  )
-                                                                           )
+                                                                                            height = "500px", width = "auto")
                                                                        )
                                                                 ),
                                                                 column(width = 3,
-                                                                       box(width = NULL, status = "success", height = "auto",
+                                                                       box(width = NULL, status = "success", height = "600px",
                                                                            DT::dataTableOutput(outputId = "snv_score_details")
-                                                                       ),
-                                                                       box(width = NULL, status = "warning", height = "auto",
-                                                                           selectInput("snv_nodes_type", "SNV Nodes",
+                                                                       )
+                                                                )
+                                                              ),
+                                                              fluidRow(
+                                                                column(width = 3,
+                                                                       box(width = NULL, status = "warning", 
+                                                                           height = "500px", collapsible = TRUE,
+                                                                           selectInput("snv_nodes_type", "SNV Nodes color",
                                                                                        choices = c(
+                                                                                         "None" = 'none',
                                                                                          "Scores Pie" = 'pie_scores',
                                                                                          "Metascore" = 'pie_metascores', 
                                                                                          "Rank (NA last)" = 'pie_rank_na_last',
                                                                                          "Rank (NA mean)" = 'pie_rank_na_mean'
                                                                                        ),
-                                                                                       selected = 'pie_scores'
+                                                                                       selected = 'none'
+                                                                           ),
+                                                                           #),
+                                                                           #box(width = NULL, status = "warning",
+                                                                           selectInput("focus", "Focus on",
+                                                                                       choices = c(
+                                                                                         "None" = -1
+                                                                                       ),
+                                                                                       selected = -1
+                                                                           ),
+                                                                           p(class = "text-muted",
+                                                                             br(),
+                                                                             "This option enables to focus the network on a particular variant"
+                                                                           ),
+                                                                           #),
+                                                                           #box(width = NULL, status = "warning",
+                                                                           selectInput("highlight", "Highlight variants",
+                                                                                       choices = c(
+                                                                                         "None"
+                                                                                       ),
+                                                                                       selected = "None"
+                                                                           ),
+                                                                           p(class = "text-muted",
+                                                                             br(),
+                                                                             paste("This option enables to highlight particular variants according to their type.",
+                                                                                   " Replacing the lightblue circles by red stars.")
                                                                            )
-                                                                       ),
-                                                                       box(width = NULL, status = "warning",
+                                                                       )
+                                                                ),
+                                                                column(width = 3,
+                                                                       box(width = NULL, status = "warning",  
+                                                                           height = "500px", collapsible = TRUE,
                                                                            selectInput("snv_edges_type", "SNV Edges",
                                                                                        choices = c(
                                                                                          "Distance" = 0,
@@ -163,7 +186,7 @@ dashboardPage(
                                                                                             p(class = "text-muted",
                                                                                               br(),
                                                                                               "This option enables to select the interval of 
-                                                                 distance represented between variants"
+                                                                                              distance represented between variants"
                                                                                             )
                                                                            ),
                                                                            conditionalPanel(condition="input.snv_edges_type=='1'",
@@ -175,38 +198,21 @@ dashboardPage(
                                                                                               "This option enables to select the interval of LD values represented between variants"
                                                                                             )
                                                                            )
-                                                                       ),
+                                                                       )
+                                                                ),
+                                                                column(width = 6,
                                                                        box(width = NULL, status = "warning",
-                                                                           selectInput("focus", "Focus on",
-                                                                                       choices = c(
-                                                                                         "None" = -1
-                                                                                       ),
-                                                                                       selected = -1
-                                                                           ),
-                                                                           p(class = "text-muted",
-                                                                             br(),
-                                                                             "This option enables to focus the network on a particular variant"
-                                                                           )
-                                                                       ),
-                                                                       box(width = NULL, status = "warning",
-                                                                           selectInput("highlight", "Highlight variants",
-                                                                                       choices = c(
-                                                                                         "None"
-                                                                                       ),
-                                                                                       selected = "None"
-                                                                           ),
-                                                                           p(class = "text-muted",
-                                                                             br(),
-                                                                             paste("This option enables to highlight particular variants according to their type.",
-                                                                                   " Replacing the lightblue circles by red stars.")
-                                                                           )
-                                                                       ),
-                                                                       box(width = NULL, status = "warning",
-                                                                           checkboxGroupInput("adj_scores", "Adjusted scores",
-                                                                                              choices = c()
-                                                                           ),
-                                                                           checkboxGroupInput("raw_scores", "Raw scores",
-                                                                                              choices = c()
+                                                                           height = "500px", collapsible = TRUE,
+                                                                           fluidRow(
+                                                                             column(width = 6,
+                                                                                    selectInput("adj_scores", 'Adjusted scores', 
+                                                                                                choices = c(), 
+                                                                                                selectize = TRUE, multiple = TRUE)),
+                                                                             column(width = 6,
+                                                                                    selectInput("raw_scores", "Raw scores",
+                                                                                                choices = c(), 
+                                                                                                selectize = TRUE, multiple = TRUE
+                                                                                    ))
                                                                            ),
                                                                            actionButton("update_metascore", "Update"),
                                                                            p(
@@ -216,6 +222,20 @@ dashboardPage(
                                                                              )
                                                                            )
                                                                        )
+                                                                )
+                                                              )
+                                             )
+                                             
+                                    ),
+                                    tabPanel(title = h5("Scores Stats"),
+                                             value = "scores_stats",
+                                             conditionalPanel(condition="input.buildNetwork",
+                                                              fluidRow(
+                                                                column(width = 6, plotOutput(outputId = "scores_stats",
+                                                                                             height = "500px")),
+                                                                column(width = 6,
+                                                                       #plotOutput(outputId = "scores_corr", height = "500px")
+                                                                       d3heatmapOutput(outputId = "scores_corr", height = "500px")
                                                                 )
                                                               )
                                              )

@@ -16,6 +16,11 @@ cor_colfunc <- colorRampPalette(c("blue","white","red"))
 cor_color_breaks <- cor_colfunc(length(cor_breaks))
 names(cor_color_breaks) <- sort(cor_breaks, decreasing = F)
 
+output$values <- renderPrint({
+  list(x4 = input$x4)
+})
+
+
 hgvsToGRange <- function(hgvs_id, query_id){
   
   if(is.na(hgvs_id))
@@ -731,6 +736,7 @@ build_snv_nodes <- function(session_values){
 }
 
 build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores){
+  
   load('data/scores_correlation_matrice.rda')
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
   nodes <- as.character(session_values$annotations$query)
@@ -860,32 +866,33 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       ## pies
       png(paste0(path_to_images,"pie_scores_",n,".png"), width = 2000, height = 2000,
           units = "px")
+      
       par(lwd = 0.001)
       pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
       dev.off()
       par(lwd = 1)
       
       ## barcharts
-      png(paste0(path_to_images,"bar_scores_",n,".png"), width = 500, height = 500,
-          units = "px")
-      p <- ggplot(new_n_rows, aes(x=id, y=h, fill = label)) +
-        geom_bar(stat="identity")
-      p <- p + scale_fill_manual(values = custom_colors)
-      p <- p + theme_minimal() + guides(fill=FALSE) +
-        labs(x = NULL, y = NULL, main = n) + 
-        theme(axis.title.y = element_blank(),
-              axis.text.y = element_blank(),
-              axis.ticks.y = element_blank(),
-              axis.text.x = element_text(angle=90, size = 11))
-      p <- p + geom_text(aes(x = id,
-                             y = h - 0.5,
-                             angle = 90,
-                             label=format(as.numeric(new_n_rows$label), digits=2)),
-                         hjust=0.5, 
-                         size=4,
-                         color=rgb(0,0,0, maxColorValue=255))
-      print(p)
-      dev.off()
+      # png(paste0(path_to_images,"bar_scores_",n,".png"), width = 500, height = 500,
+      #     units = "px")
+      # p <- ggplot(new_n_rows, aes(x=id, y=h, fill = label)) +
+      #   geom_bar(stat="identity")
+      # p <- p + scale_fill_manual(values = custom_colors)
+      # p <- p + theme_minimal() + guides(fill=FALSE) +
+      #   labs(x = NULL, y = NULL, main = n) + 
+      #   theme(axis.title.y = element_blank(),
+      #         axis.text.y = element_blank(),
+      #         axis.ticks.y = element_blank(),
+      #         axis.text.x = element_text(angle=90, size = 11))
+      # p <- p + geom_text(aes(x = id,
+      #                        y = h - 0.5,
+      #                        angle = 90,
+      #                        label=format(as.numeric(new_n_rows$label), digits=2)),
+      #                    hjust=0.5, 
+      #                    size=4,
+      #                    color=rgb(0,0,0, maxColorValue=255))
+      # print(p)
+      # dev.off()
       
       # new_node_image_row <- data.frame(id = paste0("node_score_image_",n), 
       #                                  color = "white",
@@ -1057,11 +1064,7 @@ basic_ranking <- function(){
     par(lwd = 1)
   })
   
-  
-  
-  
 }
-
 
 
 #### Friedman Test : compute and plot ####

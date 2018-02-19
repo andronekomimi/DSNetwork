@@ -405,7 +405,7 @@ server <- function(input, output, session) {
     scores_data <- build_score_nodes(values,selected_adj_scores = non_null_adj_scores, 
                                      selected_raw_scores = non_null_raw_scores)
     basic_ranking()
-      
+    
     values$scores_data <- scores_data
     values$all_nodes <- snv_nodes
     values$all_edges <- snv_edges
@@ -432,11 +432,11 @@ server <- function(input, output, session) {
     
     meta_values_mapped <- "blue"
     vn <- visNetwork(values$current_nodes, 
-                     values$current_edges, width = "100%", height = "700px") %>%
+                     values$current_edges, width = "100%", height = "500px") %>%
       visEvents(doubleClick = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
-      visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = T, keyboard = T) %>%
+      visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T) %>%
       # visOptions(highlightNearest = F, clickToUse = F, manipulation = F) %>%
       visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
       visPhysics(solver = "forceAtlas2Based", minVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
@@ -462,20 +462,17 @@ server <- function(input, output, session) {
   #### NODES FIGURES ####
   observe({
     
-    svn_nodes <- values$current_nodes[values$current_nodes$shape == "circularImage",]
-    svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+    if(!is.null(values$current_nodes)){
+      svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
+      svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+      
+      values$current_nodes$image <- as.character(values$current_nodes$image)
+      values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
+      
+      visNetworkProxy("my_network") %>%
+        visUpdateNodes(nodes = svn_nodes)
+    }
     
-    visNetworkProxy("my_network") %>%
-      visUpdateNodes(nodes = svn_nodes) %>%
-      visFit()
-    
-    # if(input$snv_nodes_type != "None"){
-    #   visNetworkProxy("my_network") %>%
-    #     visFocus(id = input$focus, scale = 1)
-    # } else {
-    #   visNetworkProxy("my_network") %>%
-    #     visFit()
-    # }
   })
   
   
@@ -569,23 +566,22 @@ server <- function(input, output, session) {
   })
   
   observe({
-    svn_nodes <- values$current_nodes[values$current_nodes$shape == "circularImage",]
+    svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
     
     # remise à zero
-    svn_nodes$color <- "blue"
     svn_nodes$shape <- "circularImage"
     
     if(input$highlight != "None"){
       # nodes to highlight
       svn_id_2_highlight <- as.character(values$annotations$query)[grepl(x = as.character(values$annotations$cadd.consdetail),
                                                                          pattern = input$highlight)]
-      svn_nodes[svn_nodes$id %in% svn_id_2_highlight,]$color <- "red"
       svn_nodes[svn_nodes$id %in% svn_id_2_highlight,]$shape <- "image"
+      values$current_nodes$shape <- as.character(values$current_nodes$shape)
+      values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
     }
     
     visNetworkProxy("my_network") %>%
-      visUpdateNodes(nodes = svn_nodes) %>%
-      visFit()
+      visUpdateNodes(nodes = svn_nodes)
   })
   
   #### SCORES ####
@@ -611,22 +607,21 @@ server <- function(input, output, session) {
     non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names, 
                                              pattern = "_(.*)_", replacement = " (\\1)")
     
+    
+    
     if(length(non_null_raw_scores) > 0){
-      updateCheckboxGroupInput(session, "raw_scores",
-                               choiceValues = non_null_raw_scores,
-                               selected = non_null_raw_scores,
-                               choiceNames = non_null_raw_scores_pretty_names
-      )}
+      names(non_null_raw_scores) <- non_null_raw_scores_pretty_names
+      updateSelectizeInput(session, "raw_scores",
+                           choice = non_null_raw_scores,
+                           selected = non_null_raw_scores)
+    }
     
     if(length(non_null_adj_scores) > 0){
-      updateCheckboxGroupInput(session, "adj_scores",
-                               choiceValues = non_null_adj_scores, 
-                               selected = non_null_adj_scores,
-                               choiceNames = non_null_adj_scores_pretty_names
-      )} 
-    # updateCheckboxGroupInput(session, "predictors",
-    #                          choices = c(non_null_adj_scores, non_null_raw_scores)
-    # ) 
+      names(non_null_adj_scores) <- non_null_adj_scores_pretty_names
+      updateSelectizeInput(session, "adj_scores",
+                           choice = non_null_adj_scores,
+                           selected = non_null_adj_scores)
+    }
   })
   
   #### SCORES STATS ####
@@ -677,6 +672,7 @@ server <- function(input, output, session) {
     suppressWarnings(compute_scores_stats())
   })
   
+  
   #### SCORES CORRELATION MATRICE ####
   
   compute_scores_corr <- eventReactive(input$buildNetwork, {
@@ -714,14 +710,22 @@ server <- function(input, output, session) {
                 Rowv = NULL, colors = cor_color_breaks, 
                 cexCol = .7, na.rm = F, cexRow = .7)
     }
-
+    
   })
   
   
   #### METASCORES ####
   observeEvent(input$update_metascore, {
-    print("Yooooo !")
-    visNetworkProxy("my_network") %>% visCollapse(nodes = paste0("Scores_",values$annotations$query), fit = TRUE)
+    
+    scores_data <- build_score_nodes(values,
+                                     selected_adj_scores = input$adj_scores, 
+                                     selected_raw_scores = input$raw_scores)
+    values$scores_data <- scores_data
+    
+    basic_ranking()
+    
+    visNetworkProxy("my_network") %>% 
+      visRedraw()
   })
   
   
