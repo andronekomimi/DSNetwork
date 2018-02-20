@@ -55,8 +55,14 @@ dashboardPage(
                 box(title = "Data", status = "primary", width = 12, 
                     fluidRow(
                       column(width = 5,
-                             textAreaInput("query", "1) Query", "", rows = 5, 
+                             textAreaInput("query", "1) Enter variant ids", "", rows = 5, 
                                            placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
+                             fileInput("query_file", "or load text file (one variant id per line)", multiple = FALSE, 
+                                       accept = c(
+                                         "text/csv",
+                                         "text/comma-separated-values,text/plain",
+                                         ".csv")
+                             ),
                              selectInput(inputId = 'preload',
                                          label = '0) Load preset query',
                                          choices = preload_loci),
@@ -93,7 +99,7 @@ dashboardPage(
                 )
               ),
               fluidRow(
-                tabBox( width = 12,
+                box( width = 12,
                         tabsetPanel(id = "results_tabset",
                                     tabPanel(title = h5("Raw results"),
                                              value = "raw_results",
@@ -106,6 +112,7 @@ dashboardPage(
                                              value = "ld_results",
                                              conditionalPanel(condition="input.runLD",
                                                               selectInput("ld_regions", "LD Regions",
+                                                                          width = "20%",
                                                                           choices = c()
                                                               ),
                                                               imageOutput("ld_plot", height = 600)
@@ -116,14 +123,15 @@ dashboardPage(
                                              conditionalPanel(condition="input.buildNetwork",
                                                               fluidRow(
                                                                 column(width = 9,
-                                                                       box(width = NULL, status = "success", title = "Network", 
-                                                                           collapsible = TRUE, height = "600px",
+                                                                       box(width = NULL, status = "success",
+                                                                           collapsible = TRUE, height = "700px",
                                                                            visNetworkOutput("my_network",
-                                                                                            height = "500px", width = "auto")
+                                                                                            height = "550px", width = "auto")
                                                                        )
                                                                 ),
                                                                 column(width = 3,
-                                                                       box(width = NULL, status = "success", height = "600px",
+                                                                       box(width = NULL, status = "success", height = "700px",
+                                                                           textOutput("snv_score_details_id"),
                                                                            DT::dataTableOutput(outputId = "snv_score_details")
                                                                        )
                                                                 )
@@ -134,13 +142,12 @@ dashboardPage(
                                                                            height = "500px", collapsible = TRUE,
                                                                            selectInput("snv_nodes_type", "SNV Nodes color",
                                                                                        choices = c(
-                                                                                         "None" = 'none',
                                                                                          "Scores Pie" = 'pie_scores',
                                                                                          "Metascore" = 'pie_metascores', 
                                                                                          "Rank (NA last)" = 'pie_rank_na_last',
                                                                                          "Rank (NA mean)" = 'pie_rank_na_mean'
                                                                                        ),
-                                                                                       selected = 'none'
+                                                                                       selected = 'pie_scores'
                                                                            ),
                                                                            #),
                                                                            #box(width = NULL, status = "warning",
@@ -227,15 +234,32 @@ dashboardPage(
                                              )
                                              
                                     ),
-                                    tabPanel(title = h5("Scores Stats"),
+                                    tabPanel(title = h5("Scores information"),
                                              value = "scores_stats",
                                              conditionalPanel(condition="input.buildNetwork",
                                                               fluidRow(
-                                                                column(width = 6, plotOutput(outputId = "scores_stats",
-                                                                                             height = "500px")),
+                                                                column(width = 12,
+                                                                       selectInput("predictors", 'Predictors',width = "50%",
+                                                                                   choices = c(), selectize = TRUE, multiple = TRUE),
+                                                                       bsButton(inputId = 'get_predictors_info', label = "Get info",
+                                                                                icon = icon("search")),
+                                                                       br(),br()
+                                                                       )
+                                                              ),
+                                                              fluidRow(
                                                                 column(width = 6,
-                                                                       #plotOutput(outputId = "scores_corr", height = "500px")
-                                                                       d3heatmapOutput(outputId = "scores_corr", height = "500px")
+                                                                       box(width = NULL, status = "success",
+                                                                           collapsible = TRUE,
+                                                                           plotOutput(outputId = "scores_stats",height = "500px")
+                                                                       ),
+                                                                       box(width = NULL, status = "success",
+                                                                           d3heatmapOutput(outputId = "scores_corr", height = "600px")
+                                                                       )
+                                                                ),
+                                                                column(width = 6,
+                                                                       box(width = NULL, status = "success",
+                                                                           DT::dataTableOutput(outputId = "scores_missing_data")
+                                                                       )
                                                                 )
                                                               )
                                              )

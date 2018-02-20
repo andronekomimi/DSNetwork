@@ -735,7 +735,7 @@ build_snv_nodes <- function(session_values){
   return(nodes)
 }
 
-build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores){
+build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores, inc = NULL){
   
   load('data/scores_correlation_matrice.rda')
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
@@ -754,23 +754,25 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   }
   
   ### correlation between annotations
-  score_comb <- combn2(selected_scores)
-  template_edges <- data.frame(id = paste0("correlation_edge_",1:nrow(score_comb)),
-                               from = score_comb[,1],
-                               to = score_comb[,2],
-                               width = 1,
-                               dashes = FALSE,
-                               xvalue = "",
-                               type = "correlation_edges",
-                               title = NA,
-                               color = "", stringsAsFactors = F)
-  
-  for(s in 1:nrow(score_comb)){
-    val <- signif(x = scores_correlation_matrice[score_comb[s,1], score_comb[s,2]], digits = 2)
-    template_edges[s,]$xvalue <- template_edges[s,]$title <- val
-    template_edges[s,]$color <- cor_color_breaks[names(cor_color_breaks) == val]
-    
-  }
+  # score_comb <- combn2(selected_scores)
+  # if(is.matrix(score_comb)){
+  #   template_edges <- data.frame(id = paste0("correlation_edge_",1:nrow(score_comb)),
+  #                                from = score_comb[,1],
+  #                                to = score_comb[,2],
+  #                                width = 1,
+  #                                dashes = FALSE,
+  #                                xvalue = "",
+  #                                type = "correlation_edges",
+  #                                title = NA,
+  #                                color = "", stringsAsFactors = F)
+  #   
+  #   for(s in 1:nrow(score_comb)){
+  #     val <- signif(x = scores_correlation_matrice[score_comb[s,1], score_comb[s,2]], digits = 2)
+  #     template_edges[s,]$xvalue <- template_edges[s,]$title <- val
+  #     template_edges[s,]$color <- cor_color_breaks[names(cor_color_breaks) == val]
+  #     
+  #   }
+  # }
   
   ### supprimer les lignes vides
   nodes_data <- nodes_data[(apply(X = nodes_data,
@@ -864,9 +866,8 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       names(custom_colors) <- new_n_rows$label
       
       ## pies
-      png(paste0(path_to_images,"pie_scores_",n,".png"), width = 2000, height = 2000,
+      png(paste0(path_to_images,"pie_scores_",n,inc,".png"), width = 2000, height = 2000,
           units = "px")
-      
       par(lwd = 0.001)
       pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
       dev.off()
@@ -910,10 +911,10 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       # }
       
       ### edges between scores
-      new_e_rows <- template_edges
-      new_e_rows$id <- paste0(new_e_rows$id, "_", n)
-      new_e_rows$from <- paste0(new_e_rows$from, "_", n)
-      new_e_rows$to <- paste0(new_e_rows$to, "_", n)
+      # new_e_rows <- template_edges
+      # new_e_rows$id <- paste0(new_e_rows$id, "_", n)
+      # new_e_rows$from <- paste0(new_e_rows$from, "_", n)
+      # new_e_rows$to <- paste0(new_e_rows$to, "_", n)
       
       
       # new_edge_image_row <-  data.frame(id = paste0("edge_score_image_",n),
@@ -926,11 +927,11 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       #                                   title = NA,
       #                                   color = "green")
       
-      if(is.null(score_edges)){
-        score_edges <- new_e_rows
-      } else {
-        score_edges <- rbind(score_edges, new_e_rows)
-      }
+      # if(is.null(score_edges)){
+      #   score_edges <- new_e_rows
+      # } else {
+      #   score_edges <- rbind(score_edges, new_e_rows)
+      # }
       
       # if(is.null(score_edges)){
       #   score_edges <- new_edge_image_row
@@ -989,7 +990,7 @@ extract_score_and_convert <- function(annotations_infos, score_name, sub_score_n
 }
 
 #### Basic Ranking ####
-basic_ranking <- function(){
+basic_ranking <- function(inc = NULL){
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   load("objets/nodes_data.rda")
   nodes <- as.character(nodes_data$nodes)
@@ -1047,7 +1048,7 @@ basic_ranking <- function(){
   
   apply(X = df, MARGIN = 1, FUN = function(n){
     ## pies
-    png(paste0(path_to_images,"pie_rank_na_last_",n[names(n) == "id"],".png"),
+    png(paste0(path_to_images,"pie_rank_na_last_",n[names(n) == "id"],inc,".png"),
         width = 2000, height = 2000,
         units = "px")
     par(lwd = 0.001)
@@ -1055,7 +1056,7 @@ basic_ranking <- function(){
     dev.off()
     par(lwd = 1)
     
-    png(paste0(path_to_images,"pie_rank_na_mean_",n[names(n) == "id"],".png"),
+    png(paste0(path_to_images,"pie_rank_na_mean_",n[names(n) == "id"],inc,".png"),
         width = 2000, height = 2000,
         units = "px")
     par(lwd = 0.001)

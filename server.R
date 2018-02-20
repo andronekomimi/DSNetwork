@@ -37,14 +37,30 @@ server <- function(input, output, session) {
   values$ld_regions <- NULL
   load('data/scores_correlation_matrice.rda')
   
-  observeEvent(input$query, ({
+  # observeEvent(input$query, ({
+  #   
+  #   if(nchar(input$query) > 0){
+  #     shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
+  #                           disabled = FALSE)
+  #   } else {
+  #     shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
+  #                           disabled = TRUE)
+  #   }
+  # }))
+  
+  observeEvent(c(input$query_file, input$query), ({
     
-    if(nchar(input$query) > 0){
-      shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
+    if(!is.null(input$query_file) && input$query_file$size > 0){
+      shinyBS::updateButton(session = session, inputId = "fetch_annotations",
                             disabled = FALSE)
     } else {
-      shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
-                            disabled = TRUE)
+      if(nchar(input$query) > 0){
+        shinyBS::updateButton(session = session, inputId = "fetch_annotations",
+                              disabled = FALSE)
+      } else {
+        shinyBS::updateButton(session = session, inputId = "fetch_annotations",
+                              disabled = TRUE)
+      }
     }
   }))
   
@@ -55,28 +71,57 @@ server <- function(input, output, session) {
   
   #### INPUT DATA MANAGEMENT ####
   transform_query <- function(string){
-    string <- unlist(strsplit(x = string, split = "\n"))
-    string <- gsub(x = string, pattern = " +$", replacement = "")
-    
-    modstring <- sapply(X = string,  FUN = function(x) {
-      if(base::startsWith(x = x, prefix = "rs")){
-        return(x)
-      }  else { 
-        x <- unlist(strsplit(x = x, split = ":"))
-        if(length(x) != 4){
-          return('FAIL')
-        } else {
-          formatSingleHgvs(as.numeric(x[1]), as.numeric(x[2]), x[3], x[4])
+    if(nchar(input$query) > 0){
+      string <- unlist(strsplit(x = string, split = "\n"))
+      string <- gsub(x = string, pattern = " +$", replacement = "")
+      
+      modstring <- sapply(X = string,  FUN = function(x) {
+        if(base::startsWith(x = x, prefix = "rs")){
+          return(x)
+        }  else { 
+          x <- unlist(strsplit(x = x, split = ":"))
+          if(length(x) != 4){
+            return('FAIL')
+          } else {
+            formatSingleHgvs(as.numeric(x[1]), as.numeric(x[2]), x[3], x[4])
+          }
         }
-      }
-    })
-    
-    return(modstring)
+      })
+      return(modstring)
+    }
+  }
+  
+  transform_query_file <- function(filepath){
+    if(file.exists(filepath)){
+      string <- read.csv(file = filepath, header = F, stringsAsFactors = F)$V1
+      string <- gsub(x = string, pattern = " +$", replacement = "")
+      
+      modstring <- sapply(X = string,  FUN = function(x) {
+        if(base::startsWith(x = x, prefix = "rs")){
+          return(x)
+        }  else { 
+          x <- unlist(strsplit(x = x, split = ":"))
+          if(length(x) != 4){
+            return('FAIL')
+          } else {
+            formatSingleHgvs(as.numeric(x[1]), as.numeric(x[2]), x[3], x[4])
+          }
+        }
+      })
+      return(modstring)
+    }
   }
   
   query_control <- eventReactive(input$fetch_annotations, {
+    shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
+                          disabled = TRUE)
+    modstring <- c()
+    if(!is.null(input$query_file))
+      modstring <- c(modstring, transform_query_file(input$query_file$datapath))
     
-    modstring <- transform_query(input$query)
+    if(nchar(input$query) > 0)
+      modstring <- c(modstring, transform_query(input$query))
+    
     fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
     if(length(modstring) > 0){
       if(length(fail_transfo) > 0){
@@ -93,7 +138,13 @@ server <- function(input, output, session) {
     values$maf_infos <- as.matrix(data.frame(waiting = ""))
     values$annotations <- as.matrix(data.frame(waiting = ""))
     
-    modstring <- transform_query(input$query)
+    modstring <- c()
+    if(!is.null(input$query_file))
+      modstring <- c(modstring, transform_query_file(input$query_file$datapath))
+    
+    if(nchar(input$query) > 0)
+      modstring <- c(modstring, transform_query(input$query))
+    
     valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
     
     if(length(valid_transfo) > 0){
@@ -310,6 +361,10 @@ server <- function(input, output, session) {
   })
   
   runLD <- eventReactive(input$runLD,{
+    
+    shinyBS::updateButton(session = session, inputId = "runLD", 
+                          disabled = TRUE)
+    
     my_ranges <- values$my_ranges
     
     # build ilets
@@ -396,6 +451,10 @@ server <- function(input, output, session) {
   })
   
   buildNetwork <- eventReactive(input$buildNetwork,{
+    
+    shinyBS::updateButton(session = session, inputId = "buildNetwork", 
+                          disabled = TRUE)
+    
     snv_dist_edges <- build_snv_edges(values, "0", 1000) #default
     snv_ld_edges <- build_snv_edges(values, "1", NULL) #default
     snv_edges <- rbind(snv_dist_edges, snv_ld_edges)
@@ -432,16 +491,16 @@ server <- function(input, output, session) {
     
     meta_values_mapped <- "blue"
     vn <- visNetwork(values$current_nodes, 
-                     values$current_edges, width = "100%", height = "500px") %>%
+                     values$current_edges, width = "auto", height = "500px") %>%
       visEvents(doubleClick = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T) %>%
       # visOptions(highlightNearest = F, clickToUse = F, manipulation = F) %>%
       visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
-      visPhysics(solver = "forceAtlas2Based", minVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
+      visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
-      visLayout(randomSeed = 2)
+      visLayout(randomSeed = 2018)
     # visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
     
     for (g in values$annotations$query){
@@ -464,7 +523,10 @@ server <- function(input, output, session) {
     
     if(!is.null(values$current_nodes)){
       svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
-      svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+      if(input$update_metascore > 0)
+        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$update_metascore,".png")
+      else 
+        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
       
       values$current_nodes$image <- as.character(values$current_nodes$image)
       values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
@@ -622,48 +684,69 @@ server <- function(input, output, session) {
                            choice = non_null_adj_scores,
                            selected = non_null_adj_scores)
     }
+    
+    if(length(non_null_raw_scores) > 0 || length(non_null_adj_scores) > 0){
+      updateSelectizeInput(session, "predictors",
+                           choice = list("Raw scores" = non_null_raw_scores,
+                                         "Adjusted scores" = non_null_adj_scores),
+                           selected = c())
+    }
+    
   })
   
   #### SCORES STATS ####
   
-  compute_scores_stats <- eventReactive(input$buildNetwork,{
-    
-    if(!is.null(values$raw_scores) || !is.null(values$adjusted_scores)){
+  compute_scores_missing_data <- eventReactive(input$get_predictors_info, {
+    if(length(input$predictors) > 0){
       non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
       non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
       
       all_scores <- c(non_null_adj_scores, non_null_raw_scores)
+      all_scores <- all_scores[input$predictors]
       all_scores <- data.frame(all_scores)
-      df.m <- reshape2::melt(all_scores)
-      p <- ggplot(data = df.m, aes(x=variable, y=value)) + geom_boxplot()
-      p <- p + facet_wrap( ~ variable, scales="free", switch = "y")
-      p <- p + theme_bw() + 
-        theme(axis.title.y = element_blank(), 
-              axis.title.x = element_blank(), 
-              axis.text.x = element_blank())
       
-      # scores_stats <- do.call("rbind", 
-      #                         lapply(X = all_scores, 
-      #                                FUN = function(x) { 
-      #                                  data.frame(Min = min(x, na.rm = T), 
-      #                                             First_Qt = quantile(x, probs = 0.25, names = F, na.rm = T),
-      #                                             Mean = mean(x, na.rm = TRUE), 
-      #                                             Median = median(x, na.rm = TRUE), 
-      #                                             Third_Qt =  quantile(x, probs = 0.75, names = F, na.rm = T), 
-      #                                             Max = max(x, na.rm = TRUE), 
-      #                                             Missing_values = sum(is.na(x)))  
-      #                                }
-      #                         )
-      # )
+      scores_stats <- do.call("rbind",
+                              lapply(X = all_scores,
+                                     FUN = function(x) {
+                                       data.frame(Min = min(x, na.rm = T),
+                                                  First_Qt = quantile(x, probs = 0.25, names = F, na.rm = T),
+                                                  Mean = mean(x, na.rm = TRUE),
+                                                  Median = median(x, na.rm = TRUE),
+                                                  Third_Qt =  quantile(x, probs = 0.75, names = F, na.rm = T),
+                                                  Max = max(x, na.rm = TRUE),
+                                                  Missing_values = sum(is.na(x)))
+                                     }
+                              )
+      )
       
-      # pretty_rownames <- row.names(scores_stats)
-      # pretty_rownames <- gsub(x = pretty_rownames, pattern = "score|rawscore|rankscore", replacement = "")
-      # pretty_rownames <- gsub(x = pretty_rownames, replacement = "", pattern = "\\.$")
-      # pretty_rownames <- gsub(x = pretty_rownames, replacement = " ", pattern = "\\.")
-      # pretty_rownames <- gsub(x = pretty_rownames, pattern = "_(.*)_", replacement = " (\\1)")
-      # 
-      # row.names(scores_stats) <- pretty_rownames
+      pretty_rownames <- row.names(scores_stats)
+      pretty_rownames <- gsub(x = pretty_rownames, pattern = "score|rawscore|rankscore", replacement = "")
+      pretty_rownames <- gsub(x = pretty_rownames, replacement = "", pattern = "\\.$")
+      pretty_rownames <- gsub(x = pretty_rownames, replacement = " ", pattern = "\\.")
+      pretty_rownames <- gsub(x = pretty_rownames, pattern = "_(.*)_", replacement = " (\\1)")
+      
+      row.names(scores_stats) <- pretty_rownames
+      
+      return(scores_stats)
     }
+  })
+  
+  compute_scores_stats <- eventReactive(input$get_predictors_info,{
+    
+    non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
+    non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
+    
+    all_scores <- c(non_null_adj_scores, non_null_raw_scores)
+    all_scores <- all_scores[input$predictors]
+    all_scores <- data.frame(all_scores)
+    
+    df.m <- reshape2::melt(all_scores)
+    p <- ggplot(data = df.m, aes(x=variable, y=value)) + geom_boxplot()
+    p <- p + facet_wrap( ~ variable, scales="free", strip.position = "left")
+    p <- p + theme_bw() + 
+      theme(axis.title.y = element_blank(), 
+            axis.title.x = element_blank(), 
+            axis.text.x = element_blank())
     
     return(p)
   })
@@ -672,37 +755,31 @@ server <- function(input, output, session) {
     suppressWarnings(compute_scores_stats())
   })
   
+  output$scores_missing_data <- DT::renderDataTable({
+    details <- as.matrix(compute_scores_missing_data())
+    # if(is.null(detail)){
+    #   detail <- as.matrix(data.frame(waiting = ""))
+    # }
+    DT::datatable(details,
+                  rownames = TRUE,
+                  options = list(scrollX = TRUE,
+                                 lengthChange = FALSE,
+                                 searching = FALSE))
+  })
+
   
   #### SCORES CORRELATION MATRICE ####
-  
-  compute_scores_corr <- eventReactive(input$buildNetwork, {
+  compute_scores_corr <- eventReactive(input$get_predictors_info, {
     sub_matrice <- diag(nrow = 10, ncol = 10)
-    if(!is.null(values$raw_scores) || !is.null(values$adjusted_scores)){
-      non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
-      non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
-      all_scores <- names(c(non_null_adj_scores, non_null_raw_scores))
-      sub_matrice <- scores_correlation_matrice[rownames(scores_correlation_matrice) %in% all_scores,
-                                                colnames(scores_correlation_matrice) %in% all_scores]
+    
+    if(length(input$predictors) > 0){
+      sub_matrice <- scores_correlation_matrice[rownames(scores_correlation_matrice) %in% input$predictors,
+                                                colnames(scores_correlation_matrice) %in% input$predictors]
     }
     
     return(sub_matrice)
   })
   
-  
-  # output$scores_corr <- renderPlot({
-  #   m <- compute_scores_corr()
-  #   if(!is.null(m)){
-  #     par(bg=NA)
-  #     corrplot::corrplot(m, 
-  #                        type = "full", 
-  #                        col = cor_color_breaks,
-  #                        method = "color",
-  #                        tl.col = "black", 
-  #                        diag = T, 
-  #                        tl.cex = .8)
-  #   }
-  #   
-  # })
   output$scores_corr <- renderD3heatmap({
     m <- compute_scores_corr()
     if(!is.null(m)){
@@ -716,16 +793,23 @@ server <- function(input, output, session) {
   
   #### METASCORES ####
   observeEvent(input$update_metascore, {
+    old_figures <- dir(path = "www/scores_figures/", full.names = T)
+    file.remove(old_figures)
     
     scores_data <- build_score_nodes(values,
                                      selected_adj_scores = input$adj_scores, 
-                                     selected_raw_scores = input$raw_scores)
+                                     selected_raw_scores = input$raw_scores, 
+                                     inc = input$update_metascore)
     values$scores_data <- scores_data
     
-    basic_ranking()
+    basic_ranking(inc = input$update_metascore)
+    
+    svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
+    svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", 
+                              svn_nodes$id,input$update_metascore,".png")
     
     visNetworkProxy("my_network") %>% 
-      visRedraw()
+      visUpdateNodes(nodes = svn_nodes)
   })
   
   
@@ -766,12 +850,17 @@ server <- function(input, output, session) {
                   rownames = FALSE,
                   options = list(scrollX = TRUE,
                                  lengthChange = FALSE,
-                                 searchable = FALSE))
+                                 searching = FALSE))
   }%>% DT::formatStyle(
     'label',
     target = 'row',
     backgroundColor = DT::styleEqual(as.character(snv_score_details$label), color_code)
   ))
+  
+  output$snv_score_details_id <- renderText({
+    if(values$selected_node == '') values$selected_node <- as.character(values$annotations$query)[1]
+    values$selected_node
+  })
 }
 
 
