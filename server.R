@@ -708,13 +708,13 @@ server <- function(input, output, session) {
       scores_stats <- do.call("rbind",
                               lapply(X = all_scores,
                                      FUN = function(x) {
-                                       data.frame(Min = min(x, na.rm = T),
-                                                  First_Qt = quantile(x, probs = 0.25, names = F, na.rm = T),
-                                                  Mean = mean(x, na.rm = TRUE),
-                                                  Median = median(x, na.rm = TRUE),
-                                                  Third_Qt =  quantile(x, probs = 0.75, names = F, na.rm = T),
-                                                  Max = max(x, na.rm = TRUE),
-                                                  Missing_values = sum(is.na(x)))
+                                       data.frame(Missing_values = sum(is.na(x)),
+                                                  Min = signif(x = min(x, na.rm = T), digits = 3),
+                                                  #First_Qt = quantile(x, probs = 0.25, names = F, na.rm = T),
+                                                  Mean = signif(x = mean(x, na.rm = TRUE), digits = 3),
+                                                  #Median = median(x, na.rm = TRUE),
+                                                  #Third_Qt =  quantile(x, probs = 0.75, names = F, na.rm = T),
+                                                  Max = signif(x = max(x, na.rm = TRUE), digits = 3))
                                      }
                               )
       )
