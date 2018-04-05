@@ -218,7 +218,7 @@ predictors_modifiers_box <- function(){
       height = "500px", collapsible = TRUE,
       fluidRow(
         column(width = 6,
-               selectInput("adj_scores", 'Adjusted scores', 
+               selectInput("adj_scores", 'Ranked scores', 
                            choices = c(), 
                            selectize = TRUE, multiple = TRUE)),
         column(width = 6,
@@ -226,6 +226,12 @@ predictors_modifiers_box <- function(){
                            choices = c(), 
                            selectize = TRUE, multiple = TRUE
                ))
+      ),
+      fluidRow(
+        column(width = 12,
+               selectInput("non_na_scores", 'Non-NA scores', 
+                           choices = c(), 
+                           selectize = TRUE, multiple = TRUE))
       ),
       actionButton("update_metascore", "Update"),
       p(

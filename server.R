@@ -37,16 +37,8 @@ server <- function(input, output, session) {
   values$ld_regions <- NULL
   load('data/scores_correlation_matrice.rda')
   
-  # observeEvent(input$query, ({
-  #   
-  #   if(nchar(input$query) > 0){
-  #     shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
-  #                           disabled = FALSE)
-  #   } else {
-  #     shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
-  #                           disabled = TRUE)
-  #   }
-  # }))
+  # A notification ID
+  id <- NULL
   
   observeEvent(c(input$query_file, input$query), ({
     
@@ -83,7 +75,7 @@ server <- function(input, output, session) {
           if(length(x) != 4){
             return('FAIL')
           } else {
-            formatSingleHgvs(as.numeric(x[1]), as.numeric(x[2]), x[3], x[4])
+            formatSingleHgvs(x[1], as.numeric(x[2]), x[3], x[4])
           }
         }
       })
@@ -104,7 +96,7 @@ server <- function(input, output, session) {
           if(length(x) != 4){
             return('FAIL')
           } else {
-            formatSingleHgvs(as.numeric(x[1]), as.numeric(x[2]), x[3], x[4])
+            formatSingleHgvs(x[1], as.numeric(x[2]), x[3], x[4])
           }
         }
       })
@@ -115,6 +107,8 @@ server <- function(input, output, session) {
   query_control <- eventReactive(input$fetch_annotations, {
     shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
                           disabled = TRUE)
+    id <<- showNotification(paste("Fetching for annotations..."), duration = 0, type = "message")
+    
     modstring <- c()
     if(!is.null(input$query_file))
       modstring <- c(modstring, transform_query_file(input$query_file$datapath))
@@ -128,7 +122,6 @@ server <- function(input, output, session) {
         res <- paste0('Id recognition fails for: ', paste(fail_transfo, collapse = ","), '.')
       }
     }            
-    
   })
   
   output$transform_res <- renderText({ query_control() })
@@ -190,8 +183,8 @@ server <- function(input, output, session) {
         requested_chromosomes <- seqlevelsInUse(my_ranges)
         
         for(requested_chr in requested_chromosomes){
-          if(file.exists(paste0('data/LINSIGHT_',requested_chr,'.rda'))){
-            load(paste0('data/LINSIGHT_',requested_chr,'.rda'))
+          if(file.exists(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
+            load(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
             hits <- findOverlaps(query = my_ranges, subject = gr)
             for(i in seq_along(hits)){ 
               hit <- hits[i]
@@ -248,7 +241,6 @@ server <- function(input, output, session) {
           VEST3.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.vest3.rankscore"),
           MetaSVM.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.metasvm.rankscore"),
           MetaLR.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.metalr.rankscore"),
-          CADD.phredscore = extract_score_and_convert(annotations_infos, "cadd.phred"),
           DANN.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.dann.rankscore"),
           fitCons.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.integrated.fitcons_rankscore"),
           SiPhy.logodds.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.siphy_29way.logodds_rankscore"),
@@ -260,7 +252,11 @@ server <- function(input, output, session) {
                                                                             "dbnsfp.phastcons.100way.vertebrate_rankscore"),
           Eigen.phredscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.phred"),
           Eigen.PC.phredscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.pc.phred"),
-          Eigen.PC.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.pc.raw_rankscore")
+          Eigen.PC.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.pc.raw_rankscore"),
+          REVEL.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.revel.rankscore"),
+          MutPred.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.mutpred.rankscore"),
+          GenoCanyon.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.genocanyon.rankscore"),
+          M_CAP.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.m_cap_score.rankscore")
         )
         
         raw_scores <- list(
@@ -276,8 +272,9 @@ server <- function(input, output, session) {
           Provean.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.provean.score"),
           VEST3.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.vest3.score"),
           MetaSVM.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.metasvm.score"),
-          metaLR.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.metalr.score"),
+          MetaLR.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.metalr.score"),
           CADD.rawscore = extract_score_and_convert(annotations_infos, "cadd.rawscore"),
+          CADD.phredscore = extract_score_and_convert(annotations_infos, "cadd.phred"),
           DANN.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.dann.score"),
           fitCons.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.integrated.fitcons_score", "cadd.fitcons"), # get cadd.fitcons if missing
           SiPhy.logodds.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.siphy_29way.logodds"),
@@ -296,15 +293,23 @@ server <- function(input, output, session) {
           phastCons.100way.vertebrate.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.phastcons.100way.vertebrate"),
           Eigen.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.raw"),
           Eigen.PC.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.pc.raw"),
-          LINSIGHT.rawscore = extract_score_and_convert(annotations_infos, "linsight")
+          LINSIGHT.rawscore = extract_score_and_convert(annotations_infos, "linsight"),
+          REVEL.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.revel.score"),
+          MutPred.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.mutpred.score"),
+          GenoCanyon.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.genocanyon.score"),
+          M_CAP.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.m_cap_score.score")
         )
-        # save(raw_scores, adjusted_scores, file = "objets/scores.rda")
+        
+        save(raw_scores, adjusted_scores, file = "objets/scores.rda")
         values$raw_scores <- raw_scores
         values$adjusted_scores <- adjusted_scores
       }
     }
     
     if(!is.null(values$res)){
+      if (!is.null(id))
+        removeNotification(id)
+      id <<- NULL
       shinyBS::updateButton(session = session, inputId = "runLD", 
                             disabled = FALSE)
     } else {
@@ -364,6 +369,7 @@ server <- function(input, output, session) {
     
     shinyBS::updateButton(session = session, inputId = "runLD", 
                           disabled = TRUE)
+    id <<- showNotification(paste("Computing linkage disequilibrium..."), duration = 0, type = "message")
     
     my_ranges <- values$my_ranges
     
@@ -434,6 +440,9 @@ server <- function(input, output, session) {
   
   output$ld_plot <- renderImage({  
     filename <- "processing.gif"
+    if (!is.null(id))
+      removeNotification(id)
+    id <<- NULL
     if(!is.null(values$ld)){
       filename <- paste0(resultDir,"/ld_figures/LD_plot_",input$ld_regions,".png")
     }
@@ -451,9 +460,9 @@ server <- function(input, output, session) {
   })
   
   buildNetwork <- eventReactive(input$buildNetwork,{
-    
     shinyBS::updateButton(session = session, inputId = "buildNetwork", 
                           disabled = TRUE)
+    id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
     
     snv_dist_edges <- build_snv_edges(values, "0", 1000) #default
     snv_ld_edges <- build_snv_edges(values, "1", NULL) #default
@@ -840,6 +849,9 @@ server <- function(input, output, session) {
   
   #### SVN SCORES DETAIL ####
   output$snv_score_details <- DT::renderDataTable({
+    if (!is.null(id))
+      removeNotification(id)
+    id <<- NULL
     if(values$selected_node == '') values$selected_node <- as.character(values$annotations$query)[1]
     snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
     color_code <- as.character(snv_score_details$color)

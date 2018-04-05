@@ -11,6 +11,16 @@ dashboardPage(
     sidebar_content()
   ),
   body = dashboardBody(
+    tags$head(tags$style(
+      HTML(".shiny-notification {
+             position:fixed;
+           top: calc(50%);;
+           left: calc(50%);;
+            width: calc(25%);;
+           }
+           "
+      )
+    )),
     tabItems(
       tabItem(tabName = "main",
               fluidRow(

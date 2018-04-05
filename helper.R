@@ -3,6 +3,7 @@
 require(GenomicRanges)
 require(ggplot2)
 require(grDevices) 
+require(grid)
 
 path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
 
@@ -812,9 +813,9 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
     # créer les echelles coloriques pour chaque scores
     for(selected_score in selected_scores){
       d <-  nodes_data[[selected_score]]
-      d[is.na(d)] <- "NA"
       colpalette <- colfunc(n = length(unique(d)))
-      names(colpalette) <- sort(unique(d), decreasing = T)
+      names(colpalette) <- sort(unique(d), decreasing = T, na.last = T)
+      d[is.na(d)] <- "NA"
       
       values_mapped <- d
       for(i in unique(d)){
