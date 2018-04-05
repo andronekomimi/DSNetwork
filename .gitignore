@@ -49,3 +49,7 @@ misc/*
 
 # figures
 www/scores_figures/.*
+
+#dev files
+scripts/study.R
+test*.R
