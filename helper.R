@@ -4,6 +4,11 @@ require(GenomicRanges)
 require(ggplot2)
 require(grDevices) 
 require(grid)
+require("yaml")
+require("c3")
+
+#devtools::install_github("mrjoh3/c3")
+#devtools::install_github("viking/r-yaml")
 
 path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
 
@@ -17,9 +22,9 @@ cor_colfunc <- colorRampPalette(c("blue","white","red"))
 cor_color_breaks <- cor_colfunc(length(cor_breaks))
 names(cor_color_breaks) <- sort(cor_breaks, decreasing = F)
 
-output$values <- renderPrint({
-  list(x4 = input$x4)
-})
+# output$values <- renderPrint({
+#   list(x4 = input$x4)
+# })
 
 
 hgvsToGRange <- function(hgvs_id, query_id){
@@ -781,7 +786,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
                                   FUN = function(x) sum(is.na(x))) < ncol(nodes_data) - 1), ]
   nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
   
-  save(nodes_data, file = "objets/nodes_data.rda") # keep this one #
+  save(nodes_data, file = "objects/nodes_data.rda") # keep this one #
   
   ### creation des score roots nodes and edges : A SUPPRIMER
   # meta_values_mapped <- "blue"
@@ -854,7 +859,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
         score_nodes <- rbind(score_nodes, new_n_rows)
       }
       
-      #save(score_nodes, file = "objets/score_nodes.rda")
+      #save(score_nodes, file = "objects/score_nodes.rda")
       
       
       ## creation des figures
@@ -993,7 +998,7 @@ extract_score_and_convert <- function(annotations_infos, score_name, sub_score_n
 #### Basic Ranking ####
 basic_ranking <- function(inc = NULL){
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
-  load("objets/nodes_data.rda")
+  load("objects/nodes_data.rda")
   nodes <- as.character(nodes_data$nodes)
   
   # compute RANK for each classifier 
@@ -1200,4 +1205,15 @@ robust.system <- function (cmd, stdoutFile = NULL) {
     unlink(c(stderrFile))
   
   return(retval)
+}
+
+C3PieChartOutput <- function(outputId, width = '100%', height = '200px'){
+  htmlwidgets::shinyWidgetOutput(outputId = outputId, name = 'c3', width = width, height = height, package = 'c3')
+}
+
+#' @rdname C3PieChart-shiny
+#' @export
+renderC3PieChart <- function(expr, env = parent.frame(), quoted = FALSE) {
+  if (!quoted) { expr <- substitute(expr) } # force quoted
+  htmlwidgets::shinyRenderWidget(expr, C3PieChartOutput, env, quoted = TRUE)
 }

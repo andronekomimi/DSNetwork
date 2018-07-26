@@ -139,18 +139,18 @@ server <- function(input, output, session) {
       modstring <- c(modstring, transform_query(input$query))
     
     valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
-    
+    save(valid_transfo, file = '~/Workspace/DSNetwork/objects/valid_transfo.rda')
     if(length(valid_transfo) > 0){
       #### run myvariant ####
       res <- as.data.frame(getVariants(hgvsids = valid_transfo,
                                        verbose = F, return.as = "DataFrame",
-                                       fields = c("dbsnp","cadd","dbnsfp")), 
-                           stringsAsFactors = TRUE)
+                                       fields = c("dbsnp","cadd","dbnsfp")))
       res$linsight <- NA
-      #save(res, file = 'objects/res.rda')
+      #save(res, file = '~/Workspace/DSNetwork/objects/res.rda')
+      
       values$res <- res
       
-      if(!is.null(values$res) && nrow(values$res) > 0){
+      if(!is.null(res) && nrow(res) > 0){
         
         #### suppression des doublons ####
         duplicated_entries <- values$res$query[duplicated(res$query)]
@@ -163,12 +163,14 @@ server <- function(input, output, session) {
                               as.numeric(row.names(b)[! row.names(b) %in% names(minimum_na_row)]))
           }
         }
+        
         if(length(row_2_delete) > 0){
           res <- data.frame(values$res[-row_2_delete,], row.names = NULL)
-          values$res <- res
-          #save(res, file = 'objets/res.rda')
         }
         
+        # resultats globaux
+        values$res <- res
+        save(res, file = 'objects/res.rda')
         
         #### ranges ####
         my_ranges <- apply(X = values$res, MARGIN = 1, 
@@ -176,7 +178,7 @@ server <- function(input, output, session) {
                                                           query_id = x[names(x) == "query"]$query))
         my_ranges <- do.call("c", my_ranges) 
         my_ranges <- sort(unique(my_ranges))
-        #save(my_ranges, file = "objets/my_ranges.rda")
+        #save(my_ranges, file = "objects/my_ranges.rda")
         values$my_ranges <- my_ranges
         
         #### run linsight ####
@@ -198,8 +200,10 @@ server <- function(input, output, session) {
           values$res$linsight <- NULL
         }
         
-        #values$res <- res
-        #save(res, file = 'objets/res.rda')
+        #### split res in 2 -> non-syn vs other
+        non_syn_res <- sapply(res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
+        values$non_syn_res <- res[non_syn_res,]
+        values$regulatory_res <- res[!non_syn_res,]
         
         #### population freq ####
         maf_infos <- values$res[,grepl(x = colnames(values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
@@ -221,12 +225,13 @@ server <- function(input, output, session) {
         
         # suppriner un niveau de nested
         annotations_infos <- data.frame(lapply(annotations_infos, 
-                                               function(x) unlist(lapply(x, paste, collapse = ","))))
+                                               function(x) unlist(lapply(x, paste, collapse = ","))), 
+                                        stringsAsFactors = FALSE)
         # suppriner NA column
         # annotations_infos <- annotations_infos[apply(X = annotations_infos, MARGIN = 1, FUN = function(x) sum(is.na(x)) != (length(x) - 1)),]
         
         values$annotations <- annotations_infos
-        #save(annotations_infos, file = "objets/annotations.rda")
+        #save(annotations_infos, file = "objects/annotations.rda")
         
         adjusted_scores <- list(
           Polyphen2.HDIV.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.polyphen2.hdiv.rankscore"),
@@ -300,7 +305,7 @@ server <- function(input, output, session) {
           M_CAP.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.m_cap_score.score")
         )
         
-        save(raw_scores, adjusted_scores, file = "objets/scores.rda")
+        save(raw_scores, adjusted_scores, file = "objects/scores.rda")
         values$raw_scores <- raw_scores
         values$adjusted_scores <- adjusted_scores
       }
@@ -414,7 +419,7 @@ server <- function(input, output, session) {
     values$ld <- ld_results
     values$ld_regions <- regions
     
-    #save(regions, file = "objets/regions.rda")
+    #save(regions, file = "objects/regions.rda")
     
     if(!is.null(values$ld)){
       shinyBS::updateButton(session = session, inputId = "buildNetwork", 
@@ -463,13 +468,13 @@ server <- function(input, output, session) {
     shinyBS::updateButton(session = session, inputId = "buildNetwork", 
                           disabled = TRUE)
     id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
-    
     snv_dist_edges <- build_snv_edges(values, "0", 1000) #default
     snv_ld_edges <- build_snv_edges(values, "1", NULL) #default
     snv_edges <- rbind(snv_dist_edges, snv_ld_edges)
     snv_nodes <- build_snv_nodes(values)
     non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)])
     non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
+    
     scores_data <- build_score_nodes(values,selected_adj_scores = non_null_adj_scores, 
                                      selected_raw_scores = non_null_raw_scores)
     basic_ranking()
@@ -496,7 +501,7 @@ server <- function(input, output, session) {
     cur_ne <- list(nodes = values$current_nodes,
                    edges = values$current_edges)
     
-    #save(all_ne, cur_ne, file = "objets/values.rda")
+    #save(all_ne, cur_ne, file = "objects/values.rda")
     
     meta_values_mapped <- "blue"
     vn <- visNetwork(values$current_nodes, 
@@ -517,7 +522,7 @@ server <- function(input, output, session) {
                              color = "#2B7CE9", shape = "square")
     }
     
-    saveRDS(object = vn, file = "objets/init_vn.rds")
+    saveRDS(object = vn, file = "objects/init_vn.rds")
     return(vn)
   })
   
@@ -775,7 +780,7 @@ server <- function(input, output, session) {
                                  lengthChange = FALSE,
                                  searching = FALSE))
   })
-
+  
   
   #### SCORES CORRELATION MATRICE ####
   compute_scores_corr <- eventReactive(input$get_predictors_info, {
@@ -873,7 +878,57 @@ server <- function(input, output, session) {
     if(values$selected_node == '') values$selected_node <- as.character(values$annotations$query)[1]
     values$selected_node
   })
+  
+  
+  #cadd coonsequences
+  output$PieBranch1 <- renderC3PieChart({
+    d1 <- data.frame(waiting = 1)
+    
+    if(!is.null(values$res) && nrow(values$res) > 0){
+      d1 <- data.frame(non_synonymous = as.numeric(sum(sapply(values$res$cadd.consequence, function(y) "NON_SYNONYMOUS" %in% y))), 
+                       other = as.numeric((nrow(values$res) - sum(sapply(values$res$cadd.consequence, function(j) "NON_SYNONYMOUS" %in% j)))))
+    }
+    
+    d1 %>% c3() %>% c3_pie()
+  })
+  
+  #cadd annotations
+  output$PieBranch2 <- renderC3PieChart({
+    d1 <- data.frame(waiting = 1)
+    
+    if(!is.null(values$res) && nrow(values$res) > 0){
+      annotype_counts <- as.numeric(table(unlist(values$res$cadd.annotype)))
+      annotyp_names <- names(table(unlist(values$res$cadd.annotype)))
+      d1 <- data.frame(matrix(annotype_counts, nrow = 1))
+      colnames(d1) <-  annotyp_names
+    }
+    
+    d1 %>% c3() %>% c3_pie()
+    
+  })
+  
+  #genes
+  output$PieBranch3 <- renderC3PieChart({
+    
+    #### REPRENDRE ICI
+    d1 <- data.frame(waiting = 1)
+    
+    if(!is.null(values$res) && nrow(values$res) > 0){
+      annotype_counts <- as.numeric(table(unlist(values$res$cadd.annotype)))
+      annotyp_names <- names(table(unlist(values$res$cadd.annotype)))
+      d1 <- data.frame(matrix(annotype_counts, nrow = 1))
+      colnames(d1) <-  annotyp_names
+    }
+    
+    d1 %>% c3() %>% c3_pie()
+  })
+  
+  output$PieBranch4 <- renderC3PieChart({
+    data.frame(sugar = 20, 
+               fat = 45, 
+               salt = 10, 
+               vegetables = 60) %>% c3() %>% c3_pie()
+  })
 }
-
 
 

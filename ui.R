@@ -8,6 +8,7 @@ source('ui_modules.R')
 dashboardPage(
   header = dashboardHeader(title = "DSNetwork"),
   sidebar = dashboardSidebar(
+    collapsed = TRUE,
     sidebar_content()
   ),
   body = dashboardBody(
@@ -24,18 +25,28 @@ dashboardPage(
     tabItems(
       tabItem(tabName = "main",
               fluidRow(
+                box(width = 12, 
+                    tabsetPanel(id = "input_tabset",
+                                input_data_module()
+                                #output_network_results_modules()
+                                #input_ld_module(),
+                                #input_network_module()
+                    )
+                )
+              ),
+              fluidRow(
                 box(title = "Data", status = "primary", width = 12, 
                     fluidRow(
-                      input_data_module(), 
-                      input_ld_module(),
-                      input_network_module()
+                      #input_data_module(), 
+                      input_ld_module()
+                      #input_network_module()
                     )
                 )
               ),
               fluidRow(
                 box(width = 12,
                     tabsetPanel(id = "results_tabset",
-                                output_raw_results_module(),
+                                #output_raw_results_module(),
                                 output_ld_results_module(),
                                 output_network_results_modules(),
                                 output_predictors_results_modules()

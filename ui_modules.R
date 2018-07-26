@@ -3,6 +3,8 @@ library(visNetwork)
 library(shinyBS)
 library(d3heatmap)
 
+source('helper.R', local = TRUE)
+
 populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
                  "African Ancestry in Southwest US (ASW)" = 'ASW',
                  "Bengali in Bangladesh (BEB)" = 'BEB',
@@ -50,29 +52,36 @@ sidebar_content <- function(){
 
 
 input_data_module <- function(){
-  column(width = 5,
-         textAreaInput("query", "1) Enter variant ids", "", rows = 5, 
-                       placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
-         fileInput("query_file", "or load text file (one variant id per line)", 
-                   multiple = FALSE, 
-                   accept = c(
-                     "text/csv",
-                     "text/comma-separated-values,text/plain",
-                     ".csv")
-         ),
-         selectInput(inputId = 'preload',
-                     label = '0) Load preset query',
-                     choices = preload_loci),
-         actionButton("preload_loci", "Load preset query", icon = icon("caret-right")),
-         shinyBS::bsButton(inputId = "fetch_annotations", 
-                           label = "Fetch Annotations", 
-                           icon = icon("search"), disabled = TRUE),
-         verbatimTextOutput("transform_res"),
-         tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
-         br(),
-         verbatimTextOutput("query_res"),
-         tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
-         br()
+  tabPanel(title = h5("INPUT"),
+           value = "input",
+           fluidRow(
+             column(width = 4,
+                    br(),
+                    textAreaInput("query", "1) Enter variant ids", "", rows = 5, 
+                                  placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
+                    fileInput("query_file", "or load text file (one variant id per line)", 
+                              multiple = FALSE, 
+                              accept = c(
+                                "text/csv",
+                                "text/comma-separated-values,text/plain",
+                                ".csv")
+                    ),
+                    selectInput(inputId = 'preload',
+                                label = '0) Load preset query',
+                                choices = preload_loci),
+                    actionButton("preload_loci", "Load preset query", icon = icon("caret-right")),
+                    shinyBS::bsButton(inputId = "fetch_annotations", 
+                                      label = "Fetch Annotations", 
+                                      icon = icon("search"), disabled = TRUE),
+                    verbatimTextOutput("transform_res"),
+                    tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
+                    br(),
+                    verbatimTextOutput("query_res"),
+                    tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
+                    br()
+             ), 
+             output_raw_results_module()
+           )
   )
 }
 
@@ -101,11 +110,17 @@ input_network_module <- function(){
 }
 
 output_raw_results_module <- function(){
-  tabPanel(title = h5("Raw results"),
-           value = "raw_results",
+  # tabPanel(title = h5("Raw results"),
+  #          value = "raw_results",
+  #          br(),
+  column(width = 8, 
+           br(),
            conditionalPanel(condition="input.fetch_annotations",
-                            DT::dataTableOutput("raw_data"),
-                            downloadButton('downloadRawTable', 'Download')
+                            #DT::dataTableOutput("raw_data"),
+                            fluidRow(column(width = 6, C3PieChartOutput(outputId = "PieBranch1")),  column(width = 6, C3PieChartOutput(outputId = "PieBranch2"))),
+                            fluidRow(column(width = 6, C3PieChartOutput(outputId = "PieBranch3")),  column(width = 6, C3PieChartOutput(outputId = "PieBranch4"))),
+                            downloadButton('downloadRawTable', 'Download raw results (csv)')
+                            
            )
   )
 } 
@@ -126,11 +141,19 @@ output_ld_results_module <- function(){
 output_network_row <- function(){
   fluidRow(
     column(width = 9,
-           box(width = NULL, status = "success",
-               collapsible = TRUE, height = "600px",
-               visNetworkOutput("my_network",
-                                height = "550px", width = "auto")
-           )
+           fluidRow(
+             column(width = 6,
+                    box(width = NULL, status = "success",
+                        collapsible = TRUE, height = "600px",
+                        visNetworkOutput("my_network",
+                                         height = "550px", width = "auto")
+                    )),
+             column(width = 6,
+                    box(width = NULL, status = "success",
+                        collapsible = TRUE, height = "600px",
+                        visNetworkOutput("my_network_2",
+                                         height = "550px", width = "auto")
+                    )))
     ),
     column(width = 3,
            box(width = NULL, status = "success", height = "600px",
