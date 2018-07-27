@@ -117,8 +117,9 @@ output_raw_results_module <- function(){
            br(),
            conditionalPanel(condition="input.fetch_annotations",
                             #DT::dataTableOutput("raw_data"),
-                            fluidRow(column(width = 6, C3PieChartOutput(outputId = "PieBranch1")),  column(width = 6, C3PieChartOutput(outputId = "PieBranch2"))),
-                            fluidRow(column(width = 6, C3PieChartOutput(outputId = "PieBranch3")),  column(width = 6, C3PieChartOutput(outputId = "PieBranch4"))),
+                            fluidRow(column(width = 6, C3PieChartOutput(outputId = "consequences")),  column(width = 6, C3PieChartOutput(outputId = "annotations"))),
+                            fluidRow(column(width = 6, C3PieChartOutput(outputId = "genenames")),  column(width = 6, C3PieChartOutput(outputId = "cdts_scores"))),
+                            br(),
                             downloadButton('downloadRawTable', 'Download raw results (csv)')
                             
            )

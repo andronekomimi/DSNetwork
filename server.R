@@ -145,32 +145,36 @@ server <- function(input, output, session) {
       res <- as.data.frame(getVariants(hgvsids = valid_transfo,
                                        verbose = F, return.as = "DataFrame",
                                        fields = c("dbsnp","cadd","dbnsfp")))
-      res$linsight <- NA
-      #save(res, file = '~/Workspace/DSNetwork/objects/res.rda')
+      res$linsight <- res$cdts_score <- res$cdts_percentile <- NA
+      #save(res, file = 'objects/res.rda')
       
       values$res <- res
       
       if(!is.null(res) && nrow(res) > 0){
         
-        #### suppression des doublons ####
+        #### renommage des doublons ####
         duplicated_entries <- values$res$query[duplicated(res$query)]
         row_2_delete <- c() 
         if(length(duplicated_entries) > 0){
           for(duplicated_entry in duplicated_entries){
-            b <- values$res[values$res$query == duplicated_entry,]
-            minimum_na_row <- which.min(apply(b, 1, function(x) sum(is.na(x))))
-            row_2_delete <- c(row_2_delete, 
-                              as.numeric(row.names(b)[! row.names(b) %in% names(minimum_na_row)]))
+            
+            values$res[values$res$query == duplicated_entry,]$query <- paste0(values$res[values$res$query == duplicated_entry,]$query,":",
+                                                                              values$res[values$res$query == duplicated_entry,]$dbsnp.ref,">",
+                                                                              values$res[values$res$query == duplicated_entry,]$dbsnp.alt)
+            
+            # b <- values$res[values$res$query == duplicated_entry,]
+            # minimum_na_row <- which.min(apply(b, 1, function(x) sum(is.na(x))))
+            # row_2_delete <- c(row_2_delete, 
+            #                   as.numeric(row.names(b)[! row.names(b) %in% names(minimum_na_row)]))
           }
         }
         
-        if(length(row_2_delete) > 0){
-          res <- data.frame(values$res[-row_2_delete,], row.names = NULL)
-        }
+        # if(length(row_2_delete) > 0){
+        #   res <- data.frame(values$res[-row_2_delete,], row.names = NULL)
+        # }
         
         # resultats globaux
-        values$res <- res
-        save(res, file = 'objects/res.rda')
+        # values$res <- res
         
         #### ranges ####
         my_ranges <- apply(X = values$res, MARGIN = 1, 
@@ -178,7 +182,7 @@ server <- function(input, output, session) {
                                                           query_id = x[names(x) == "query"]$query))
         my_ranges <- do.call("c", my_ranges) 
         my_ranges <- sort(unique(my_ranges))
-        #save(my_ranges, file = "objects/my_ranges.rda")
+        save(my_ranges, file = "objects/my_ranges.rda")
         values$my_ranges <- my_ranges
         
         #### run linsight ####
@@ -195,10 +199,31 @@ server <- function(input, output, session) {
               values$res[values$res$query == query,"linsight"] <- value
             }
           }
+          
+          if(file.exists(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
+            load(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
+            hits <- findOverlaps(query = my_ranges, subject = CDTS)
+            for(i in seq_along(hits)){ 
+              hit <- hits[i]
+              query <- my_ranges[queryHits(hit)]$query
+              value1 <- CDTS[subjectHits(hit)]$CDTS
+              value2 <- CDTS[subjectHits(hit)]$percentile
+              values$res[values$res$query == query,"cdts_score"] <- value1
+              values$res[values$res$query == query,"cdts_percentile"] <- value2
+            }
+          }
         }
+        
         if(sum(is.na(values$res$linsight)) == length(values$res$linsight)){ # no lINSIGHT RESULTS
           values$res$linsight <- NULL
         }
+        
+        if(sum(is.na(values$res$cdts_score)) == length(values$res$cdts_score)){ # no CDTS RESULTS
+          values$res$cdts_score <- values$res$cdts_percentile <- NULL
+        }
+        
+        res <- values$res
+        save(res, file = 'objects/res.rda')
         
         #### split res in 2 -> non-syn vs other
         non_syn_res <- sapply(res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
@@ -881,53 +906,44 @@ server <- function(input, output, session) {
   
   
   #cadd coonsequences
-  output$PieBranch1 <- renderC3PieChart({
-    d1 <- data.frame(waiting = 1)
-    
+  output$consequences <- renderC3PieChart({
     if(!is.null(values$res) && nrow(values$res) > 0){
       d1 <- data.frame(non_synonymous = as.numeric(sum(sapply(values$res$cadd.consequence, function(y) "NON_SYNONYMOUS" %in% y))), 
                        other = as.numeric((nrow(values$res) - sum(sapply(values$res$cadd.consequence, function(j) "NON_SYNONYMOUS" %in% j)))))
+      d1 %>% c3() %>% c3_pie()
     }
-    
-    d1 %>% c3() %>% c3_pie()
   })
   
   #cadd annotations
-  output$PieBranch2 <- renderC3PieChart({
-    d1 <- data.frame(waiting = 1)
-    
+  output$annotations <- renderC3PieChart({
     if(!is.null(values$res) && nrow(values$res) > 0){
       annotype_counts <- as.numeric(table(unlist(values$res$cadd.annotype)))
       annotyp_names <- names(table(unlist(values$res$cadd.annotype)))
       d1 <- data.frame(matrix(annotype_counts, nrow = 1))
       colnames(d1) <-  annotyp_names
+      d1 %>% c3() %>% c3_pie()
     }
-    
-    d1 %>% c3() %>% c3_pie()
-    
   })
   
   #genes
-  output$PieBranch3 <- renderC3PieChart({
-    
-    #### REPRENDRE ICI
-    d1 <- data.frame(waiting = 1)
-    
+  output$genenames <- renderC3PieChart({
     if(!is.null(values$res) && nrow(values$res) > 0){
-      annotype_counts <- as.numeric(table(unlist(values$res$cadd.annotype)))
-      annotyp_names <- names(table(unlist(values$res$cadd.annotype)))
-      d1 <- data.frame(matrix(annotype_counts, nrow = 1))
-      colnames(d1) <-  annotyp_names
+      genenames <- sapply(X = values$res$cadd.gene, FUN = function(x) x$genename)
+      genenames[sapply(genenames, function(x) is.null(x))] <- "none"
+      
+      genenames_counts <- as.numeric(table(unlist(genenames)))
+      genenames_names <- names(table(unlist(genenames)))
+      d1 <- data.frame(matrix(genenames_counts, nrow = 1))
+      colnames(d1) <-  genenames_names
+      d1 %>% c3() %>% c3_pie()
     }
-    
-    d1 %>% c3() %>% c3_pie()
   })
   
-  output$PieBranch4 <- renderC3PieChart({
-    data.frame(sugar = 20, 
-               fat = 45, 
-               salt = 10, 
-               vegetables = 60) %>% c3() %>% c3_pie()
+  output$cdts_scores <- renderC3PieChart({
+    if(!is.null(values$res) && nrow(values$res) > 0){
+      d1 <- values$res
+      d1 %>% c3(y = 'cdts_score', x = 'query') %>% c3_bar() %>% legend(hide= T) %>% grid('y', show = F, lines = data.frame(value = 0)) %>% tickAxis("x", values = c(1))
+    }
   })
 }
 
