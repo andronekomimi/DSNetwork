@@ -15,7 +15,8 @@ server <- function(input, output, session) {
     locus_60 = "13:32866927:CAATAAATAAATA:CAATAAATA\nrs56084662\nrs11571815\nrs11571818\nrs11571833",
     locus_38 = "rs62485509\nrs720475",
     locus_6 = "rs181595184\nrs12129763\nrs6686987\nrs55899544\nrs6427943\nrs6678914\nrs6703244\nrs12028423\nrs12131882\nrs12132085\nrs12129456\nrs12129536\nrs10920365\nrs2167588\nrs4950774\nrs12032424\nrs4950775\nrs4950836\nrs6143572\nrs896548\nrs4245706\nrs12032080\nrs3795598\nrs12143329\nrs4950837\nrs12021815\nrs60573451\nrs140473199",
-    locus_2 = "rs11102694\nrs2358994\nrs2358995\nrs7547478\nrs7513707\nrs12022378\nrs3761936\nrs11102701\nrs11102702\nrs12046289\nrs112974454")
+    locus_2 = "rs11102694\nrs2358994\nrs2358995\nrs7547478\nrs7513707\nrs12022378\nrs3761936\nrs11102701\nrs11102702\nrs12046289\nrs112974454",
+    locus_0 = "rs6864776\n5:44527739:ATACT:A\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:AG:A\nrs7710996\nrs6451763\n5:44527050:A:C\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:TA:T\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
   
   #### CONF ####
   tmpDir <- 'temp/'
@@ -35,6 +36,7 @@ server <- function(input, output, session) {
   values$scores_data <- NULL
   values$selected_node <- ''
   values$ld_regions <- NULL
+  values$notfound_id <- NULL
   load('data/scores_correlation_matrice.rda')
   
   # A notification ID
@@ -139,29 +141,28 @@ server <- function(input, output, session) {
       modstring <- c(modstring, transform_query(input$query))
     
     valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
-    save(valid_transfo, file = '~/Workspace/DSNetwork/objects/valid_transfo.rda')
+    save(valid_transfo, file = 'objects/valid_transfo.rda')
+    
     if(length(valid_transfo) > 0){
       #### run myvariant ####
       res <- as.data.frame(getVariants(hgvsids = valid_transfo,
                                        verbose = F, return.as = "DataFrame",
                                        fields = c("dbsnp","cadd","dbnsfp")))
-      res$linsight <- res$cdts_score <- res$cdts_percentile <- NA
-      #save(res, file = 'objects/res.rda')
+      res$linsight <- res$cdts_score <- res$cdts_percentile <- res$eigen <- res$bayesdel <- NA
       
       values$res <- res
-      
-      if(!is.null(res) && nrow(res) > 0){
+      remove(res)
+      if(!is.null(values$res) && nrow(values$res) > 0){
         
         #### renommage des doublons ####
-        duplicated_entries <- values$res$query[duplicated(res$query)]
+        duplicated_entries <- unique(values$res$query[duplicated(values$res$query)])
         row_2_delete <- c() 
+        
         if(length(duplicated_entries) > 0){
           for(duplicated_entry in duplicated_entries){
-            
-            values$res[values$res$query == duplicated_entry,]$query <- paste0(values$res[values$res$query == duplicated_entry,]$query,":",
-                                                                              values$res[values$res$query == duplicated_entry,]$dbsnp.ref,">",
+            values$res[values$res$query == duplicated_entry,]$query <- paste0(values$res[values$res$query == duplicated_entry,]$query,"_",
+                                                                              values$res[values$res$query == duplicated_entry,]$dbsnp.ref,".",
                                                                               values$res[values$res$query == duplicated_entry,]$dbsnp.alt)
-            
             # b <- values$res[values$res$query == duplicated_entry,]
             # minimum_na_row <- which.min(apply(b, 1, function(x) sum(is.na(x))))
             # row_2_delete <- c(row_2_delete, 
@@ -169,32 +170,33 @@ server <- function(input, output, session) {
           }
         }
         
-        # if(length(row_2_delete) > 0){
-        #   res <- data.frame(values$res[-row_2_delete,], row.names = NULL)
-        # }
+        #### global range ####
+        global_ranges <- apply(X = values$res, MARGIN = 1, 
+                               FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"]$X_id, 
+                                                              query_id = x[names(x) == "query"]$query))
         
-        # resultats globaux
-        # values$res <- res
+        global_ranges <- do.call("c", global_ranges) 
+        global_ranges <- sort(global_ranges)
         
-        #### ranges ####
-        my_ranges <- apply(X = values$res, MARGIN = 1, 
-                           FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"]$X_id, 
-                                                          query_id = x[names(x) == "query"]$query))
-        my_ranges <- do.call("c", my_ranges) 
-        my_ranges <- sort(unique(my_ranges))
-        save(my_ranges, file = "objects/my_ranges.rda")
-        values$my_ranges <- my_ranges
+        save(global_ranges, file = "objects/global_ranges.rda")
+        values$global_ranges <- global_ranges
+        
+        ### remove nonfound variant lines 
+        if("notfound" %in% colnames(values$res)){
+          values$notfound_id <- paste(values$res[!is.na(values$res$notfound),"query"], collapse = ", ")
+          values$res <- values$res[-which(values$res$notfound == TRUE), ]
+        }
         
         #### run linsight ####
-        requested_chromosomes <- seqlevelsInUse(my_ranges)
+        requested_chromosomes <- seqlevelsInUse(global_ranges)
         
         for(requested_chr in requested_chromosomes){
           if(file.exists(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
             load(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
-            hits <- findOverlaps(query = my_ranges, subject = gr)
+            hits <- findOverlaps(query = values$global_ranges, subject = gr)
             for(i in seq_along(hits)){ 
               hit <- hits[i]
-              query <- my_ranges[queryHits(hit)]$query
+              query <- values$global_ranges[queryHits(hit)]$query
               value <- gr[subjectHits(hit)]$score
               values$res[values$res$query == query,"linsight"] <- value
             }
@@ -202,10 +204,10 @@ server <- function(input, output, session) {
           
           if(file.exists(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
             load(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
-            hits <- findOverlaps(query = my_ranges, subject = CDTS)
+            hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
             for(i in seq_along(hits)){ 
               hit <- hits[i]
-              query <- my_ranges[queryHits(hit)]$query
+              query <- global_ranges[queryHits(hit)]$query
               value1 <- CDTS[subjectHits(hit)]$CDTS
               value2 <- CDTS[subjectHits(hit)]$percentile
               values$res[values$res$query == query,"cdts_score"] <- value1
@@ -225,11 +227,6 @@ server <- function(input, output, session) {
         res <- values$res
         save(res, file = 'objects/res.rda')
         
-        #### split res in 2 -> non-syn vs other
-        non_syn_res <- sapply(res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-        values$non_syn_res <- res[non_syn_res,]
-        values$regulatory_res <- res[!non_syn_res,]
-        
         #### population freq ####
         maf_infos <- values$res[,grepl(x = colnames(values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
         colnames(maf_infos) <- gsub(x = colnames(maf_infos), pattern = "cadd.1000g.(.*)", replacement = "MAF_\\1_1000G")
@@ -240,10 +237,10 @@ server <- function(input, output, session) {
         annotations_infos <- data.frame(values$res, stringsAsFactors = FALSE)
         
         # supprimer not found
-        if("notfound" %in% colnames(annotations_infos)){
-          annotations_infos <- annotations_infos[is.na(annotations_infos$notfound),]
-          annotations_infos$notfound <- NULL
-        }
+        # if("notfound" %in% colnames(annotations_infos)){
+        #   annotations_infos <- annotations_infos[is.na(annotations_infos$notfound),]
+        #   annotations_infos$notfound <- NULL
+        # }
         
         # supprimer licence
         annotations_infos <- annotations_infos[,!grepl(x = colnames(annotations_infos), pattern = "license")]
@@ -256,79 +253,81 @@ server <- function(input, output, session) {
         # annotations_infos <- annotations_infos[apply(X = annotations_infos, MARGIN = 1, FUN = function(x) sum(is.na(x)) != (length(x) - 1)),]
         
         values$annotations <- annotations_infos
-        #save(annotations_infos, file = "objects/annotations.rda")
+        save(annotations_infos, file = "objects/annotations.rda")
         
-        adjusted_scores <- list(
-          Polyphen2.HDIV.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.polyphen2.hdiv.rankscore"),
-          Polyphen2.HVAR.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.polyphen2.hvar.rankscore"),
-          Sift.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.sift.converted_rankscore"),
-          MutationTaster.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.mutationtaster.converted_rankscore"),
-          LRT.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.lrt.converted_rankscore"),
-          MutationAssessor.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.mutationassessor.rankscore"),
-          FATHMM.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.fathmm.rankscore"),
-          FATHMM.MKL.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.fathmm.mkl.coding_rankscore"),
-          Provean.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.provean.rankscore"),
-          VEST3.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.vest3.rankscore"),
-          MetaSVM.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.metasvm.rankscore"),
-          MetaLR.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.metalr.rankscore"),
-          DANN.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.dann.rankscore"),
-          fitCons.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.integrated.fitcons_rankscore"),
-          SiPhy.logodds.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.siphy_29way.logodds_rankscore"),
-          GERP.element.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.gerp...rs_rankscore"),
-          PhyloP.20way.mammalian.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.phylo.p20way.mammalian_rankscore"),
-          PhyloP.100way.vertebrate.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.phylo.p100way.vertebrate_rankscore"),
-          phastCons.20way.mammalian.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.phastcons.20way.mammalian_rankscore"),
-          phastCons.100way.vertebrate.rankscore = extract_score_and_convert(annotations_infos, 
-                                                                            "dbnsfp.phastcons.100way.vertebrate_rankscore"),
-          Eigen.phredscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.phred"),
-          Eigen.PC.phredscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.pc.phred"),
-          Eigen.PC.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.pc.raw_rankscore"),
-          REVEL.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.revel.rankscore"),
-          MutPred.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.mutpred.rankscore"),
-          GenoCanyon.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.genocanyon.rankscore"),
-          M_CAP.rankscore = extract_score_and_convert(annotations_infos, "dbnsfp.m_cap_score.rankscore")
-        )
+        common_fields <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "query|X_id|cadd.ref|cadd.alt|cdts")]
         
-        raw_scores <- list(
-          Polyphen2.HDIV.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.polyphen2.hdiv.score"),
-          Polyphen2.HVAR.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.polyphen2.hvar.score"),
-          Polyphen2.rawscore = extract_score_and_convert(annotations_infos, "cadd.polyphen.val"),
-          Sift.rawscore = extract_score_and_convert(annotations_infos, "cadd.sift.val"),
-          MutationTaster.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.mutationtaster.score"),
-          LRT.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.lrt.score"),
-          MutationAssessor.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.mutationassessor.score"),
-          FATHMM.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.fathmm.score"),
-          FATHMM.MKL.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.fathmm.mkl.coding_score"),
-          Provean.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.provean.score"),
-          VEST3.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.vest3.score"),
-          MetaSVM.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.metasvm.score"),
-          MetaLR.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.metalr.score"),
-          CADD.rawscore = extract_score_and_convert(annotations_infos, "cadd.rawscore"),
-          CADD.phredscore = extract_score_and_convert(annotations_infos, "cadd.phred"),
-          DANN.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.dann.score"),
-          fitCons.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.integrated.fitcons_score", "cadd.fitcons"), # get cadd.fitcons if missing
-          SiPhy.logodds.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.siphy_29way.logodds"),
-          GERP.neutral.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.gerp...nr", "cadd.gerp.n"), # get cadd.gerp.n if missing
-          GERP.element.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.gerp...rs", "cadd.gerp.rs"), # get cadd.gerp.rs if missing
+        common_scores <- c("linsight", 
+                           "bayesdel",
+                           "eigen")
+        
+        dbnsfp_rankscores <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
+        
+        cadd_raw_scores <- read.csv(file = 'data/CADD_scores_from_myvariant.info.tsv', header = T, sep = "\t", stringsAsFactors = F)
+        cadd_raw_scores <- cadd_raw_scores[cadd_raw_scores$is_included == "x",]$field
+        
+        #### split res in 2 -> non-syn vs other
+        non_syn_res <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
+        values$all_nonsyn_res <- values$res[non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, dbnsfp_rankscores)) ]
+        values$all_regul_res <- values$res[!non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, cadd_raw_scores)) ]
+        
+        if(nrow(values$all_nonsyn_res) > MAX_VAR){
+          print("faut trier all_nonsyn_res")
+          values$nonsyn_res <- values$all_nonsyn_res[1:MAX_VAR,]
+        } else {
+          print("pas besoin de trier all_nonsyn_res")
+          values$nonsyn_res <- values$all_nonsyn_res
+        }
+        
+        if(nrow(values$all_regul_res) > MAX_VAR){
+          print("faut trier all_regul_res")
+          values$regul_res <- values$all_regul_res[1:MAX_VAR,]
+        } else {
+          print("pas besoin de trier all_regul_res")
+          values$regul_res <- values$all_regul_res
+        }
+        
+        print(rownames(values$nonsyn_res))
+        print(rownames(values$regul_res))
+        
+        if(nrow(values$nonsyn_res) > 0){
+          adjusted_scores <- sapply(X = c(dbnsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$nonsyn_res, score_name = x))
+          switch (class(adjusted_scores),
+                  matrix = {
+                    rownames(adjusted_scores) <- NULL
+                    adjusted_scores <- as.list(data.frame(adjusted_scores))
+                  },
+                  numeric = {
+                    names(adjusted_scores) <- gsub(x = names(adjusted_scores), pattern = "(.*[a-z]).\\d+.?\\d+$", replacement = "\\1")
+                    adjusted_scores <- lapply(split(adjusted_scores, names(adjusted_scores)), unname)
+                  }
+          )
           
-          PhyloP.mammalian_non.human_.rawscore = extract_score_and_convert(annotations_infos, "cadd.phylop.mammalian"),
-          PhyloP.primate_non.human_.rawscore = extract_score_and_convert(annotations_infos, "cadd.phylop.primate"),
-          PhyloP.vertebrate_non.human_.rawscore = extract_score_and_convert(annotations_infos, "cadd.phylop.vertebrate"),
-          PhyloP.20way.mammalian.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.phylo.p20way.mammalian"),
-          PhyloP.100way.vertebrate.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.phylo.p100way.vertebrate"),
-          phastCons.mammalian_non.human_.rawscore = extract_score_and_convert(annotations_infos, "cadd.phast_cons.mammalian"),
-          phastCons.primate_non.human_.rawscore = extract_score_and_convert(annotations_infos, "cadd.phast_cons.primate"),
-          phastCons.vertebrate_non.human_.rawscore = extract_score_and_convert(annotations_infos, "cadd.phast_cons.vertebrate"),
-          phastCons.20way.mammalian.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.phastcons.20way.mammalian"),
-          phastCons.100way.vertebrate.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.phastcons.100way.vertebrate"),
-          Eigen.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.raw"),
-          Eigen.PC.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.eigen.pc.raw"),
-          LINSIGHT.rawscore = extract_score_and_convert(annotations_infos, "linsight"),
-          REVEL.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.revel.score"),
-          MutPred.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.mutpred.score"),
-          GenoCanyon.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.genocanyon.score"),
-          M_CAP.rawscore = extract_score_and_convert(annotations_infos, "dbnsfp.m_cap_score.score")
-        )
+          adjusted_scores <- adjusted_scores[sapply(X = adjusted_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
+          
+        } else {
+          adjusted_scores <- NULL
+        }     
+        
+        
+        if(nrow(values$regul_res) > 0){
+          raw_scores <- sapply(X = c(cadd_raw_scores, common_scores), FUN = function(x) extract_score_and_convert(values$regul_res, score_name = x))
+          switch (class(raw_scores),
+                  matrix = {
+                    rownames(raw_scores) <- NULL
+                    raw_scores <- as.list(data.frame(raw_scores))
+                  },
+                  numeric = {
+                    names(raw_scores) <- gsub(x = names(raw_scores), pattern = "(.*[a-z]).\\d+.?\\d+$", replacement = "\\1")
+                    raw_scores <- lapply(split(raw_scores, names(raw_scores)), unname)
+                  }
+          )
+          
+          raw_scores <- raw_scores[sapply(X = raw_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
+          
+        } else {
+          raw_scores <- NULL
+        }
         
         save(raw_scores, adjusted_scores, file = "objects/scores.rda")
         values$raw_scores <- raw_scores
@@ -350,17 +349,10 @@ server <- function(input, output, session) {
   
   output$query_res <- renderText({ 
     if(!is.null(values$res) && nrow(values$res) > 0){
-      
-      if("notfound" %in% colnames(values$res)){
-        notfound_id <- values$res[!is.na(values$res$notfound),"query"]
-      } else {
-        notfound_id <- NULL
-      }
-      
-      ifelse(test = length(notfound_id) > 0, 
-             yes = paste0("No Annotations for the following variants: ", 
-                          paste(notfound_id, collapse = ","),"."), 
-             no = "Annotations found for all variants")  
+      ifelse(test = is.null(values$notfound_id), 
+             no = paste0("No Annotations for the following variants: ", 
+                         values$notfound_id,"."), 
+             yes = "Annotations found for all variants")  
     }
   })
   
@@ -404,7 +396,7 @@ server <- function(input, output, session) {
     my_ranges <- values$my_ranges
     
     # build ilets
-    hits <- findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000000) #1Mbp
+    hits <- GenomicRanges::findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000000) #1Mbp
     ilets <- c()
     
     for(i in queryHits(hits)){
@@ -489,19 +481,58 @@ server <- function(input, output, session) {
     )
   })
   
-  buildNetwork <- eventReactive(input$buildNetwork,{
-    shinyBS::updateButton(session = session, inputId = "buildNetwork", 
-                          disabled = TRUE)
+  buildNetwork <- eventReactive(c(input$buildNetwork, input$updateVarSelection),{
+    # shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
+    
     id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
-    snv_dist_edges <- build_snv_edges(values, "0", 1000) #default
-    snv_ld_edges <- build_snv_edges(values, "1", NULL) #default
+    
+    print(input$variants_order)
+    
+    switch(network_type,
+           non_syn = {
+             if(nrow(values$all_nonsyn_res) > MAX_VAR){
+               my_res <- values$all_nonsyn_res
+             }
+           },
+           regul = {
+             if(nrow(values$all_regul_res) > MAX_VAR){
+               my_res <- values$all_regul_res
+             }
+           }
+    )
+    
+    if(input$variants_order == "submission"){
+      switch(network_type,
+             non_syn = {
+               values$nonsyn_res <- values$all_nonsyn_res
+             },
+             regul = {
+               session_values$all_nonsyn_res <- session_values$all_regul_res
+             }
+      )
+    }
+    
+    print(rownames(values$nonsyn_res))
+    print(rownames(values$regul_res))
+    
+    snv_dist_edges <- build_snv_edges(values, "0", 1000, network_type = input$network_type) #default
+    snv_ld_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
     snv_edges <- rbind(snv_dist_edges, snv_ld_edges)
-    snv_nodes <- build_snv_nodes(values)
-    non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)])
+    save(snv_edges, file = "objects/snv_edges.rda")
+    #print(snv_edges)
+    snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type)
+    save(snv_nodes, file = "objects/snv_nodes.rda")
+    
+    non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)]) 
     non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
     
-    scores_data <- build_score_nodes(values,selected_adj_scores = non_null_adj_scores, 
-                                     selected_raw_scores = non_null_raw_scores)
+    scores_data <- build_score_nodes(session_values = values, 
+                                     selected_adj_scores = non_null_adj_scores, 
+                                     selected_raw_scores = non_null_raw_scores, 
+                                     network_type = input$network_type)
+    
+    #print(head(scores_data))
+    
     basic_ranking()
     
     values$scores_data <- scores_data
@@ -510,6 +541,8 @@ server <- function(input, output, session) {
     
     all_ne <- list(nodes = values$all_nodes,
                    edges = values$all_edges)
+    
+    save(all_ne, file = 'objects/all_ne.rda')
     
     # suppress unwanted edges
     current_edges <- values$all_edges
@@ -535,18 +568,20 @@ server <- function(input, output, session) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T) %>%
-      # visOptions(highlightNearest = F, clickToUse = F, manipulation = F) %>%
-      visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
+      visOptions(highlightNearest = TRUE, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
+      #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
       visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
       visLayout(randomSeed = 2018)
-    # visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
+    #visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
     
     for (g in values$annotations$query){
       vn <- vn %>% visGroups(groupname = paste0("Scores_",g), background = "#97C2FC",
                              color = "#2B7CE9", shape = "square")
     }
     
+    if (!is.null(id))
+      removeNotification(id)
     saveRDS(object = vn, file = "objects/init_vn.rds")
     return(vn)
   })
@@ -579,12 +614,20 @@ server <- function(input, output, session) {
   
   #### LD ####
   observeEvent(input$update_ld, {
-    # supprimer les edges de type dist
-    dist_edges_id_2_remove <- values$current_edges[values$current_edges$type == "snv_dist_edges",]$id
     
     # extraire les bon edges
     max_ld <- input$ld_range[2]
     min_ld <- input$ld_range[1]
+    
+    # supprimer les edges de type dist
+    dist_edges_id_2_remove <- values$current_edges[values$current_edges$type == "snv_dist_edges",]$id
+    
+    # supprimer les edges de type dist
+    empty_ld_edges_id_2_remove <- values$current_edges[(values$current_edges$type == "snv_ld_edges") & 
+                                                         (values$current_edges$title == "NA"),]$id
+    
+    
+    
     
     # supprimer les edges de type ld qui ne sont pas dans le range
     ld_edges_id_2_remove <- values$current_edges[(values$current_edges$type == "snv_ld_edges") & 
@@ -597,7 +640,11 @@ server <- function(input, output, session) {
     edges_id_2_remove <- c(dist_edges_id_2_remove, ld_edges_id_2_remove)
     
     edges_2_keep <- values$current_edges[! values$current_edges$id %in% edges_id_2_remove,]
-    edges_2_keep <- rbind(edges_2_keep, ld_edges_id_2_add)
+    
+    # add newly computed LD
+    snv_ld_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
+    snv_ld_edges <- snv_ld_edges[((as.numeric(snv_ld_edges$xvalue) < min_ld | as.numeric(snv_ld_edges$xvalue) > max_ld)),]
+    edges_2_keep <- rbind(edges_2_keep, ld_edges_id_2_add, snv_ld_edges)
     
     values$current_edges <- edges_2_keep
     
@@ -639,51 +686,51 @@ server <- function(input, output, session) {
   })
   
   #### FOCUS ####
-  observe({
-    updateSelectInput(session, "focus",
-                      choices = c("None", as.character(values$current_nodes$id)),
-                      selected = "None"
-    )
-  })
-  
-  observe({
-    if(input$focus != "None"){
-      visNetworkProxy("my_network") %>%
-        visFocus(id = input$focus, scale = 1)
-    } else {
-      visNetworkProxy("my_network") %>%
-        visFit()
-    }
-  })
+  # observe({
+  #   updateSelectInput(session, "focus",
+  #                     choices = c("None", as.character(values$current_nodes$id)),
+  #                     selected = "None"
+  #   )
+  # })
+  # 
+  # observe({
+  #   if(input$focus != "None"){
+  #     visNetworkProxy("my_network") %>%
+  #       visFocus(id = input$focus, scale = 1)
+  #   } else {
+  #     visNetworkProxy("my_network") %>%
+  #       visFit()
+  #   }
+  # })
   
   #### HIGHLIGHT ####
-  observe({
-    if("cadd.consdetail" %in% colnames(values$annotations)){
-      choices <- unique(unlist(strsplit(x = as.character(values$annotations$cadd.consdetail), split = ","))) 
-      updateSelectInput(session, "highlight",
-                        choices = c("None", choices),
-                        selected = "None")
-    }
-  })
+  # observe({
+  #   if("cadd.consdetail" %in% colnames(values$annotations)){
+  #     choices <- unique(unlist(strsplit(x = as.character(values$annotations$cadd.consdetail), split = ","))) 
+  #     updateSelectInput(session, "highlight",
+  #                       choices = c("None", choices),
+  #                       selected = "None")
+  #   }
+  # })
   
-  observe({
-    svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
-    
-    # remise à zero
-    svn_nodes$shape <- "circularImage"
-    
-    if(input$highlight != "None"){
-      # nodes to highlight
-      svn_id_2_highlight <- as.character(values$annotations$query)[grepl(x = as.character(values$annotations$cadd.consdetail),
-                                                                         pattern = input$highlight)]
-      svn_nodes[svn_nodes$id %in% svn_id_2_highlight,]$shape <- "image"
-      values$current_nodes$shape <- as.character(values$current_nodes$shape)
-      values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
-    }
-    
-    visNetworkProxy("my_network") %>%
-      visUpdateNodes(nodes = svn_nodes)
-  })
+  # observe({
+  #   svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
+  #   
+  #   # remise à zero
+  #   svn_nodes$shape <- "circularImage"
+  #   
+  #   if(input$highlight != "None"){
+  #     # nodes to highlight
+  #     svn_id_2_highlight <- as.character(values$annotations$query)[grepl(x = as.character(values$annotations$cadd.consdetail),
+  #                                                                        pattern = input$highlight)]
+  #     svn_nodes[svn_nodes$id %in% svn_id_2_highlight,]$shape <- "image"
+  #     values$current_nodes$shape <- as.character(values$current_nodes$shape)
+  #     values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
+  #   }
+  #   
+  #   visNetworkProxy("my_network") %>%
+  #     visUpdateNodes(nodes = svn_nodes)
+  # })
   
   #### SCORES ####
   observe({
@@ -709,27 +756,40 @@ server <- function(input, output, session) {
                                              pattern = "_(.*)_", replacement = " (\\1)")
     
     
+    switch(input$network_type,
+           non_syn = {
+             predictors <- non_null_adj_scores
+           },
+           regul = {
+             predictors <- non_null_raw_scores
+           }
+    )
     
-    if(length(non_null_raw_scores) > 0){
-      names(non_null_raw_scores) <- non_null_raw_scores_pretty_names
-      updateSelectizeInput(session, "raw_scores",
-                           choice = non_null_raw_scores,
-                           selected = non_null_raw_scores)
-    }
-    
-    if(length(non_null_adj_scores) > 0){
-      names(non_null_adj_scores) <- non_null_adj_scores_pretty_names
-      updateSelectizeInput(session, "adj_scores",
-                           choice = non_null_adj_scores,
-                           selected = non_null_adj_scores)
-    }
+    # if(length(non_null_raw_scores) > 0){
+    #   names(non_null_raw_scores) <- non_null_raw_scores_pretty_names
+    #   updateSelectizeInput(session, "raw_scores",
+    #                        choice = non_null_raw_scores,
+    #                        selected = non_null_raw_scores)
+    # }
+    # 
+    # if(length(non_null_adj_scores) > 0){
+    #   names(non_null_adj_scores) <- non_null_adj_scores_pretty_names
+    #   updateSelectizeInput(session, "adj_scores",
+    #                        choice = non_null_adj_scores,
+    #                        selected = non_null_adj_scores)
+    # }
     
     if(length(non_null_raw_scores) > 0 || length(non_null_adj_scores) > 0){
-      updateSelectizeInput(session, "predictors",
-                           choice = list("Raw scores" = non_null_raw_scores,
-                                         "Adjusted scores" = non_null_adj_scores),
-                           selected = c())
+      updateSelectizeInput(session, "selected_scores",
+                           choice = predictors,
+                           selected = predictors)
+      
+      updateSelectInput(session, "variants_order",
+                        choices = c("submission order - default" = "submission",
+                                    predictors,
+                                    "force all" = "all"))
     }
+    
     
   })
   
@@ -791,19 +851,19 @@ server <- function(input, output, session) {
   })
   
   output$scores_stats <- renderPlot({
-    suppressWarnings(compute_scores_stats())
+    #suppressWarnings(compute_scores_stats())
   })
   
   output$scores_missing_data <- DT::renderDataTable({
-    details <- as.matrix(compute_scores_missing_data())
-    # if(is.null(detail)){
-    #   detail <- as.matrix(data.frame(waiting = ""))
-    # }
-    DT::datatable(details,
-                  rownames = TRUE,
-                  options = list(scrollX = TRUE,
-                                 lengthChange = FALSE,
-                                 searching = FALSE))
+    # details <- as.matrix(compute_scores_missing_data())
+    # # if(is.null(detail)){
+    # #   detail <- as.matrix(data.frame(waiting = ""))
+    # # }
+    # DT::datatable(details,
+    #               rownames = TRUE,
+    #               options = list(scrollX = TRUE,
+    #                              lengthChange = FALSE,
+    #                              searching = FALSE))
   })
   
   
@@ -820,12 +880,12 @@ server <- function(input, output, session) {
   })
   
   output$scores_corr <- renderD3heatmap({
-    m <- compute_scores_corr()
-    if(!is.null(m)){
-      d3heatmap(x = m, Colv = "Rowv", 
-                Rowv = NULL, colors = cor_color_breaks, 
-                cexCol = .7, na.rm = F, cexRow = .7)
-    }
+    # m <- compute_scores_corr()
+    # if(!is.null(m)){
+    #   d3heatmap(x = m, Colv = "Rowv", 
+    #             Rowv = NULL, colors = cor_color_breaks, 
+    #             cexCol = .7, na.rm = F, cexRow = .7)
+    # }
     
   })
   
@@ -836,9 +896,9 @@ server <- function(input, output, session) {
     file.remove(old_figures)
     
     scores_data <- build_score_nodes(values,
-                                     selected_adj_scores = input$adj_scores, 
-                                     selected_raw_scores = input$raw_scores, 
-                                     inc = input$update_metascore)
+                                     selected_adj_scores = input$selected_scores, 
+                                     selected_raw_scores = input$selected_scores, 
+                                     inc = input$update_metascore, network_type = input$network_type)
     values$scores_data <- scores_data
     
     basic_ranking(inc = input$update_metascore)
@@ -943,6 +1003,13 @@ server <- function(input, output, session) {
     if(!is.null(values$res) && nrow(values$res) > 0){
       d1 <- values$res
       d1 %>% c3(y = 'cdts_score', x = 'query') %>% c3_bar() %>% legend(hide= T) %>% grid('y', show = F, lines = data.frame(value = 0)) %>% tickAxis("x", values = c(1))
+    }
+  })
+  
+  output$cdts_percentile <- renderC3PieChart({
+    if(!is.null(values$res) && nrow(values$res) > 0){
+      d1 <- values$res
+      d1 %>% c3(y = 'cdts_percentile', x = 'query') %>% c3_bar() %>% legend(hide= T) %>% grid('y', show = F, lines = data.frame(value = 0)) %>% tickAxis("x", values = c(1))
     }
   })
 }

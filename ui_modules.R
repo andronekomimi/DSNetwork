@@ -38,7 +38,8 @@ preload_loci <- c("Locus 2 [chr1:113948389-14948389]" = "locus_2",
                   "Locus 60 [chr13:32468810-33472626]" = "locus_60",
                   "Locus 70 [chr17:77281387-78281725]" = "locus_70",
                   "Locus 78 [chr22:40376234-41527870]" = "locus_78",
-                  "Locus 80 [chr3:86537543-8753754]" = "locus_80")
+                  "Locus 80 [chr3:86537543-8753754]" = "locus_80",
+                  "FGFR2" = "locus_0")
 
 sidebar_content <- function(){
   sidebarMenu(
@@ -48,8 +49,6 @@ sidebar_content <- function(){
     menuItem("About", tabName = "about", icon = icon("question"))
   )
 }
-
-
 
 input_data_module <- function(){
   tabPanel(title = h5("INPUT"),
@@ -72,57 +71,71 @@ input_data_module <- function(){
                     actionButton("preload_loci", "Load preset query", icon = icon("caret-right")),
                     shinyBS::bsButton(inputId = "fetch_annotations", 
                                       label = "Fetch Annotations", 
-                                      icon = icon("search"), disabled = TRUE),
+                                      icon = icon("search"), disabled = FALSE),
                     verbatimTextOutput("transform_res"),
                     tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
                     br(),
                     verbatimTextOutput("query_res"),
                     tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
-                    br()
+                    br(),
+                    downloadButton('downloadRawTable', 'Download raw results (csv)'),
+                    shinyBS::bsButton(inputId = "go_2_network", 
+                                      label = "Go to Network", 
+                                      icon = icon("arrow-right"), disabled = TRUE)
              ), 
-             output_raw_results_module()
+             output_raw_results_module(),
+             output_raw_results_module_2()
            )
-  )
-}
-
-input_ld_module <- function(){
-  column(width = 5,
-         selectInput(inputId = 'population',
-                     label = '2) LD data : choose the population to use',
-                     choices = populations),
-         shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
-                           icon = icon("gear"), disabled = TRUE),
-         br(),
-         br(),
-         verbatimTextOutput("runld_res"),
-         tags$style(type="text/css", "#runld_res {white-space: pre-wrap;}"),
-         br()
   )
 }
 
 input_network_module <- function(){
-  column(width = 2, 
-         tags$b('3) Build your network'),br(),
-         shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
-                           disabled = TRUE, icon = icon("gear")),
-         br()
+  fluidRow(
+    column(width = 6,
+           br(),
+           selectInput(inputId = 'network_type',
+                       label = '2) Choose the network to build',
+                       choices = c("non synonymous variants" = "non_syn",
+                                   "synonymous and non-coding variants" = "regul"),
+                       width = "60%"),
+           shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
+                             disabled = FALSE, icon = icon("gear")),
+           br()
+    ), 
+    column(width = 6,
+           br(),
+           selectInput(inputId = 'variants_order',
+                       label = '3) Up to 30 variants selection based on:',
+                       choices = c("submission order - default" = "submission"),
+                       width = "60%"),
+           shinyBS::bsButton(inputId = 'updateVarSelection', label = 'Update',
+                             disabled = FALSE, icon = icon("gear")),
+           br()
+    )
   )
 }
 
 output_raw_results_module <- function(){
-  # tabPanel(title = h5("Raw results"),
-  #          value = "raw_results",
-  #          br(),
-  column(width = 8, 
-           br(),
-           conditionalPanel(condition="input.fetch_annotations",
-                            #DT::dataTableOutput("raw_data"),
-                            fluidRow(column(width = 6, C3PieChartOutput(outputId = "consequences")),  column(width = 6, C3PieChartOutput(outputId = "annotations"))),
-                            fluidRow(column(width = 6, C3PieChartOutput(outputId = "genenames")),  column(width = 6, C3PieChartOutput(outputId = "cdts_scores"))),
-                            br(),
-                            downloadButton('downloadRawTable', 'Download raw results (csv)')
-                            
-           )
+  column(width = 4, 
+         br(),
+         conditionalPanel(condition="input.fetch_annotations",
+                          #DT::dataTableOutput("raw_data"),
+                          fluidRow(column(width = 12, C3PieChartOutput(outputId = "consequences"))),
+                          fluidRow(column(width = 12, C3PieChartOutput(outputId = "annotations"))),
+                          fluidRow(column(width = 12, C3PieChartOutput(outputId = "genenames")))
+                          
+         )
+  )
+} 
+
+output_raw_results_module_2 <- function(){
+  column(width = 4, 
+         br(),
+         conditionalPanel(condition="input.fetch_annotations",
+                          fluidRow(column(width = 12, C3PieChartOutput(outputId = "cdts_scores", height = "400px"))),
+                          fluidRow(column(width = 12, C3PieChartOutput(outputId = "cdts_percentile")))
+                          
+         )
   )
 } 
 
@@ -141,67 +154,78 @@ output_ld_results_module <- function(){
 
 output_network_row <- function(){
   fluidRow(
-    column(width = 9,
-           fluidRow(
-             column(width = 6,
-                    box(width = NULL, status = "success",
-                        collapsible = TRUE, height = "600px",
-                        visNetworkOutput("my_network",
-                                         height = "550px", width = "auto")
-                    )),
-             column(width = 6,
-                    box(width = NULL, status = "success",
-                        collapsible = TRUE, height = "600px",
-                        visNetworkOutput("my_network_2",
-                                         height = "550px", width = "auto")
-                    )))
-    ),
-    column(width = 3,
-           box(width = NULL, status = "success", height = "600px",
-               textOutput("snv_score_details_id"),
-               DT::dataTableOutput(outputId = "snv_score_details")
-           )
+    column(width = 12,
+           fluidRow(visNetworkOutput("my_network",
+                                     height = "600px", width = "auto"))
     )
+    # ,
+    # column(width = 3,
+    #        box(width = NULL, status = "success", height = "600px",
+    #            "TEST"
+    #            #textOutput("snv_score_details_id"),
+    #            #DT::dataTableOutput(outputId = "snv_score_details")
+    #        )
+    # )
   )
 } 
 
 nodes_modifiers_box <- function(){
   box(width = NULL, status = "warning", 
       height = "500px", collapsible = TRUE,
-      selectInput("snv_nodes_type", "SNV Nodes color",
+      selectInput("snv_nodes_type", "SNV Nodes",
                   choices = c(
                     "Scores Pie" = 'pie_scores',
+                    "CADD" = 'cadd.phred', 
+                    "BayesDel" = 'bayesdel', 
+                    "LINSIGHT" = 'linsight', 
+                    "Eigen" = 'eigen', 
                     "Metascore" = 'pie_metascores', 
                     "Rank (NA last)" = 'pie_rank_na_last',
                     "Rank (NA mean)" = 'pie_rank_na_mean'
                   ),
                   selected = 'pie_scores'
       ),
-      #),
-      #box(width = NULL, status = "warning",
-      selectInput("focus", "Focus on",
-                  choices = c(
-                    "None" = -1
-                  ),
-                  selected = -1
-      ),
-      p(class = "text-muted",
-        br(),
-        "This option enables to focus the network on a particular variant"
-      ),
-      #),
-      #box(width = NULL, status = "warning",
-      selectInput("highlight", "Highlight variants",
-                  choices = c(
-                    "None"
-                  ),
-                  selected = "None"
-      ),
-      p(class = "text-muted",
-        br(),
-        paste("This option enables to highlight particular variants according to their type.",
-              " Replacing the lightblue circles by red stars.")
+      conditionalPanel(condition="input.snv_nodes_type=='pie_scores' | input.snv_nodes_type=='pie_rank_na_last' | input.snv_nodes_type=='pie_rank_na_last'",
+                       fluidRow(
+                         column(width = 12,
+                                selectInput("selected_scores", 'Predictors',
+                                            choices = c(),
+                                            selectize = TRUE, multiple = TRUE))
+                       ),
+                       actionButton("update_metascore", "Update"),
+                       p(
+                         class = "text-muted", br(),
+                         paste("This option enables to select the set of prediction and",
+                               "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
+                         )
+                       )
       )
+      #,
+      #),
+      #box(width = NULL, status = "warning",
+      # selectInput("focus", "Focus on",
+      #             choices = c(
+      #               "None" = -1
+      #             ),
+      #             selected = -1
+      # ),
+      # p(class = "text-muted",
+      #   br(),
+      #   "This option enables to focus the network on a particular variant"
+      # ),
+      #),
+      #box(width = NULL, status = "warning",
+      # selectInput("highlight", "Highlight variants",
+      #             choices = c(
+      #               "None"
+      #             ),
+      #             selected = "None"
+      # ),
+      # p(class = "text-muted",
+      #   br(),
+      #   paste("This option enables to highlight particular variants according to their type.",
+      #         " Replacing the lightblue circles by red stars.")
+      # )
   )
 }
 
@@ -213,7 +237,7 @@ edges_modifiers_box <- function(){
                     "Distance" = 0,
                     "Linkage" = 1
                   ),
-                  selected = 1
+                  selected = 0
       ),
       conditionalPanel(condition="input.snv_edges_type=='0'",
                        sliderInput("dist_range", "Distance (kb)",
@@ -226,8 +250,18 @@ edges_modifiers_box <- function(){
                        )
       ),
       conditionalPanel(condition="input.snv_edges_type=='1'",
+                       selectInput(inputId = 'population',
+                                   label = 'Choose the population to use',
+                                   choices = populations),
+                       shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
+                                         icon = icon("gear"), disabled = FALSE),
+                       br(),
+                       br(),
+                       verbatimTextOutput("runld_res"),
+                       tags$style(type="text/css", "#runld_res {white-space: pre-wrap;}"),
+                       br(),
                        sliderInput("ld_range", "LD range",
-                                   min = 0, max = 1, value = c(0.8, 1)),
+                                   min = 0, max = 1, value = c(0, 1)),
                        actionButton("update_ld", "Update"),
                        p(class = "text-muted",
                          br(),
@@ -241,20 +275,9 @@ predictors_modifiers_box <- function(){
   box(width = NULL, status = "warning",
       height = "500px", collapsible = TRUE,
       fluidRow(
-        column(width = 6,
-               selectInput("adj_scores", 'Ranked scores', 
-                           choices = c(), 
-                           selectize = TRUE, multiple = TRUE)),
-        column(width = 6,
-               selectInput("raw_scores", "Raw scores",
-                           choices = c(), 
-                           selectize = TRUE, multiple = TRUE
-               ))
-      ),
-      fluidRow(
         column(width = 12,
-               selectInput("non_na_scores", 'Non-NA scores', 
-                           choices = c(), 
+               selectInput("selected_scores", 'Predictors',
+                           choices = c(),
                            selectize = TRUE, multiple = TRUE))
       ),
       actionButton("update_metascore", "Update"),
@@ -267,32 +290,28 @@ predictors_modifiers_box <- function(){
   )
 }
 
-
 network_modifiers_row <- function(){
   fluidRow(
-    column(width = 3,
+    column(width = 8,
            nodes_modifiers_box()
     ),
-    column(width = 3, 
+    column(width = 4, 
            edges_modifiers_box()   
-    ),
-    column(width = 6,
-           predictors_modifiers_box()
     )
   )
 }
 
-
-output_network_results_modules <- function(){
+network_results_modules <- function(){
   tabPanel(title = h5("Network"),
            value = "network_results",
-           conditionalPanel(condition="input.buildNetwork",
+           conditionalPanel(condition="input.fetch_annotations",
+                            input_network_module(),
+                            hr(),
                             output_network_row(),
                             network_modifiers_row()
            )
   )
 }
-
 
 predictors_selection <- function(){
   fluidRow(

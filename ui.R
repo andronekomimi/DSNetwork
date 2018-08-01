@@ -27,32 +27,25 @@ dashboardPage(
               fluidRow(
                 box(width = 12, 
                     tabsetPanel(id = "input_tabset",
-                                input_data_module()
-                                #output_network_results_modules()
+                                input_data_module(),
+                                network_results_modules()
+                                #input_network_module()
                                 #input_ld_module(),
                                 #input_network_module()
                     )
                 )
-              ),
-              fluidRow(
-                box(title = "Data", status = "primary", width = 12, 
-                    fluidRow(
-                      #input_data_module(), 
-                      input_ld_module()
-                      #input_network_module()
-                    )
-                )
-              ),
-              fluidRow(
-                box(width = 12,
-                    tabsetPanel(id = "results_tabset",
-                                #output_raw_results_module(),
-                                output_ld_results_module(),
-                                output_network_results_modules(),
-                                output_predictors_results_modules()
-                    )
-                )
               )
+              # ,
+              # fluidRow(
+              #   box(width = 12,
+              #       tabsetPanel(id = "results_tabset",
+              #                   #output_raw_results_module(),
+              #                   output_ld_results_module(),
+              #                   #output_network_results_modules(),
+              #                   output_predictors_results_modules()
+              #       )
+              #   )
+              # )
       ),
       tabItem(tabName = "readme",
               includeMarkdown("README.Rmd")
