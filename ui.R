@@ -24,28 +24,26 @@ dashboardPage(
     )),
     tabItems(
       tabItem(tabName = "main",
-              fluidRow(
-                box(width = 12, 
-                    tabsetPanel(id = "input_tabset",
-                                input_data_module(),
-                                network_results_modules()
-                                #input_network_module()
-                                #input_ld_module(),
-                                #input_network_module()
-                    )
+              box(width = "100%", height = "100%",
+                fluidRow(
+                  column(width = 4, 
+                         input_data_module()
+                  ),
+                  column(width = 8, 
+                         conditionalPanel(condition="input.fetch_annotations",
+                                          input_network_module(),
+                                          br(),
+                                          output_plot_row())
+                         
+                  )
+                ),
+                hr(),
+                fluidRow(
+                  column(width = 12,
+                         network_results_modules()
+                  )
                 )
               )
-              # ,
-              # fluidRow(
-              #   box(width = 12,
-              #       tabsetPanel(id = "results_tabset",
-              #                   #output_raw_results_module(),
-              #                   output_ld_results_module(),
-              #                   #output_network_results_modules(),
-              #                   output_predictors_results_modules()
-              #       )
-              #   )
-              # )
       ),
       tabItem(tabName = "readme",
               includeMarkdown("README.Rmd")

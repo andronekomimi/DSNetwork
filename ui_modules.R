@@ -2,6 +2,8 @@ library(shinydashboard)
 library(visNetwork)
 library(shinyBS)
 library(d3heatmap)
+require(plotly)
+require(ggrepel)
 
 source('helper.R', local = TRUE)
 
@@ -51,41 +53,31 @@ sidebar_content <- function(){
 }
 
 input_data_module <- function(){
-  tabPanel(title = h5("INPUT"),
-           value = "input",
-           fluidRow(
-             column(width = 4,
-                    br(),
-                    textAreaInput("query", "1) Enter variant ids", "", rows = 5, 
-                                  placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
-                    fileInput("query_file", "or load text file (one variant id per line)", 
-                              multiple = FALSE, 
-                              accept = c(
-                                "text/csv",
-                                "text/comma-separated-values,text/plain",
-                                ".csv")
-                    ),
-                    selectInput(inputId = 'preload',
-                                label = '0) Load preset query',
-                                choices = preload_loci),
-                    actionButton("preload_loci", "Load preset query", icon = icon("caret-right")),
-                    shinyBS::bsButton(inputId = "fetch_annotations", 
-                                      label = "Fetch Annotations", 
-                                      icon = icon("search"), disabled = FALSE),
-                    verbatimTextOutput("transform_res"),
-                    tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
-                    br(),
-                    verbatimTextOutput("query_res"),
-                    tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
-                    br(),
-                    downloadButton('downloadRawTable', 'Download raw results (csv)'),
-                    shinyBS::bsButton(inputId = "go_2_network", 
-                                      label = "Go to Network", 
-                                      icon = icon("arrow-right"), disabled = TRUE)
-             ), 
-             output_raw_results_module(),
-             output_raw_results_module_2()
-           )
+  list(
+    br(),
+    textAreaInput("query", "1) Enter variant ids", "", rows = 5, 
+                  placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
+    fileInput("query_file", "or load text file (one variant id per line)", 
+              multiple = FALSE, 
+              accept = c(
+                "text/csv",
+                "text/comma-separated-values,text/plain",
+                ".csv")
+    ),
+    selectInput(inputId = 'preload',
+                label = '0) Load preset query',
+                choices = preload_loci),
+    actionButton("preload_loci", "Load preset query", icon = icon("caret-right")),
+    shinyBS::bsButton(inputId = "fetch_annotations", 
+                      label = "Fetch Annotations", 
+                      icon = icon("search"), disabled = FALSE),
+    verbatimTextOutput("transform_res"),
+    tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
+    br(),
+    verbatimTextOutput("query_res"),
+    tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
+    br(),
+    downloadButton('downloadRawTable', 'Download raw results (csv)')
   )
 }
 
@@ -97,7 +89,7 @@ input_network_module <- function(){
                        label = '2) Choose the network to build',
                        choices = c("non synonymous variants" = "non_syn",
                                    "synonymous and non-coding variants" = "regul"),
-                       width = "60%"),
+                       width = "100%"),
            shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
                              disabled = FALSE, icon = icon("gear")),
            br()
@@ -107,9 +99,9 @@ input_network_module <- function(){
            selectInput(inputId = 'variants_order',
                        label = '3) Up to 30 variants selection based on:',
                        choices = c("submission order - default" = "submission"),
-                       width = "60%"),
-           shinyBS::bsButton(inputId = 'updateVarSelection', label = 'Update',
-                             disabled = FALSE, icon = icon("gear")),
+                       width = "100%"),
+           # shinyBS::bsButton(inputId = 'updateVarSelection', label = 'Update',
+           #                   disabled = FALSE, icon = icon("gear")),
            br()
     )
   )
@@ -154,20 +146,23 @@ output_ld_results_module <- function(){
 
 output_network_row <- function(){
   fluidRow(
-    column(width = 12,
-           fluidRow(visNetworkOutput("my_network",
-                                     height = "600px", width = "auto"))
+    column(width = 9,
+           visNetworkOutput("my_network", height = "600px")
+    ),
+    column(width = 3,
+           textOutput(outputId = "snv_score_details_id"),
+           DT::dataTableOutput(outputId = "snv_score_details")
     )
-    # ,
-    # column(width = 3,
-    #        box(width = NULL, status = "success", height = "600px",
-    #            "TEST"
-    #            #textOutput("snv_score_details_id"),
-    #            #DT::dataTableOutput(outputId = "snv_score_details")
-    #        )
-    # )
   )
 } 
+
+output_plot_row <- function(){
+  fluidRow(
+    column(width = 12,
+           plotlyOutput(outputId = "my_plot",
+                        height = "400px", width = "auto"))
+  )
+}
 
 nodes_modifiers_box <- function(){
   box(width = NULL, status = "warning", 
@@ -302,14 +297,9 @@ network_modifiers_row <- function(){
 }
 
 network_results_modules <- function(){
-  tabPanel(title = h5("Network"),
-           value = "network_results",
-           conditionalPanel(condition="input.fetch_annotations",
-                            input_network_module(),
-                            hr(),
-                            output_network_row(),
-                            network_modifiers_row()
-           )
+  conditionalPanel(condition="input.buildNetwork",
+                   output_network_row(),
+                   network_modifiers_row()
   )
 }
 

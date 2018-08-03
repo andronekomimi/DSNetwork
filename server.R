@@ -3,6 +3,8 @@ library(d3heatmap)
 library(visNetwork)
 library(myvariant)
 library(shinyBS)
+require(plotly)
+require(ggrepel)
 
 options(shiny.trace = FALSE)
 
@@ -174,7 +176,7 @@ server <- function(input, output, session) {
         global_ranges <- apply(X = values$res, MARGIN = 1, 
                                FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"]$X_id, 
                                                               query_id = x[names(x) == "query"]$query))
-        
+        names(global_ranges) <- NULL
         global_ranges <- do.call("c", global_ranges) 
         global_ranges <- sort(global_ranges)
         
@@ -187,7 +189,7 @@ server <- function(input, output, session) {
           values$res <- values$res[-which(values$res$notfound == TRUE), ]
         }
         
-        #### run linsight ####
+        #### fetch linsight ####
         requested_chromosomes <- seqlevelsInUse(global_ranges)
         
         for(requested_chr in requested_chromosomes){
@@ -202,6 +204,7 @@ server <- function(input, output, session) {
             }
           }
           
+          #### fetch cdts ####
           if(file.exists(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
             load(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
             hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
@@ -216,12 +219,36 @@ server <- function(input, output, session) {
           }
         }
         
+        #### store CDTS scores on the complete region
+        cdts_hits <- findOverlaps(query = range(values$global_ranges), subject = CDTS, maxgap = 100)
+        if(length(cdts_hits) > 0){
+          cdts_hits <- as.data.frame(CDTS[subjectHits(cdts_hits)])
+          values$cdts_region <- cdts_hits
+        } else {
+          values$cdts_region <- NULL
+        }
+        
+        
+        #### fetch bayesdel ####
+        path_to_victor <- "/Users/nekomimi/Workspace/Exomes/softs/VICTOR/vAnnBase"
+        filename <- tempfile(tmpdir = tmpDir, fileext = ".vcf")
+        createVCF(session_values = values, filename = filename)
+        value <- extractBayesDel(path_to_victor, filename)
+        
+        if(!is.null(value)){
+          values$res$bayesdel <- value
+        }
+        
         if(sum(is.na(values$res$linsight)) == length(values$res$linsight)){ # no lINSIGHT RESULTS
           values$res$linsight <- NULL
         }
         
         if(sum(is.na(values$res$cdts_score)) == length(values$res$cdts_score)){ # no CDTS RESULTS
           values$res$cdts_score <- values$res$cdts_percentile <- NULL
+        }
+        
+        if(sum(is.na(values$res$bayesdel)) == length(values$res$bayesdel)){ # no BAYESDEL RESULTS
+          values$res$bayesdel <- NULL
         }
         
         res <- values$res
@@ -271,27 +298,8 @@ server <- function(input, output, session) {
         values$all_nonsyn_res <- values$res[non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, dbnsfp_rankscores)) ]
         values$all_regul_res <- values$res[!non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, cadd_raw_scores)) ]
         
-        if(nrow(values$all_nonsyn_res) > MAX_VAR){
-          print("faut trier all_nonsyn_res")
-          values$nonsyn_res <- values$all_nonsyn_res[1:MAX_VAR,]
-        } else {
-          print("pas besoin de trier all_nonsyn_res")
-          values$nonsyn_res <- values$all_nonsyn_res
-        }
-        
-        if(nrow(values$all_regul_res) > MAX_VAR){
-          print("faut trier all_regul_res")
-          values$regul_res <- values$all_regul_res[1:MAX_VAR,]
-        } else {
-          print("pas besoin de trier all_regul_res")
-          values$regul_res <- values$all_regul_res
-        }
-        
-        print(rownames(values$nonsyn_res))
-        print(rownames(values$regul_res))
-        
-        if(nrow(values$nonsyn_res) > 0){
-          adjusted_scores <- sapply(X = c(dbnsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$nonsyn_res, score_name = x))
+        if(nrow(values$all_nonsyn_res) > 0){
+          adjusted_scores <- sapply(X = c(dbnsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$all_nonsyn_res, score_name = x))
           switch (class(adjusted_scores),
                   matrix = {
                     rownames(adjusted_scores) <- NULL
@@ -305,13 +313,17 @@ server <- function(input, output, session) {
           
           adjusted_scores <- adjusted_scores[sapply(X = adjusted_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
           
+          for(s in names(adjusted_scores)){
+            values$all_nonsyn_res[[s]] <- adjusted_scores[[s]]
+          }
+          
         } else {
           adjusted_scores <- NULL
         }     
         
         
-        if(nrow(values$regul_res) > 0){
-          raw_scores <- sapply(X = c(cadd_raw_scores, common_scores), FUN = function(x) extract_score_and_convert(values$regul_res, score_name = x))
+        if(nrow(values$all_regul_res) > 0){
+          raw_scores <- sapply(X = c(cadd_raw_scores, common_scores), FUN = function(x) extract_score_and_convert(values$all_regul_res, score_name = x))
           switch (class(raw_scores),
                   matrix = {
                     rownames(raw_scores) <- NULL
@@ -325,13 +337,36 @@ server <- function(input, output, session) {
           
           raw_scores <- raw_scores[sapply(X = raw_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
           
+          for(s in names(raw_scores)){
+            #print(raw_scores[[s]])
+            values$all_regul_res[[s]] <- raw_scores[[s]]
+          }
+          
         } else {
           raw_scores <- NULL
         }
         
+        
+        if(nrow(values$all_nonsyn_res) > MAX_VAR){
+          #print("faut trier all_nonsyn_res")
+          values$nonsyn_res <- values$all_nonsyn_res[1:MAX_VAR,]
+        } else {
+          #print("pas besoin de trier all_nonsyn_res")
+          values$nonsyn_res <- values$all_nonsyn_res
+        }
+        
+        if(nrow(values$all_regul_res) > MAX_VAR){
+          #print("faut trier all_regul_res")
+          values$regul_res <- values$all_regul_res[1:MAX_VAR,]
+        } else {
+          #print("pas besoin de trier all_regul_res")
+          values$regul_res <- values$all_regul_res
+        }
+        
+        
         save(raw_scores, adjusted_scores, file = "objects/scores.rda")
-        values$raw_scores <- raw_scores
-        values$adjusted_scores <- adjusted_scores
+        values$raw_scores <- names(raw_scores)
+        values$adjusted_scores <- names(adjusted_scores)
       }
     }
     
@@ -481,39 +516,106 @@ server <- function(input, output, session) {
     )
   })
   
-  buildNetwork <- eventReactive(c(input$buildNetwork, input$updateVarSelection),{
+  buildNetwork <- eventReactive(input$buildNetwork,{
     # shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
     
     id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
     
-    print(input$variants_order)
-    
-    switch(network_type,
+    switch(input$network_type,
            non_syn = {
-             if(nrow(values$all_nonsyn_res) > MAX_VAR){
-               my_res <- values$all_nonsyn_res
-             }
+             my_res <- values$all_nonsyn_res
            },
            regul = {
-             if(nrow(values$all_regul_res) > MAX_VAR){
-               my_res <- values$all_regul_res
-             }
+             my_res <- values$all_regul_res
            }
     )
     
-    if(input$variants_order == "submission"){
-      switch(network_type,
-             non_syn = {
-               values$nonsyn_res <- values$all_nonsyn_res
+    if(input$variants_order %in% c("submission","all")){
+      switch(input$variants_order,
+             submission = {
+               if(nrow(my_res) > MAX_VAR){
+                 my_res <- my_res[1:MAX_VAR,]
+               } else {
+                 my_res <- my_res
+               }
              },
-             regul = {
-               session_values$all_nonsyn_res <- session_values$all_regul_res
+             all = {
+               my_res <- my_res
              }
       )
+    } else {
+      if(nrow(my_res) > MAX_VAR){
+        #print(my_res[[input$variants_order]])
+        my_res <- my_res[order(my_res[[input$variants_order]], na.last = T, decreasing = T),]
+        my_res <- my_res[1:MAX_VAR,]
+      } else {
+        my_res <- my_res
+      }
     }
     
-    print(rownames(values$nonsyn_res))
-    print(rownames(values$regul_res))
+    switch(input$network_type,
+           non_syn = {
+             values$nonsyn_res <- my_res
+           },
+           regul = {
+             values$regul_res <- my_res
+           }
+    )
+    
+    load('objects/global_ranges.rda')
+    my_data <- as.data.frame(global_ranges)
+    my_data$cdts_score <- values$res$cdts_score
+    my_data$is_best <- my_data$query %in% my_res$query
+    my_data$no_cdts <- is.na(my_data$cdts_score)
+    my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
+    
+    # print(my_data)
+    
+    # local({
+    #   output$my_plot <- renderPlotly({
+    #     #+ geom_label_repel(data=subset(buildPlot(), is_best=="yes"), aes(label=query), size=2)
+    #     p <- ggplot(my_data, aes(x = start, y = cdts_score, color = as.factor(is_best))) +
+    #       geom_jitter() + theme_bw()
+    # 
+    #     ggplotly(p) %>%
+    #       layout(autosize=TRUE)
+    #   })
+    # })
+    
+    local({
+      text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
+      xa <- list(title = "",
+                 zeroline = FALSE,
+                 showline = TRUE,
+                 showticklabels = TRUE,
+                 showgrid = TRUE)
+      output$my_plot <- renderPlotly({
+        plot_ly(type = "scatter", mode = "markers", my_data, x = ~start, y = ~cdts_score, 
+                showlegend = F) %>%
+          add_trace(data = values$cdts_region, 
+                    type = 'scatter', 
+                    mode = 'lines',
+                    x = ~start, 
+                    y = ~CDTS, 
+                    hoverinfo = "none",
+                    line = list(color = 'gray'), 
+                    opacity = 0.3,
+                    showlegend = F) %>%
+          add_trace( data = my_data,
+                     x = ~start,
+                     y = ~cdts_score,
+                     text =  text_snp,
+                     split = ~is_best,
+                     hoverinfo = 'text',
+                     # legendgroup = 'In network', 
+                     # name = 'In network', 
+                     showlegend = T) %>%
+          layout(xaxis = xa)
+      })
+    })
+    
+    #print(rownames(values$nonsyn_res))
+    #print(rownames(values$regul_res))
     
     snv_dist_edges <- build_snv_edges(values, "0", 1000, network_type = input$network_type) #default
     snv_ld_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
@@ -523,8 +625,10 @@ server <- function(input, output, session) {
     snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type)
     save(snv_nodes, file = "objects/snv_nodes.rda")
     
-    non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)]) 
-    non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
+    # non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)]) 
+    # non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
+    non_null_raw_scores <- values$raw_scores
+    non_null_adj_scores <- values$adjusted_scores
     
     scores_data <- build_score_nodes(session_values = values, 
                                      selected_adj_scores = non_null_adj_scores, 
@@ -545,30 +649,39 @@ server <- function(input, output, session) {
     save(all_ne, file = 'objects/all_ne.rda')
     
     # suppress unwanted edges
-    current_edges <- values$all_edges
-    dist_edges_idx <- which(current_edges$type == "snv_dist_edges")
-    current_edges <- current_edges[-dist_edges_idx,]
+    # if(is.null(values$current_edges)){
+    #   current_edges <- values$all_edges
+    #   ld_edges_idx <- which(current_edges$type == "snv_ld_edges")
+    #   values$current_edges <- current_edges[-ld_edges_idx,]
+    # }
     
-    min_ld <- 0.8
-    ld_edges_idx <- which((current_edges$type == "snv_ld_edges") & (as.numeric(current_edges$xvalue) < min_ld))
-    current_edges <- current_edges[-ld_edges_idx,]
-    
-    values$current_edges <- current_edges
+    values$current_edges <- values$all_edges
     values$current_nodes <- values$all_nodes
     
-    cur_ne <- list(nodes = values$current_nodes,
-                   edges = values$current_edges)
-    
-    #save(all_ne, cur_ne, file = "objects/values.rda")
+    # current_edges <- values$all_edges
+    # dist_edges_idx <- which(current_edges$type == "snv_dist_edges")
+    # current_edges <- current_edges[-dist_edges_idx,]
+    # 
+    # min_ld <- 0.8
+    # ld_edges_idx <- which((current_edges$type == "snv_ld_edges") & (as.numeric(current_edges$xvalue) < min_ld))
+    # current_edges <- current_edges[-ld_edges_idx,]
+    # 
+    # values$current_edges <- current_edges
+    # values$current_nodes <- values$all_nodes
+    # 
+    # cur_ne <- list(nodes = values$current_nodes,
+    #                edges = values$current_edges)
+    # 
+    # save(all_ne, cur_ne, file = "objects/values.rda")
     
     meta_values_mapped <- "blue"
     vn <- visNetwork(values$current_nodes, 
-                     values$current_edges, width = "auto", height = "500px") %>%
+                     values$current_edges) %>%
       visEvents(doubleClick = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T) %>%
-      visOptions(highlightNearest = TRUE, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
+      visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
       #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
       visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
@@ -589,6 +702,78 @@ server <- function(input, output, session) {
   output$my_network <- renderVisNetwork({
     buildNetwork()
   })
+  
+  #### BUILDING PLOT ####
+  buildPlot <- eventReactive(input$buildNetwork,{
+    
+    switch(input$network_type,
+           non_syn = {
+             my_res <- values$all_nonsyn_res
+           },
+           regul = {
+             my_res <- values$all_regul_res
+           }
+    )
+    
+    if(input$variants_order %in% c("submission","all")){
+      switch(input$variants_order,
+             submission = {
+               if(nrow(my_res) > MAX_VAR){
+                 my_res <- my_res[1:MAX_VAR,]
+               } else {
+                 my_res <- my_res
+               }
+             },
+             all = {
+               my_res <- my_res
+             }
+      )
+    } else {
+      if(nrow(my_res) > MAX_VAR){
+        #print(my_res[[input$variants_order]])
+        my_res <- my_res[order(my_res[[input$variants_order]], na.last = T, decreasing = T),]
+        my_res <- my_res[1:MAX_VAR,]
+      } else {
+        my_res <- my_res
+      }
+    }
+    
+    switch(input$network_type,
+           non_syn = {
+             values$nonsyn_res <- my_res
+           },
+           regul = {
+             values$regul_res <- my_res
+           }
+    )
+    
+    load('objects/global_ranges.rda')
+    my_data <- as.data.frame(global_ranges)
+    my_data$cdts_score <- values$res$cdts_score
+    my_data$is_best <- my_data$query %in% my_res$query
+    my_data$no_cdts <- is.na(my_data$cdts_score)
+    my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
+    print(my_data)
+    return(my_data)
+    # return(plot_ly(type = "scatter", mode = "markers",
+    #                my_data, x = ~start, y = ~cdts_score, split= ~is_best, showlegend = F, symbol = ~no_cdts, symbols = c("circle", "o")) 
+    #        # %>% add_trace(
+    #        #           x = my_data$start, 
+    #        #           y = my_data$cdts_score,
+    #        #           text = my_data$query,
+    #        #           hoverinfo = 'text')
+    #        )
+  })
+  
+  # output$my_plot <- renderPlotly({
+  #   #+ geom_label_repel(data=subset(buildPlot(), is_best=="yes"), aes(label=query), size=2)
+  #   p <- ggplot(buildPlot(), aes(x = start, y = cdts_score, color = as.factor(is_best))) + 
+  #     geom_jitter() + theme_bw()
+  #   
+  #   ggplotly(p) %>% 
+  #     layout(autosize=TRUE)
+  # })
+  
   
   #### UPDATE NETWORK ####
   
@@ -734,9 +919,10 @@ server <- function(input, output, session) {
   
   #### SCORES ####
   observe({
-    non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)])
-    non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
-    
+    # non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)])
+    # non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
+    non_null_raw_scores <- values$raw_scores
+    non_null_adj_scores <- values$adjusted_scores
     non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores, 
                                              pattern = "score|rawscore", replacement = "")
     non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names,
@@ -797,9 +983,10 @@ server <- function(input, output, session) {
   
   compute_scores_missing_data <- eventReactive(input$get_predictors_info, {
     if(length(input$predictors) > 0){
-      non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
-      non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
-      
+      # non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
+      # non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
+      non_null_raw_scores <- values$raw_scores
+      non_null_adj_scores <- values$adjusted_scores
       all_scores <- c(non_null_adj_scores, non_null_raw_scores)
       all_scores <- all_scores[input$predictors]
       all_scores <- data.frame(all_scores)
@@ -832,9 +1019,10 @@ server <- function(input, output, session) {
   
   compute_scores_stats <- eventReactive(input$get_predictors_info,{
     
-    non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
-    non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
-    
+    # non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
+    # non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
+    non_null_raw_scores <- values$raw_scores
+    non_null_adj_scores <- values$adjusted_scores
     all_scores <- c(non_null_adj_scores, non_null_raw_scores)
     all_scores <- all_scores[input$predictors]
     all_scores <- data.frame(all_scores)
@@ -988,8 +1176,14 @@ server <- function(input, output, session) {
   #genes
   output$genenames <- renderC3PieChart({
     if(!is.null(values$res) && nrow(values$res) > 0){
-      genenames <- sapply(X = values$res$cadd.gene, FUN = function(x) x$genename)
-      genenames[sapply(genenames, function(x) is.null(x))] <- "none"
+      if(is.null(values$res$cadd.gene)){
+        genenames <- values$res$cadd.gene.genename
+        genenames[is.na(genenames)] <- "none"
+        genenames[is.null(genenames)] <- "none"
+      } else {
+        genenames <- sapply(X = values$res$cadd.gene, FUN = function(x) x$genename)
+        genenames[sapply(genenames, function(x) is.null(x))] <- "none"
+      }
       
       genenames_counts <- as.numeric(table(unlist(genenames)))
       genenames_names <- names(table(unlist(genenames)))
