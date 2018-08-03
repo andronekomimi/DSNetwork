@@ -615,11 +615,12 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
     return(NULL)
   }
   
+  save(my_res, file = "objects/my_res.rda")
   edges <- NULL
   if(nrow(my_res) > 1){
     my_ranges <- apply(X = my_res, MARGIN = 1, 
-                       FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"]$X_id, 
-                                                      query_id = x[names(x) == "query"]$query))
+                       FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"], 
+                                                      query_id = x[names(x) == "query"]))
     names(x = my_ranges) <- NULL
     my_ranges <- do.call("c", my_ranges) 
     my_ranges <- sort(my_ranges)
@@ -792,19 +793,23 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   switch(network_type,
          non_syn = {
            my_res <- session_values$nonsyn_res
-           nodes <- as.character(my_res$query)
-           nodes_data <- data.frame(nodes = nodes)
+           # nodes <- as.character(my_res$query)
+           # nodes_data <- data.frame(nodes = nodes)
            selected_scores <- selected_adj_scores
-           a_scores <- session_values$adjusted_scores[selected_scores]
+           # a_scores <- session_values$adjusted_scores[selected_scores]
          },
          regul = {
            my_res <- session_values$regul_res
-           nodes <- as.character(my_res$query)
-           nodes_data <- data.frame(nodes = nodes)
+           # nodes <- as.character(my_res$query)
+           # nodes_data <- data.frame(nodes = nodes)
            selected_scores <- selected_raw_scores
-           a_scores <- session_values$raw_scores[selected_scores]
+           # a_scores <- session_values$raw_scores[selected_scores]
          }
   )
+  
+  nodes <- as.character(my_res$query)
+  nodes_data <- data.frame(nodes = nodes)
+  a_scores <- my_res[,selected_scores]
   
   # print(selected_scores)
   # print(nodes_data)
@@ -872,9 +877,12 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       d <-  nodes_data[[selected_score]]
       colpalette <- colfunc(n = length(unique(d)))
       names(colpalette) <- sort(unique(d), decreasing = T, na.last = T)
-      d[is.na(d)] <- "NA"
+      d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
       
       values_mapped <- d
+      save(values_mapped, file = "objects/values_mapped.rda")
+      save(colpalette, file = "objects/colpalette.rda")
+      
       for(i in unique(d)){
         if(i == "NA"){
           values_mapped[values_mapped == i] <- "#CCCCCC"
@@ -1026,7 +1034,19 @@ mean_score <- function(x){
   suppressWarnings(mean(x = as.numeric(unlist(strsplit(x = x, split= ","))), na.rm= T))
 }
 
-extract_score_and_convert <- function(my_res_infos, score_name, sub_score_name = NULL){
+extract_score_and_convert <- function(my_res_infos, score_name){
+  if(sum(colnames(my_res_infos) == score_name) == 1){
+    my_data <- my_res_infos[,score_name]
+    x <- sapply(X = my_data, FUN = is.numeric)
+    my_data[x] <- sapply(X = my_data[x], FUN = function(y) mean(x = y, na.rm = T))
+    my_data[!x] <- NA
+    return(unlist(my_data))
+  } else {
+    return(NULL)
+  }
+}
+
+extract_score_and_convert.old <- function(my_res_infos, score_name, sub_score_name = NULL){
   if(sum(colnames(my_res_infos) == score_name) == 1){
     x <- as.character(my_res_infos[,score_name])
     x <- sapply(x, mean_score)
@@ -1272,4 +1292,32 @@ C3PieChartOutput <- function(outputId, width = '100%', height = '200px'){
 renderC3PieChart <- function(expr, env = parent.frame(), quoted = FALSE) {
   if (!quoted) { expr <- substitute(expr) } # force quoted
   htmlwidgets::shinyRenderWidget(expr, C3PieChartOutput, env, quoted = TRUE)
+}
+
+
+createVCF <- function(session_values, filename){
+  res <- session_values$res
+  vcf_desc_0 <- "##fileformat=VCFv4.1"
+  vcf_desc_1 <- paste0("##fileDate=",gsub(x = Sys.Date(), pattern = "-",replacement = ""))
+  vcf_desc_2 <- '##INFO=<ID=MAF,Number=A,Type=Float,Description="MAF">'
+  vcf_header <- "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
+  vcf_content <- paste(res$dbsnp.chrom, res$dbsnp.hg19.start, res$query, res$dbsnp.ref, res$dbsnp.alt, 100, "PASS", paste0("MAF:",res$dbsnp.gmaf), sep = "\t")
+  
+  write(x = vcf_desc_0, file = filename)
+  write(x = vcf_desc_1, file = filename, append = T)
+  write(x = vcf_desc_2, file = filename, append = T)
+  write(x = vcf_header, file = filename, append = T)
+  write(x = vcf_content, file = filename, append = T)
+}
+
+
+extractBayesDel <- function(path_to_victor, filename){
+  cmd <- paste(path_to_victor,filename,"--ann=BayesDel_nsfp33a_noAF -x=3 --min=-1.5 --step=0.01 --indel=max --padding=1 -o", paste0(filename,".gz"))
+  system(command = cmd, intern = F)
+  if(file.exists(paste0(filename,".gz"))){
+    vcf <- vcfR::read.vcfR(paste0(filename,".gz"), verbose = F)
+    return(as.numeric(vcf@gt))
+  } else {
+    return(NULL)
+  }
 }
