@@ -25,24 +25,28 @@ dashboardPage(
     tabItems(
       tabItem(tabName = "main",
               box(width = "100%", height = "100%",
-                fluidRow(
-                  column(width = 4, 
-                         input_data_module()
+                  fluidRow(
+                    column(width = 4, 
+                           input_data_module(),
+                           input_network_module(),
+                           ld_mapping_module()
+                    ),
+                    column(width = 8, 
+                           conditionalPanel(condition="input.fetch_annotations",
+                                            output_plot_row(),
+                                            network_results_modules()
+                           )
+                           
+                    )
                   ),
-                  column(width = 8, 
-                         conditionalPanel(condition="input.fetch_annotations",
-                                          input_network_module(),
-                                          br(),
-                                          output_plot_row())
-                         
+                  hr(),
+                  fluidRow(
+                    column(width = 12,
+                           conditionalPanel(condition="input.buildNetwork",
+                                            network_modifiers_row()
+                           )
+                    )
                   )
-                ),
-                hr(),
-                fluidRow(
-                  column(width = 12,
-                         network_results_modules()
-                  )
-                )
               )
       ),
       tabItem(tabName = "readme",
