@@ -4,7 +4,6 @@ library(visNetwork)
 library(myvariant)
 library(shinyBS)
 require(plotly)
-require(ggrepel)
 
 options(shiny.trace = FALSE)
 
@@ -23,6 +22,7 @@ server <- function(input, output, session) {
   #### CONF ####
   tmpDir <- 'temp/'
   resultDir <- 'temp/'
+  dir.create(path = paste0(resultDir, "ld_figures"), showWarnings = F)
   
   app.conf <- list(TABIX = '/usr/local/bin/tabix',
                    VCF = '/Users/nekomimi/Workspace/vexor/vexor/data/1000Genomes/')
@@ -165,12 +165,11 @@ server <- function(input, output, session) {
             values$res[values$res$query == duplicated_entry,]$query <- paste0(values$res[values$res$query == duplicated_entry,]$query,"_",
                                                                               values$res[values$res$query == duplicated_entry,]$dbsnp.ref,".",
                                                                               values$res[values$res$query == duplicated_entry,]$dbsnp.alt)
-            # b <- values$res[values$res$query == duplicated_entry,]
-            # minimum_na_row <- which.min(apply(b, 1, function(x) sum(is.na(x))))
-            # row_2_delete <- c(row_2_delete, 
-            #                   as.numeric(row.names(b)[! row.names(b) %in% names(minimum_na_row)]))
           }
         }
+        
+        #### order ####
+        values$res <- values$res[order(values$res$dbsnp.chrom, values$res$dbsnp.hg19.start),]
         
         #### global range ####
         global_ranges <- apply(X = values$res, MARGIN = 1, 
@@ -377,8 +376,8 @@ server <- function(input, output, session) {
       shinyBS::updateButton(session = session, inputId = "runLD", 
                             disabled = FALSE)
     } else {
-      shinyBS::updateButton(session = session, inputId = "runLD", 
-                            disabled = TRUE)
+      # shinyBS::updateButton(session = session, inputId = "runLD", 
+      #                       disabled = TRUE)
     }
   })
   
@@ -416,22 +415,31 @@ server <- function(input, output, session) {
   )
   
   #### FETCH LD INFOS ####
-  observeEvent(input$runLD, {
-    updateTabsetPanel(session, "results_tabset",
-                      selected = "ld_results"
-    )
-  })
-  
   runLD <- eventReactive(input$runLD,{
+    my_res <- values$my_res
+    if(is.null(my_res))
+      return(NULL)
     
-    shinyBS::updateButton(session = session, inputId = "runLD", 
-                          disabled = TRUE)
+    # shinyBS::updateButton(session = session, inputId = "runLD", 
+    #                       disabled = TRUE)
     id <<- showNotification(paste("Computing linkage disequilibrium..."), duration = 0, type = "message")
     
-    my_ranges <- values$my_ranges
+    
+    if(nrow(my_res) > 1){
+      my_ranges <- apply(X = my_res, MARGIN = 1, 
+                         FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"], 
+                                                        query_id = x[names(x) == "query"]))
+      names(x = my_ranges) <- NULL
+      my_ranges <- do.call("c", my_ranges) 
+      my_ranges <- sort(my_ranges)
+      
+    } else {
+      my_ranges <- hgvsToGRange(hgvs_id = my_res$X_id, 
+                                query_id = my_res$query)
+    }
     
     # build ilets
-    hits <- GenomicRanges::findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000000) #1Mbp
+    hits <- findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000000) #1Mbp
     ilets <- c()
     
     for(i in queryHits(hits)){
@@ -461,33 +469,25 @@ server <- function(input, output, session) {
       return(ld)
     })
     
-    regions <- unlist(sapply(ilets, function(selection){
-      current_range  <- setStudyRange(my_ranges, selection)
-      region <- setStudyRegion(current_range)
-      region <- gsub(x = region, pattern = 'chr', replacement = '')
-      region <- gsub(x = region, pattern = ':', replacement = '_')
-    }))
-    
+    save(ld_results, file = "objects/ld_results.rda")
     values$ld <- ld_results
-    values$ld_regions <- regions
     
-    #save(regions, file = "objects/regions.rda")
-    
-    if(!is.null(values$ld)){
-      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
-                            disabled = FALSE)
-      updateSelectInput(session, "ld_regions", choices = as.character(regions))
-    } else {
-      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
-                            disabled = TRUE)
-      updateSelectInput(session, "ld_regions",choices = c())
-    }
   })
   
   output$runld_res <- renderText({ 
     if(!is.null(values$res) && nrow(values$res) > 0){
       runLD()
+      if (!is.null(id))
+        removeNotification(id)
+      
       notfound <- do.call("c", values$ld[1,])
+      
+      #### update LD edges ####
+      snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
+      values$current_edges <- snv_edges
+      
+      visNetworkProxy("my_network") %>%
+        visUpdateEdges(edges = snv_edges)
       
       return(ifelse(test = length(notfound) > 0, 
                     yes = paste0('No LD data for the following variants: ', paste(notfound, collapse = ', ')),
@@ -495,27 +495,7 @@ server <- function(input, output, session) {
     }
   })
   
-  output$ld_plot <- renderImage({  
-    filename <- "processing.gif"
-    if (!is.null(id))
-      removeNotification(id)
-    id <<- NULL
-    if(!is.null(values$ld)){
-      filename <- paste0(resultDir,"/ld_figures/LD_plot_",input$ld_regions,".png")
-    }
-    
-    list(src = filename,
-         alt = "This is alternate text")
-    
-  },deleteFile = FALSE)
-  
   #### BUILDING NETWORK ####
-  observeEvent(input$buildNetwork, {
-    updateTabsetPanel(session, "results_tabset",
-                      selected = "network_results"
-    )
-  })
-  
   buildNetwork <- eventReactive(input$buildNetwork,{
     # shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
     
@@ -530,103 +510,30 @@ server <- function(input, output, session) {
            }
     )
     
-    if(input$variants_order %in% c("submission","all")){
-      switch(input$variants_order,
-             submission = {
-               if(nrow(my_res) > MAX_VAR){
-                 my_res <- my_res[1:MAX_VAR,]
-               } else {
-                 my_res <- my_res
-               }
-             },
-             all = {
-               my_res <- my_res
-             }
-      )
-    } else {
+    event.data <- event_data("plotly_selected", source = "subset")
+    
+    if(is.null(event.data) == T){
       if(nrow(my_res) > MAX_VAR){
-        #print(my_res[[input$variants_order]])
-        my_res <- my_res[order(my_res[[input$variants_order]], na.last = T, decreasing = T),]
         my_res <- my_res[1:MAX_VAR,]
       } else {
         my_res <- my_res
       }
+    } else {
+      my_selection <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
+      if(nrow(my_selection) > MAX_VAR){
+        my_res <- my_res[my_res$query %in% my_selection$query[1:MAX_VAR],]
+      } else {
+        my_res <- my_res[my_res$query %in% my_selection$query,]
+      }
     }
     
-    switch(input$network_type,
-           non_syn = {
-             values$nonsyn_res <- my_res
-           },
-           regul = {
-             values$regul_res <- my_res
-           }
-    )
+    values$my_res <- my_res
     
-    load('objects/global_ranges.rda')
-    my_data <- as.data.frame(global_ranges)
-    my_data$cdts_score <- values$res$cdts_score
-    my_data$is_best <- my_data$query %in% my_res$query
-    my_data$no_cdts <- is.na(my_data$cdts_score)
-    my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
-    
-    # print(my_data)
-    
-    # local({
-    #   output$my_plot <- renderPlotly({
-    #     #+ geom_label_repel(data=subset(buildPlot(), is_best=="yes"), aes(label=query), size=2)
-    #     p <- ggplot(my_data, aes(x = start, y = cdts_score, color = as.factor(is_best))) +
-    #       geom_jitter() + theme_bw()
-    # 
-    #     ggplotly(p) %>%
-    #       layout(autosize=TRUE)
-    #   })
-    # })
-    
-    local({
-      text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
-      xa <- list(title = "",
-                 zeroline = FALSE,
-                 showline = TRUE,
-                 showticklabels = TRUE,
-                 showgrid = TRUE)
-      output$my_plot <- renderPlotly({
-        plot_ly(type = "scatter", mode = "markers", my_data, x = ~start, y = ~cdts_score, 
-                showlegend = F) %>%
-          add_trace(data = values$cdts_region, 
-                    type = 'scatter', 
-                    mode = 'lines',
-                    x = ~start, 
-                    y = ~CDTS, 
-                    hoverinfo = "none",
-                    line = list(color = 'gray'), 
-                    opacity = 0.3,
-                    showlegend = F) %>%
-          add_trace( data = my_data,
-                     x = ~start,
-                     y = ~cdts_score,
-                     text =  text_snp,
-                     split = ~is_best,
-                     hoverinfo = 'text',
-                     # legendgroup = 'In network', 
-                     # name = 'In network', 
-                     showlegend = T) %>%
-          layout(xaxis = xa)
-      })
-    })
-    
-    #print(rownames(values$nonsyn_res))
-    #print(rownames(values$regul_res))
-    
-    snv_dist_edges <- build_snv_edges(values, "0", 1000, network_type = input$network_type) #default
-    snv_ld_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
-    snv_edges <- rbind(snv_dist_edges, snv_ld_edges)
+    snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
     save(snv_edges, file = "objects/snv_edges.rda")
-    #print(snv_edges)
     snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type)
     save(snv_nodes, file = "objects/snv_nodes.rda")
     
-    # non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)]) 
-    # non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
     non_null_raw_scores <- values$raw_scores
     non_null_adj_scores <- values$adjusted_scores
     
@@ -648,31 +555,8 @@ server <- function(input, output, session) {
     
     save(all_ne, file = 'objects/all_ne.rda')
     
-    # suppress unwanted edges
-    # if(is.null(values$current_edges)){
-    #   current_edges <- values$all_edges
-    #   ld_edges_idx <- which(current_edges$type == "snv_ld_edges")
-    #   values$current_edges <- current_edges[-ld_edges_idx,]
-    # }
-    
     values$current_edges <- values$all_edges
     values$current_nodes <- values$all_nodes
-    
-    # current_edges <- values$all_edges
-    # dist_edges_idx <- which(current_edges$type == "snv_dist_edges")
-    # current_edges <- current_edges[-dist_edges_idx,]
-    # 
-    # min_ld <- 0.8
-    # ld_edges_idx <- which((current_edges$type == "snv_ld_edges") & (as.numeric(current_edges$xvalue) < min_ld))
-    # current_edges <- current_edges[-ld_edges_idx,]
-    # 
-    # values$current_edges <- current_edges
-    # values$current_nodes <- values$all_nodes
-    # 
-    # cur_ne <- list(nodes = values$current_nodes,
-    #                edges = values$current_edges)
-    # 
-    # save(all_ne, cur_ne, file = "objects/values.rda")
     
     meta_values_mapped <- "blue"
     vn <- visNetwork(values$current_nodes, 
@@ -680,12 +564,13 @@ server <- function(input, output, session) {
       visEvents(doubleClick = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
-      visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T) %>%
+      visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = T) %>%
       visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
       #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
-      visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
+      #visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
-      visLayout(randomSeed = 2018)
+      visLayout(randomSeed = 2018) %>% 
+      visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
     #visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
     
     for (g in values$annotations$query){
@@ -704,78 +589,47 @@ server <- function(input, output, session) {
   })
   
   #### BUILDING PLOT ####
-  buildPlot <- eventReactive(input$buildNetwork,{
+  buildPlot <- eventReactive(input$fetch_annotations,{
     
-    switch(input$network_type,
-           non_syn = {
-             my_res <- values$all_nonsyn_res
-           },
-           regul = {
-             my_res <- values$all_regul_res
-           }
-    )
-    
-    if(input$variants_order %in% c("submission","all")){
-      switch(input$variants_order,
-             submission = {
-               if(nrow(my_res) > MAX_VAR){
-                 my_res <- my_res[1:MAX_VAR,]
-               } else {
-                 my_res <- my_res
-               }
-             },
-             all = {
-               my_res <- my_res
-             }
-      )
-    } else {
-      if(nrow(my_res) > MAX_VAR){
-        #print(my_res[[input$variants_order]])
-        my_res <- my_res[order(my_res[[input$variants_order]], na.last = T, decreasing = T),]
-        my_res <- my_res[1:MAX_VAR,]
-      } else {
-        my_res <- my_res
-      }
-    }
-    
-    switch(input$network_type,
-           non_syn = {
-             values$nonsyn_res <- my_res
-           },
-           regul = {
-             values$regul_res <- my_res
-           }
-    )
-    
-    load('objects/global_ranges.rda')
-    my_data <- as.data.frame(global_ranges)
+    my_data <- as.data.frame(values$global_ranges)
     my_data$cdts_score <- values$res$cdts_score
-    my_data$is_best <- my_data$query %in% my_res$query
+    my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
     my_data$no_cdts <- is.na(my_data$cdts_score)
     my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
-    print(my_data)
+    values$my_data <- my_data
     return(my_data)
-    # return(plot_ly(type = "scatter", mode = "markers",
-    #                my_data, x = ~start, y = ~cdts_score, split= ~is_best, showlegend = F, symbol = ~no_cdts, symbols = c("circle", "o")) 
-    #        # %>% add_trace(
-    #        #           x = my_data$start, 
-    #        #           y = my_data$cdts_score,
-    #        #           text = my_data$query,
-    #        #           hoverinfo = 'text')
-    #        )
   })
   
-  # output$my_plot <- renderPlotly({
-  #   #+ geom_label_repel(data=subset(buildPlot(), is_best=="yes"), aes(label=query), size=2)
-  #   p <- ggplot(buildPlot(), aes(x = start, y = cdts_score, color = as.factor(is_best))) + 
-  #     geom_jitter() + theme_bw()
-  #   
-  #   ggplotly(p) %>% 
-  #     layout(autosize=TRUE)
-  # })
-  
-  
-  #### UPDATE NETWORK ####
+  output$my_plot <- renderPlotly({
+    my_data <- buildPlot()
+    text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
+    xa <- list(title = "",
+               zeroline = FALSE,
+               showline = TRUE,
+               showticklabels = TRUE,
+               showgrid = TRUE)
+    plot_ly(type = "scatter", mode = "markers", my_data, x = ~start, y = ~cdts_score, 
+            showlegend = F, source = "subset") %>%
+      add_trace(data = values$cdts_region, 
+                type = 'scatter', 
+                mode = 'lines',
+                x = ~start, 
+                y = ~CDTS, 
+                hoverinfo = "none",
+                line = list(color = 'gray'), 
+                opacity = 0.3,
+                showlegend = F) %>%
+      add_trace( data = my_data,
+                 x = ~start,
+                 y = ~cdts_score,
+                 text =  text_snp,
+                 split = ~non_synonymous,
+                 hoverinfo = 'text',
+                 # legendgroup = 'In network', 
+                 # name = 'In network', 
+                 showlegend = T) %>%
+      layout(xaxis = xa, dragmode =  "select")
+  })
   
   #### NODES FIGURES ####
   observe({
@@ -795,127 +649,6 @@ server <- function(input, output, session) {
     }
     
   })
-  
-  
-  #### LD ####
-  observeEvent(input$update_ld, {
-    
-    # extraire les bon edges
-    max_ld <- input$ld_range[2]
-    min_ld <- input$ld_range[1]
-    
-    # supprimer les edges de type dist
-    dist_edges_id_2_remove <- values$current_edges[values$current_edges$type == "snv_dist_edges",]$id
-    
-    # supprimer les edges de type dist
-    empty_ld_edges_id_2_remove <- values$current_edges[(values$current_edges$type == "snv_ld_edges") & 
-                                                         (values$current_edges$title == "NA"),]$id
-    
-    
-    
-    
-    # supprimer les edges de type ld qui ne sont pas dans le range
-    ld_edges_id_2_remove <- values$current_edges[(values$current_edges$type == "snv_ld_edges") & 
-                                                   ((as.numeric(values$current_edges$xvalue) < min_ld | as.numeric(values$current_edges$xvalue) > max_ld)),]$id
-    
-    # ajouter les edges de type ld qui sont dans le range mais qui n'étaient pas dans le current_edges
-    ld_edges <- values$all_edges[values$all_edges$type == "snv_ld_edges",]
-    ld_edges_id_2_add <- ld_edges[(as.numeric(ld_edges$xvalue) >= min_ld) & (as.numeric(ld_edges$xvalue) <= max_ld),]
-    
-    edges_id_2_remove <- c(dist_edges_id_2_remove, ld_edges_id_2_remove)
-    
-    edges_2_keep <- values$current_edges[! values$current_edges$id %in% edges_id_2_remove,]
-    
-    # add newly computed LD
-    snv_ld_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
-    snv_ld_edges <- snv_ld_edges[((as.numeric(snv_ld_edges$xvalue) < min_ld | as.numeric(snv_ld_edges$xvalue) > max_ld)),]
-    edges_2_keep <- rbind(edges_2_keep, ld_edges_id_2_add, snv_ld_edges)
-    
-    values$current_edges <- edges_2_keep
-    
-    visNetworkProxy("my_network") %>%
-      visUpdateEdges(edges = edges_2_keep)
-    
-    visNetworkProxy("my_network") %>%
-      visRemoveEdges(id = edges_id_2_remove)
-  })
-  
-  #### DISTANCE ####
-  observeEvent(input$update_dist, {
-    # supprimer les edges de type ld
-    ld_edges_id_2_remove <- values$current_edges[values$current_edges$type == "snv_ld_edges",]$id
-    
-    # supprimer les edges entre les nodes trop eloignés
-    max_dist <- 1000 * input$dist_range
-    dist_edges_id_2_remove <- values$current_edges[(values$current_edges$type == "snv_dist_edges") & (as.numeric(values$current_edges$xvalue) > max_dist),]$id
-    
-    #dist_edges_id_2_remove <- dist_edges_id_2_remove[as.numeric(dist_edges_id_2_remove$xvalue) > max_dist,]$id
-    
-    # ajouter les edges de type dist qui sont dans le range mais qui n'étaient pas dans le current_edges
-    dist_edges <- values$all_edges[values$all_edges$type == "snv_dist_edges",]
-    dist_edges_2_add <- dist_edges[(as.numeric(dist_edges$xvalue) <= max_dist),]
-    
-    edges_id_2_remove <- c(ld_edges_id_2_remove, dist_edges_id_2_remove)
-    
-    # edges a garder
-    edges_2_keep <- values$current_edges[! values$current_edges$id %in% edges_id_2_remove,]
-    edges_2_keep <- rbind(edges_2_keep, dist_edges_2_add)
-    
-    values$current_edges <- edges_2_keep
-    
-    visNetworkProxy("my_network") %>%
-      visUpdateEdges(edges = edges_2_keep)
-    
-    visNetworkProxy("my_network") %>%
-      visRemoveEdges(id = edges_id_2_remove)
-  })
-  
-  #### FOCUS ####
-  # observe({
-  #   updateSelectInput(session, "focus",
-  #                     choices = c("None", as.character(values$current_nodes$id)),
-  #                     selected = "None"
-  #   )
-  # })
-  # 
-  # observe({
-  #   if(input$focus != "None"){
-  #     visNetworkProxy("my_network") %>%
-  #       visFocus(id = input$focus, scale = 1)
-  #   } else {
-  #     visNetworkProxy("my_network") %>%
-  #       visFit()
-  #   }
-  # })
-  
-  #### HIGHLIGHT ####
-  # observe({
-  #   if("cadd.consdetail" %in% colnames(values$annotations)){
-  #     choices <- unique(unlist(strsplit(x = as.character(values$annotations$cadd.consdetail), split = ","))) 
-  #     updateSelectInput(session, "highlight",
-  #                       choices = c("None", choices),
-  #                       selected = "None")
-  #   }
-  # })
-  
-  # observe({
-  #   svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
-  #   
-  #   # remise à zero
-  #   svn_nodes$shape <- "circularImage"
-  #   
-  #   if(input$highlight != "None"){
-  #     # nodes to highlight
-  #     svn_id_2_highlight <- as.character(values$annotations$query)[grepl(x = as.character(values$annotations$cadd.consdetail),
-  #                                                                        pattern = input$highlight)]
-  #     svn_nodes[svn_nodes$id %in% svn_id_2_highlight,]$shape <- "image"
-  #     values$current_nodes$shape <- as.character(values$current_nodes$shape)
-  #     values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
-  #   }
-  #   
-  #   visNetworkProxy("my_network") %>%
-  #     visUpdateNodes(nodes = svn_nodes)
-  # })
   
   #### SCORES ####
   observe({
@@ -941,7 +674,6 @@ server <- function(input, output, session) {
     non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names, 
                                              pattern = "_(.*)_", replacement = " (\\1)")
     
-    
     switch(input$network_type,
            non_syn = {
              predictors <- non_null_adj_scores
@@ -951,130 +683,11 @@ server <- function(input, output, session) {
            }
     )
     
-    # if(length(non_null_raw_scores) > 0){
-    #   names(non_null_raw_scores) <- non_null_raw_scores_pretty_names
-    #   updateSelectizeInput(session, "raw_scores",
-    #                        choice = non_null_raw_scores,
-    #                        selected = non_null_raw_scores)
-    # }
-    # 
-    # if(length(non_null_adj_scores) > 0){
-    #   names(non_null_adj_scores) <- non_null_adj_scores_pretty_names
-    #   updateSelectizeInput(session, "adj_scores",
-    #                        choice = non_null_adj_scores,
-    #                        selected = non_null_adj_scores)
-    # }
-    
     if(length(non_null_raw_scores) > 0 || length(non_null_adj_scores) > 0){
       updateSelectizeInput(session, "selected_scores",
                            choice = predictors,
                            selected = predictors)
-      
-      updateSelectInput(session, "variants_order",
-                        choices = c("submission order - default" = "submission",
-                                    predictors,
-                                    "force all" = "all"))
     }
-    
-    
-  })
-  
-  #### SCORES STATS ####
-  
-  compute_scores_missing_data <- eventReactive(input$get_predictors_info, {
-    if(length(input$predictors) > 0){
-      # non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
-      # non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
-      non_null_raw_scores <- values$raw_scores
-      non_null_adj_scores <- values$adjusted_scores
-      all_scores <- c(non_null_adj_scores, non_null_raw_scores)
-      all_scores <- all_scores[input$predictors]
-      all_scores <- data.frame(all_scores)
-      
-      scores_stats <- do.call("rbind",
-                              lapply(X = all_scores,
-                                     FUN = function(x) {
-                                       data.frame(Missing_values = sum(is.na(x)),
-                                                  Min = signif(x = min(x, na.rm = T), digits = 3),
-                                                  #First_Qt = quantile(x, probs = 0.25, names = F, na.rm = T),
-                                                  Mean = signif(x = mean(x, na.rm = TRUE), digits = 3),
-                                                  #Median = median(x, na.rm = TRUE),
-                                                  #Third_Qt =  quantile(x, probs = 0.75, names = F, na.rm = T),
-                                                  Max = signif(x = max(x, na.rm = TRUE), digits = 3))
-                                     }
-                              )
-      )
-      
-      pretty_rownames <- row.names(scores_stats)
-      pretty_rownames <- gsub(x = pretty_rownames, pattern = "score|rawscore|rankscore", replacement = "")
-      pretty_rownames <- gsub(x = pretty_rownames, replacement = "", pattern = "\\.$")
-      pretty_rownames <- gsub(x = pretty_rownames, replacement = " ", pattern = "\\.")
-      pretty_rownames <- gsub(x = pretty_rownames, pattern = "_(.*)_", replacement = " (\\1)")
-      
-      row.names(scores_stats) <- pretty_rownames
-      
-      return(scores_stats)
-    }
-  })
-  
-  compute_scores_stats <- eventReactive(input$get_predictors_info,{
-    
-    # non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
-    # non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
-    non_null_raw_scores <- values$raw_scores
-    non_null_adj_scores <- values$adjusted_scores
-    all_scores <- c(non_null_adj_scores, non_null_raw_scores)
-    all_scores <- all_scores[input$predictors]
-    all_scores <- data.frame(all_scores)
-    
-    df.m <- reshape2::melt(all_scores)
-    p <- ggplot(data = df.m, aes(x=variable, y=value)) + geom_boxplot()
-    p <- p + facet_wrap( ~ variable, scales="free", strip.position = "left")
-    p <- p + theme_bw() + 
-      theme(axis.title.y = element_blank(), 
-            axis.title.x = element_blank(), 
-            axis.text.x = element_blank())
-    
-    return(p)
-  })
-  
-  output$scores_stats <- renderPlot({
-    #suppressWarnings(compute_scores_stats())
-  })
-  
-  output$scores_missing_data <- DT::renderDataTable({
-    # details <- as.matrix(compute_scores_missing_data())
-    # # if(is.null(detail)){
-    # #   detail <- as.matrix(data.frame(waiting = ""))
-    # # }
-    # DT::datatable(details,
-    #               rownames = TRUE,
-    #               options = list(scrollX = TRUE,
-    #                              lengthChange = FALSE,
-    #                              searching = FALSE))
-  })
-  
-  
-  #### SCORES CORRELATION MATRICE ####
-  compute_scores_corr <- eventReactive(input$get_predictors_info, {
-    sub_matrice <- diag(nrow = 10, ncol = 10)
-    
-    if(length(input$predictors) > 0){
-      sub_matrice <- scores_correlation_matrice[rownames(scores_correlation_matrice) %in% input$predictors,
-                                                colnames(scores_correlation_matrice) %in% input$predictors]
-    }
-    
-    return(sub_matrice)
-  })
-  
-  output$scores_corr <- renderD3heatmap({
-    # m <- compute_scores_corr()
-    # if(!is.null(m)){
-    #   d3heatmap(x = m, Colv = "Rowv", 
-    #             Rowv = NULL, colors = cor_color_breaks, 
-    #             cexCol = .7, na.rm = F, cexRow = .7)
-    # }
-    
   })
   
   
@@ -1127,14 +740,32 @@ server <- function(input, output, session) {
   
   #### SVN SCORES DETAIL ####
   output$snv_score_details <- DT::renderDataTable({
+    
     if (!is.null(id))
       removeNotification(id)
     id <<- NULL
-    if(values$selected_node == '') values$selected_node <- as.character(values$annotations$query)[1]
+    
+    if(is.null(values$my_res)){
+      color_code = "#FFFFFF"
+      snv_score_details <- data.frame("predictors" = "None", "value" = 0)
+      return(DT::datatable(snv_score_details,
+                    rownames = FALSE,
+                    options = list(scrollX = TRUE,
+                                   lengthChange = FALSE,
+                                   searching = FALSE)))
+      
+    }
+    
+    if(!is.null(values$selected_node) && values$selected_node == '') {
+      values$selected_node <- as.character(values$my_res$query)[1]
+    }
+    
     snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
+    #print(snv_score_details)
     color_code <- as.character(snv_score_details$color)
     snv_score_details$id <- gsub(x = snv_score_details$id, pattern = paste0("_", values$selected_node), replacement = "")
     snv_score_details <- snv_score_details[,-2] #suppression de la colonne 'color' 
+    colnames(snv_score_details) <- c("predictors", "value")
     
     DT::datatable(snv_score_details,
                   rownames = FALSE,
@@ -1142,70 +773,346 @@ server <- function(input, output, session) {
                                  lengthChange = FALSE,
                                  searching = FALSE))
   }%>% DT::formatStyle(
-    'label',
-    target = 'row',
-    backgroundColor = DT::styleEqual(as.character(snv_score_details$label), color_code)
+    'value',
+    backgroundColor = DT::styleEqual(as.character(snv_score_details$value), color_code)
   ))
   
   output$snv_score_details_id <- renderText({
-    if(values$selected_node == '') values$selected_node <- as.character(values$annotations$query)[1]
+    if(is.null(values$my_res))
+      return(NULL)
+    #print(values$selected_node)
+    if(!is.null(values$selected_node) && values$selected_node == '') 
+      values$selected_node <- as.character(values$my_res$query)[1]
+    
     values$selected_node
   })
   
-  
-  #cadd coonsequences
-  output$consequences <- renderC3PieChart({
-    if(!is.null(values$res) && nrow(values$res) > 0){
-      d1 <- data.frame(non_synonymous = as.numeric(sum(sapply(values$res$cadd.consequence, function(y) "NON_SYNONYMOUS" %in% y))), 
-                       other = as.numeric((nrow(values$res) - sum(sapply(values$res$cadd.consequence, function(j) "NON_SYNONYMOUS" %in% j)))))
-      d1 %>% c3() %>% c3_pie()
+  #### VARIANT SELECTION FROM PLOTLY ####
+  output$selection <- renderPrint({
+    event.data <- event_data("plotly_selected", source = "subset")
+    
+    if(is.null(event.data) == T ) return("Please select an area containing variants...")
+    if(!"curveNumber" %in% colnames(event.data)) return("Please select an area containing variants...")
+    
+    x <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
+    
+    network_choices <- c()
+    if(sum(x$non_synonymous) > 0){
+      network_choices <- c(network_choices, 
+                           "non synonymous variants" = "non_syn")
     }
+    
+    if(sum(!x$non_synonymous) > 0){
+      network_choices <- c(network_choices, 
+                           "synonymous and non-coding variants" = "regul")
+    }
+    
+    updateSelectInput(session, "network_type",
+                      choices = network_choices,
+                      selected = network_choices[1]
+    )
+    
+    return(x)
   })
   
-  #cadd annotations
-  output$annotations <- renderC3PieChart({
-    if(!is.null(values$res) && nrow(values$res) > 0){
-      annotype_counts <- as.numeric(table(unlist(values$res$cadd.annotype)))
-      annotyp_names <- names(table(unlist(values$res$cadd.annotype)))
-      d1 <- data.frame(matrix(annotype_counts, nrow = 1))
-      colnames(d1) <-  annotyp_names
-      d1 %>% c3() %>% c3_pie()
-    }
-  })
-  
-  #genes
-  output$genenames <- renderC3PieChart({
-    if(!is.null(values$res) && nrow(values$res) > 0){
-      if(is.null(values$res$cadd.gene)){
-        genenames <- values$res$cadd.gene.genename
-        genenames[is.na(genenames)] <- "none"
-        genenames[is.null(genenames)] <- "none"
-      } else {
-        genenames <- sapply(X = values$res$cadd.gene, FUN = function(x) x$genename)
-        genenames[sapply(genenames, function(x) is.null(x))] <- "none"
-      }
-      
-      genenames_counts <- as.numeric(table(unlist(genenames)))
-      genenames_names <- names(table(unlist(genenames)))
-      d1 <- data.frame(matrix(genenames_counts, nrow = 1))
-      colnames(d1) <-  genenames_names
-      d1 %>% c3() %>% c3_pie()
-    }
-  })
-  
-  output$cdts_scores <- renderC3PieChart({
-    if(!is.null(values$res) && nrow(values$res) > 0){
-      d1 <- values$res
-      d1 %>% c3(y = 'cdts_score', x = 'query') %>% c3_bar() %>% legend(hide= T) %>% grid('y', show = F, lines = data.frame(value = 0)) %>% tickAxis("x", values = c(1))
-    }
-  })
-  
-  output$cdts_percentile <- renderC3PieChart({
-    if(!is.null(values$res) && nrow(values$res) > 0){
-      d1 <- values$res
-      d1 %>% c3(y = 'cdts_percentile', x = 'query') %>% c3_bar() %>% legend(hide= T) %>% grid('y', show = F, lines = data.frame(value = 0)) %>% tickAxis("x", values = c(1))
-    }
-  })
 }
+
+#### OBSOLETE ####
+# observeEvent(input$runLD, {
+#   updateTabsetPanel(session, "results_tabset",
+#                     selected = "ld_results"
+#   )
+# })
+# output$ld_plot <- renderImage({  
+#   filename <- "processing.gif"
+#   if (!is.null(id))
+#     removeNotification(id)
+#   id <<- NULL
+#   if(!is.null(values$ld)){
+#     filename <- paste0(resultDir,"/ld_figures/LD_plot_",input$ld_regions,".png")
+#   }
+#   
+#   list(src = filename,
+#        alt = "This is alternate text")
+#   
+# },deleteFile = FALSE)
+# 
+# #### BUILDING NETWORK ####
+# observeEvent(input$buildNetwork, {
+#   updateTabsetPanel(session, "results_tabset",
+#                     selected = "network_results"
+#   )
+# })
+#### LD ####
+# observeEvent(input$update_ld, {
+#   
+#   # extraire les bon edges
+#   max_ld <- input$ld_range[2]
+#   min_ld <- input$ld_range[1]
+#   
+#   # supprimer les edges de type dist
+#   dist_edges_id_2_remove <- values$current_edges[values$current_edges$type == "snv_dist_edges",]$id
+#   
+#   # supprimer les edges de type dist
+#   empty_ld_edges_id_2_remove <- values$current_edges[(values$current_edges$type == "snv_ld_edges") & 
+#                                                        (values$current_edges$title == "NA"),]$id
+#   
+#   
+#   
+#   
+#   # supprimer les edges de type ld qui ne sont pas dans le range
+#   ld_edges_id_2_remove <- values$current_edges[(values$current_edges$type == "snv_ld_edges") & 
+#                                                  ((as.numeric(values$current_edges$xvalue) < min_ld | as.numeric(values$current_edges$xvalue) > max_ld)),]$id
+#   
+#   # ajouter les edges de type ld qui sont dans le range mais qui n'étaient pas dans le current_edges
+#   ld_edges <- values$all_edges[values$all_edges$type == "snv_ld_edges",]
+#   ld_edges_id_2_add <- ld_edges[(as.numeric(ld_edges$xvalue) >= min_ld) & (as.numeric(ld_edges$xvalue) <= max_ld),]
+#   
+#   edges_id_2_remove <- c(dist_edges_id_2_remove, ld_edges_id_2_remove)
+#   
+#   edges_2_keep <- values$current_edges[! values$current_edges$id %in% edges_id_2_remove,]
+#   
+#   # add newly computed LD
+#   snv_ld_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
+#   snv_ld_edges <- snv_ld_edges[((as.numeric(snv_ld_edges$xvalue) < min_ld | as.numeric(snv_ld_edges$xvalue) > max_ld)),]
+#   edges_2_keep <- rbind(edges_2_keep, ld_edges_id_2_add, snv_ld_edges)
+#   
+#   values$current_edges <- edges_2_keep
+#   
+#   visNetworkProxy("my_network") %>%
+#     visUpdateEdges(edges = edges_2_keep)
+#   
+#   visNetworkProxy("my_network") %>%
+#     visRemoveEdges(id = edges_id_2_remove)
+# })
+
+#### DISTANCE ####
+# observeEvent(input$update_dist, {
+#   # supprimer les edges de type ld
+#   ld_edges_id_2_remove <- values$current_edges[values$current_edges$type == "snv_ld_edges",]$id
+#   
+#   # supprimer les edges entre les nodes trop eloignés
+#   max_dist <- 1000 * input$dist_range
+#   dist_edges_id_2_remove <- values$current_edges[(values$current_edges$type == "snv_dist_edges") & (as.numeric(values$current_edges$xvalue) > max_dist),]$id
+#   
+#   #dist_edges_id_2_remove <- dist_edges_id_2_remove[as.numeric(dist_edges_id_2_remove$xvalue) > max_dist,]$id
+#   
+#   # ajouter les edges de type dist qui sont dans le range mais qui n'étaient pas dans le current_edges
+#   dist_edges <- values$all_edges[values$all_edges$type == "snv_dist_edges",]
+#   dist_edges_2_add <- dist_edges[(as.numeric(dist_edges$xvalue) <= max_dist),]
+#   
+#   edges_id_2_remove <- c(ld_edges_id_2_remove, dist_edges_id_2_remove)
+#   
+#   # edges a garder
+#   edges_2_keep <- values$current_edges[! values$current_edges$id %in% edges_id_2_remove,]
+#   edges_2_keep <- rbind(edges_2_keep, dist_edges_2_add)
+#   
+#   values$current_edges <- edges_2_keep
+#   
+#   visNetworkProxy("my_network") %>%
+#     visUpdateEdges(edges = edges_2_keep)
+#   
+#   visNetworkProxy("my_network") %>%
+#     visRemoveEdges(id = edges_id_2_remove)
+# })
+
+#### FOCUS ####
+# observe({
+#   updateSelectInput(session, "focus",
+#                     choices = c("None", as.character(values$current_nodes$id)),
+#                     selected = "None"
+#   )
+# })
+# 
+# observe({
+#   if(input$focus != "None"){
+#     visNetworkProxy("my_network") %>%
+#       visFocus(id = input$focus, scale = 1)
+#   } else {
+#     visNetworkProxy("my_network") %>%
+#       visFit()
+#   }
+# })
+
+#### HIGHLIGHT ####
+# observe({
+#   if("cadd.consdetail" %in% colnames(values$annotations)){
+#     choices <- unique(unlist(strsplit(x = as.character(values$annotations$cadd.consdetail), split = ","))) 
+#     updateSelectInput(session, "highlight",
+#                       choices = c("None", choices),
+#                       selected = "None")
+#   }
+# })
+
+# observe({
+#   svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
+#   
+#   # remise à zero
+#   svn_nodes$shape <- "circularImage"
+#   
+#   if(input$highlight != "None"){
+#     # nodes to highlight
+#     svn_id_2_highlight <- as.character(values$annotations$query)[grepl(x = as.character(values$annotations$cadd.consdetail),
+#                                                                        pattern = input$highlight)]
+#     svn_nodes[svn_nodes$id %in% svn_id_2_highlight,]$shape <- "image"
+#     values$current_nodes$shape <- as.character(values$current_nodes$shape)
+#     values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
+#   }
+#   
+#   visNetworkProxy("my_network") %>%
+#     visUpdateNodes(nodes = svn_nodes)
+# })
+#### SCORES STATS ####
+
+# compute_scores_missing_data <- eventReactive(input$get_predictors_info, {
+#   if(length(input$predictors) > 0){
+#     # non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
+#     # non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
+#     non_null_raw_scores <- values$raw_scores
+#     non_null_adj_scores <- values$adjusted_scores
+#     all_scores <- c(non_null_adj_scores, non_null_raw_scores)
+#     all_scores <- all_scores[input$predictors]
+#     all_scores <- data.frame(all_scores)
+#     
+#     scores_stats <- do.call("rbind",
+#                             lapply(X = all_scores,
+#                                    FUN = function(x) {
+#                                      data.frame(Missing_values = sum(is.na(x)),
+#                                                 Min = signif(x = min(x, na.rm = T), digits = 3),
+#                                                 #First_Qt = quantile(x, probs = 0.25, names = F, na.rm = T),
+#                                                 Mean = signif(x = mean(x, na.rm = TRUE), digits = 3),
+#                                                 #Median = median(x, na.rm = TRUE),
+#                                                 #Third_Qt =  quantile(x, probs = 0.75, names = F, na.rm = T),
+#                                                 Max = signif(x = max(x, na.rm = TRUE), digits = 3))
+#                                    }
+#                             )
+#     )
+#     
+#     pretty_rownames <- row.names(scores_stats)
+#     pretty_rownames <- gsub(x = pretty_rownames, pattern = "score|rawscore|rankscore", replacement = "")
+#     pretty_rownames <- gsub(x = pretty_rownames, replacement = "", pattern = "\\.$")
+#     pretty_rownames <- gsub(x = pretty_rownames, replacement = " ", pattern = "\\.")
+#     pretty_rownames <- gsub(x = pretty_rownames, pattern = "_(.*)_", replacement = " (\\1)")
+#     
+#     row.names(scores_stats) <- pretty_rownames
+#     
+#     return(scores_stats)
+#   }
+# })
+# 
+# compute_scores_stats <- eventReactive(input$get_predictors_info,{
+#   
+#   # non_null_raw_scores <- values$raw_scores[!sapply(values$raw_scores, is.null)]
+#   # non_null_adj_scores <- values$adjusted_scores[!sapply(values$adjusted_scores, is.null)]
+#   non_null_raw_scores <- values$raw_scores
+#   non_null_adj_scores <- values$adjusted_scores
+#   all_scores <- c(non_null_adj_scores, non_null_raw_scores)
+#   all_scores <- all_scores[input$predictors]
+#   all_scores <- data.frame(all_scores)
+#   
+#   df.m <- reshape2::melt(all_scores)
+#   p <- ggplot(data = df.m, aes(x=variable, y=value)) + geom_boxplot()
+#   p <- p + facet_wrap( ~ variable, scales="free", strip.position = "left")
+#   p <- p + theme_bw() + 
+#     theme(axis.title.y = element_blank(), 
+#           axis.title.x = element_blank(), 
+#           axis.text.x = element_blank())
+#   
+#   return(p)
+# })
+# 
+# output$scores_stats <- renderPlot({
+#   #suppressWarnings(compute_scores_stats())
+# })
+# 
+# output$scores_missing_data <- DT::renderDataTable({
+#   # details <- as.matrix(compute_scores_missing_data())
+#   # # if(is.null(detail)){
+#   # #   detail <- as.matrix(data.frame(waiting = ""))
+#   # # }
+#   # DT::datatable(details,
+#   #               rownames = TRUE,
+#   #               options = list(scrollX = TRUE,
+#   #                              lengthChange = FALSE,
+#   #                              searching = FALSE))
+# })
+# 
+# 
+# #### SCORES CORRELATION MATRICE ####
+# compute_scores_corr <- eventReactive(input$get_predictors_info, {
+#   sub_matrice <- diag(nrow = 10, ncol = 10)
+#   
+#   if(length(input$predictors) > 0){
+#     sub_matrice <- scores_correlation_matrice[rownames(scores_correlation_matrice) %in% input$predictors,
+#                                               colnames(scores_correlation_matrice) %in% input$predictors]
+#   }
+#   
+#   return(sub_matrice)
+# })
+# 
+# output$scores_corr <- renderD3heatmap({
+#   # m <- compute_scores_corr()
+#   # if(!is.null(m)){
+#   #   d3heatmap(x = m, Colv = "Rowv", 
+#   #             Rowv = NULL, colors = cor_color_breaks, 
+#   #             cexCol = .7, na.rm = F, cexRow = .7)
+#   # }
+#   
+# })
+#cadd coonsequences
+# output$consequences <- renderC3PieChart({
+#   if(!is.null(values$res) && nrow(values$res) > 0){
+#     d1 <- data.frame(non_synonymous = as.numeric(sum(sapply(values$res$cadd.consequence, function(y) "NON_SYNONYMOUS" %in% y))), 
+#                      other = as.numeric((nrow(values$res) - sum(sapply(values$res$cadd.consequence, function(j) "NON_SYNONYMOUS" %in% j)))))
+#     d1 %>% c3() %>% c3_pie()
+#   }
+# })
+# 
+# #cadd annotations
+# output$annotations <- renderC3PieChart({
+#   if(!is.null(values$res) && nrow(values$res) > 0){
+#     annotype_counts <- as.numeric(table(unlist(values$res$cadd.annotype)))
+#     annotyp_names <- names(table(unlist(values$res$cadd.annotype)))
+#     d1 <- data.frame(matrix(annotype_counts, nrow = 1))
+#     colnames(d1) <-  annotyp_names
+#     d1 %>% c3() %>% c3_pie()
+#   }
+# })
+# 
+# #genes
+# output$genenames <- renderC3PieChart({
+#   if(!is.null(values$res) && nrow(values$res) > 0){
+#     if(is.null(values$res$cadd.gene)){
+#       genenames <- values$res$cadd.gene.genename
+#       genenames[is.na(genenames)] <- "none"
+#       genenames[is.null(genenames)] <- "none"
+#     } else {
+#       genenames <- sapply(X = values$res$cadd.gene, FUN = function(x) x$genename)
+#       genenames[sapply(genenames, function(x) is.null(x))] <- "none"
+#     }
+#     
+#     genenames_counts <- as.numeric(table(unlist(genenames)))
+#     genenames_names <- names(table(unlist(genenames)))
+#     d1 <- data.frame(matrix(genenames_counts, nrow = 1))
+#     colnames(d1) <-  genenames_names
+#     d1 %>% c3() %>% c3_pie()
+#   }
+# })
+# 
+# output$cdts_scores <- renderC3PieChart({
+#   if(!is.null(values$res) && nrow(values$res) > 0){
+#     d1 <- values$res
+#     d1 %>% c3(y = 'cdts_score', x = 'query') %>% c3_bar() %>% legend(hide= T) %>% grid('y', show = F, lines = data.frame(value = 0)) %>% tickAxis("x", values = c(1))
+#   }
+# })
+# 
+# output$cdts_percentile <- renderC3PieChart({
+#   if(!is.null(values$res) && nrow(values$res) > 0){
+#     d1 <- values$res
+#     d1 %>% c3(y = 'cdts_percentile', x = 'query') %>% c3_bar() %>% legend(hide= T) %>% grid('y', show = F, lines = data.frame(value = 0)) %>% tickAxis("x", values = c(1))
+#   }
+# })
+
+
 
 
