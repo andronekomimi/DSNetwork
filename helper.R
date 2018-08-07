@@ -4,14 +4,14 @@ require(GenomicRanges)
 require(ggplot2)
 require(grDevices) 
 require(grid)
-require("yaml")
-require("c3")
+require(yaml)
+require(c3)
 
 #devtools::install_github("mrjoh3/c3")
 #devtools::install_github("viking/r-yaml")
 
 path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
-MAX_VAR <- 5
+MAX_VAR <- 10
 
 ld_breaks <- seq(0,1, by = 0.01)
 colfunc <- colorRampPalette(c("yellow","red"))
@@ -409,7 +409,7 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
   require(genetics)
   require(LDheatmap)
   
-  requested_variants <- unique(requested_variants)
+  requested_variants <- unique(gsub(x = requested_variants, pattern = "(.*)_(.*)", replacement = "\\1"))
   region <- gsub(x = region, pattern = 'chr', replacement = '')
   chromosome <- strsplit(x = region, split = ":")[[1]][1]
   
@@ -446,7 +446,7 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
     variants_pos <- subset(found_variants, V1 %in% variants)
     df <- lapply(genotypes, FUN = function(x) gsub(x = x, pattern = " ", replacement = "/"))
     
-    data <- makeGenotypes(df)
+    my_data <- makeGenotypes(df)
     print('done making genotypes')
     
     if(isShiny) {
@@ -467,7 +467,7 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
     }
     
     
-    ldheatmap <- LDheatmapCustom(gdat = data, 
+    ldheatmap <- LDheatmapCustom(gdat = my_data, 
                                  genetic.distances = variants_pos$V2,
                                  updateProgress = updateProgress, SNP.name = variants,
                                  results_file = paste0(results_dir,"/ld_figures/LD_plot_", region, ".png"))
@@ -599,23 +599,13 @@ build1000GenomeLDMatrixLDlink <- function(variantsID, population, tempDir, updat
 }
 
 #### Network Building ####
-build_snv_edges <- function(session_values, edges_type, edges_range, network_type){
-  
-  switch(network_type,
-         non_syn = {
-           my_res <- session_values$nonsyn_res
-         },
-         regul = {
-           my_res <- session_values$regul_res
-         }
-  )
+build_snv_edges.old <- function(session_values, edges_type, edges_range, network_type){
+  my_res <- session_values$my_res
   
   if(nrow(my_res) < 2){
-    print("exit")
     return(NULL)
   }
   
-  save(my_res, file = "objects/my_res.rda")
   edges <- NULL
   if(nrow(my_res) > 1){
     my_ranges <- apply(X = my_res, MARGIN = 1, 
@@ -682,12 +672,12 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
   }
   
   if(edges_type == "1"){ #linkage
-    print("linkage")
+    
     ld_results <- session_values$ld
     nodes_edges <- c()
     
     if(!is.null(ld_results)){
-      print("test")
+      
       for(i in 1:ncol(ld_results)){
         if("LDmatrix" %in% names(ld_results[,i]$data)){
           ld <- ld_results[,i]$data$LDmatrix
@@ -733,6 +723,29 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
                             type = "snv_ld_edges",
                             title = nodes_edges,
                             color = ld_values_mapped, stringsAsFactors = FALSE)
+        
+        # ajout artificiel du LD pour les variant polyalleleic
+        variants_2_update <- my_res$query[grepl(x = my_res$query, pattern = "rs.*_.*")]
+        corresponding_variants <- gsub(x = variants_2_update, pattern = "(.*)_(.*)", replacement = "\\1")
+        
+        new_rows <- NULL
+        
+        for(i in seq_along(corresponding_variants)){
+          v <- corresponding_variants[i]
+          corresponding_rows <- edges[grepl(x = rownames(edges), pattern = v),]
+          if(nrow(corresponding_rows) > 0) {
+            corresponding_rows[(corresponding_rows$from == v | corresponding_rows$to == v),]$id <- paste0(corresponding_rows[(corresponding_rows$from == v | corresponding_rows$to == v),]$id, "_",i)
+            corresponding_rows[corresponding_rows$from == v,]$from <- corresponding_rows[corresponding_rows$to == v,]$to <- variants_2_update[i]
+            
+            if(is.null(new_rows)){
+              new_rows <- corresponding_rows
+            } else {
+              new_rows <- rbind(new_rows, corresponding_rows)
+            }
+          }
+        }
+        
+        edges <- rbind(edges, new_rows)
       }
     } else {
       snp_comb <- t(combn(x = my_ranges$query, m = 2))
@@ -751,24 +764,151 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
   return(edges)
 } 
 
+build_snv_edges <- function(session_values, edges_type, edges_range, network_type){
+  my_res <- session_values$my_res
+  
+  if(nrow(my_res) < 2){
+    return(NULL)
+  }
+  
+  edges <- NULL
+  if(nrow(my_res) > 1){
+    my_ranges <- apply(X = my_res, MARGIN = 1, 
+                       FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"], 
+                                                      query_id = x[names(x) == "query"]))
+    names(x = my_ranges) <- NULL
+    my_ranges <- do.call("c", my_ranges) 
+    my_ranges <- sort(my_ranges)
+    
+  } else {
+    my_ranges <- hgvsToGRange(hgvs_id = my_res$X_id, 
+                              query_id = my_res$query)
+  }
+  
+  if(edges_type == "0") { #distance
+    print("distance")
+    hits <- findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000 * as.numeric(edges_range)) # range in kb
+    ilets <- c()
+    
+    for(i in unique(queryHits(hits))){
+      ilets <- c(ilets, paste(subjectHits(hits[queryHits(hits) == i]), collapse = "_"))
+    }
+    
+    ilets <- strsplitAsListOfIntegerVectors(x = unique(ilets), sep = "_")
+    
+    if(sum(lengths(ilets) > 1) > 0){ # presence de cluster
+      for(i in seq_along(ilets)){
+        ilet <- ilets[[i]]
+        if(length(ilet) > 1) {
+          x <- my_ranges[ilet]
+          dist_comb <- combn(x = x$query, m = 2)
+          if(is.matrix(dist_comb)){
+            snv_dist <- apply(dist_comb, 2, function(y) width(range(x[x$query==y[1]], x[x$query==y[2]])))
+            new_row <- data.frame(id = paste0("edge_dist_", i, "_", 1:ncol(dist_comb)),
+                                  from = dist_comb[1,], 
+                                  to = dist_comb[2,],
+                                  width = 1,
+                                  dashes = FALSE,
+                                  xvalue = snv_dist,
+                                  type = "snv_dist_edges",
+                                  title = paste0(snv_dist/1000, "Kbp"),
+                                  color = "black", stringsAsFactors = FALSE)
+          } else {
+            snv_dist <-  width(range(x[x$query==dist_comb[1]], x[x$query==dist_comb[2]])) 
+            new_row <- data.frame(id = paste0("edge_dist_", i, "_", seq_along(dist_comb)),
+                                  from = dist_comb[1], 
+                                  to = dist_comb[2],
+                                  width = 1,
+                                  dashes = FALSE,
+                                  xvalue = snv_dist,
+                                  type = "snv_dist_edges",
+                                  title =  paste0(snv_dist/1000, "Kbp"),
+                                  color = "black", stringsAsFactors = FALSE)
+          }
+          
+          if(is.null(edges)){
+            edges <- new_row
+          } else {
+            edges <- rbind(edges, new_row, stringsAsFactors = FALSE)
+          }
+        }
+      }
+    }
+  }
+  
+  if(edges_type == "1"){ #linkage
+    
+    ld_results <- session_values$ld
+    nodes_edges <- c()
+    
+    snp_comb <- t(combn(x = my_ranges$query, m = 2))
+    edges <- data.frame(id = paste0("edge_ld_",1:nrow(snp_comb)),
+                        from = snp_comb[,1], 
+                        to = snp_comb[,2],
+                        width = 2,
+                        dashes = FALSE,
+                        xvalue = 0,
+                        type = "snv_ld_edges",
+                        title = "NA",
+                        color = "#DDDDDD", stringsAsFactors = FALSE)
+    
+    if(!is.null(ld_results)){
+      
+      for(i in 1:ncol(ld_results)){
+        if("LDmatrix" %in% names(ld_results[,i]$data)){
+          ld <- ld_results[,i]$data$LDmatrix
+          not_found <- ld_results[,i]$notfound
+          if(!is.null(ld)){
+            ld[lower.tri(ld)] = t(ld)[lower.tri(ld)]
+            
+            for(j in 1:nrow(edges)){
+              e <- edges[j,]
+              e_from <- unique(gsub(x = e$from, pattern = "(.*)_(.*)", replacement = "\\1"))
+              e_to <- unique(gsub(x = e$to, pattern = "(.*)_(.*)", replacement = "\\1"))
+              
+              if(e_from == e_to){
+                e$title <- "NA"
+                e$xvalue <- 0
+              } else {
+                if(e_from %in% colnames(ld) && e_to %in% colnames(ld)){
+                  e$title <- e$xvalue <- round(x = ld[e_from, e_to], digits = 2)
+                  edges[j,] <- e
+                }
+              }
+            }
+            
+            # color
+            ld_values_mapped <- edges$title
+            
+            for(x in unique(edges$title)){
+              if(x == "NA"){
+                ld_values_mapped[ld_values_mapped == x] <- "#DDDDDD"
+              } else {
+                ld_values_mapped[ld_values_mapped == x] <- ld_color_breaks[names(ld_color_breaks) == x]
+              }
+            }
+            
+            edges$color <- ld_values_mapped
+          }
+        }
+      }
+    }
+  }
+  
+  return(edges)
+} 
+
+
+
 build_snv_nodes <- function(session_values, network_type){
   
   nodes <- NULL
+  my_res <- session_values$my_res
   
-  switch(network_type,
-         non_syn = {
-           my_res <- session_values$nonsyn_res
-         },
-         regul = {
-           my_res <- session_values$regul_res
-         }
-  )
-
   if(nrow(my_res) < 1){
-    print("exit")
     return(NULL)
   }
-
+  
   node_names <- unique(my_res$query)
   
   nodes <- data.frame(id = node_names, 
@@ -790,20 +930,14 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   load('data/scores_correlation_matrice.rda')
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
   
+  my_res <- session_values$my_res
+  
   switch(network_type,
          non_syn = {
-           my_res <- session_values$nonsyn_res
-           # nodes <- as.character(my_res$query)
-           # nodes_data <- data.frame(nodes = nodes)
            selected_scores <- selected_adj_scores
-           # a_scores <- session_values$adjusted_scores[selected_scores]
          },
          regul = {
-           my_res <- session_values$regul_res
-           # nodes <- as.character(my_res$query)
-           # nodes_data <- data.frame(nodes = nodes)
            selected_scores <- selected_raw_scores
-           # a_scores <- session_values$raw_scores[selected_scores]
          }
   )
   
@@ -816,26 +950,9 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   # print(a_scores)
   nodes_data <- cbind(nodes_data, as.data.frame(a_scores))
   
-  ### correlation between my_res
-  # score_comb <- combn2(selected_scores)
-  # if(is.matrix(score_comb)){
-  #   template_edges <- data.frame(id = paste0("correlation_edge_",1:nrow(score_comb)),
-  #                                from = score_comb[,1],
-  #                                to = score_comb[,2],
-  #                                width = 1,
-  #                                dashes = FALSE,
-  #                                xvalue = "",
-  #                                type = "correlation_edges",
-  #                                title = NA,
-  #                                color = "", stringsAsFactors = F)
-  #   
-  #   for(s in 1:nrow(score_comb)){
-  #     val <- signif(x = scores_correlation_matrice[score_comb[s,1], score_comb[s,2]], digits = 2)
-  #     template_edges[s,]$xvalue <- template_edges[s,]$title <- val
-  #     template_edges[s,]$color <- cor_color_breaks[names(cor_color_breaks) == val]
-  #     
-  #   }
-  # }
+  if(length(selected_scores) == 1){
+    colnames(nodes_data) <- c("nodes", selected_scores)
+  } 
   
   ### supprimer les lignes vides
   nodes_data <- nodes_data[(apply(X = nodes_data,
@@ -844,27 +961,6 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
   
   save(nodes_data, file = "objects/nodes_data.rda") # keep this one #
-  
-  ### creation des score roots nodes and edges : A SUPPRIMER
-  # meta_values_mapped <- "blue"
-  # root_score_nodes <- data.frame(id = paste0("root_scores_",nodes_data$nodes),
-  #                                color = meta_values_mapped,
-  #                                label = paste0("scores_",nodes_data$nodes),
-  #                                shape = "database",
-  #                                image = NA,
-  #                                font.size = 30,
-  #                                size = 30,
-  #                                group = paste0("Scores_",nodes_data$nodes))
-  # 
-  # root_score_edges <-  data.frame(id = paste0("edge_score_root_", 1:nrow(nodes_data)),
-  #                                 from = nodes_data$nodes,
-  #                                 to = paste0("root_scores_",nodes_data$nodes),
-  #                                 width = 1,
-  #                                 dashes = FALSE,
-  #                                 xvalue = 0,
-  #                                 type = "root_score_edges",
-  #                                 title = "",
-  #                                 color = "black")
   
   if(ncol(nodes_data) >= 1){
     score_nodes <- NULL
@@ -880,6 +976,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
       
       values_mapped <- d
+      
       save(values_mapped, file = "objects/values_mapped.rda")
       save(colpalette, file = "objects/colpalette.rda")
       
@@ -891,7 +988,6 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
         }
         
       }
-      
       scores_values_mapped[[selected_score]] <- values_mapped
     }
     
@@ -939,79 +1035,12 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       dev.off()
       par(lwd = 1)
       
-      ## barcharts
-      # png(paste0(path_to_images,"bar_scores_",n,".png"), width = 500, height = 500,
-      #     units = "px")
-      # p <- ggplot(new_n_rows, aes(x=id, y=h, fill = label)) +
-      #   geom_bar(stat="identity")
-      # p <- p + scale_fill_manual(values = custom_colors)
-      # p <- p + theme_minimal() + guides(fill=FALSE) +
-      #   labs(x = NULL, y = NULL, main = n) + 
-      #   theme(axis.title.y = element_blank(),
-      #         axis.text.y = element_blank(),
-      #         axis.ticks.y = element_blank(),
-      #         axis.text.x = element_text(angle=90, size = 11))
-      # p <- p + geom_text(aes(x = id,
-      #                        y = h - 0.5,
-      #                        angle = 90,
-      #                        label=format(as.numeric(new_n_rows$label), digits=2)),
-      #                    hjust=0.5, 
-      #                    size=4,
-      #                    color=rgb(0,0,0, maxColorValue=255))
-      # print(p)
-      # dev.off()
-      
-      # new_node_image_row <- data.frame(id = paste0("node_score_image_",n), 
-      #                                  color = "white",
-      #                                  label = paste0("Scores for ",n),
-      #                                  shape = "image",
-      #                                  image = paste0("scores_figures/bar_scores_",n,".png"),
-      #                                  font.size = 30,
-      #                                  size = 200,
-      #                                  group = paste0("Scores_",n))
-      # 
-      # if(is.null(score_nodes)){
-      #   score_nodes <- new_node_image_row
-      # } else {
-      #   score_nodes <- rbind(score_nodes, new_node_image_row)
-      # }
-      
-      ### edges between scores
-      # new_e_rows <- template_edges
-      # new_e_rows$id <- paste0(new_e_rows$id, "_", n)
-      # new_e_rows$from <- paste0(new_e_rows$from, "_", n)
-      # new_e_rows$to <- paste0(new_e_rows$to, "_", n)
-      
-      
-      # new_edge_image_row <-  data.frame(id = paste0("edge_score_image_",n),
-      #                                   from = paste0("root_scores_",n),
-      #                                   to = paste0("node_score_image_",n),
-      #                                   width = 1,
-      #                                   dashes = TRUE,
-      #                                   xvalue = 0,
-      #                                   type = "score_edges",
-      #                                   title = NA,
-      #                                   color = "green")
-      
-      # if(is.null(score_edges)){
-      #   score_edges <- new_e_rows
-      # } else {
-      #   score_edges <- rbind(score_edges, new_e_rows)
-      # }
-      
-      # if(is.null(score_edges)){
-      #   score_edges <- new_edge_image_row
-      # } else {
-      #   score_edges <- rbind(score_edges, new_edge_image_row)
-      # }
     }
     
-    #root_score_nodes <- rbind(root_score_nodes, score_nodes)
-    #root_score_edges <- rbind(root_score_edges, score_edges)
   }
   
   
-  return(list(nodes = score_nodes, edges = score_edges))
+  return(list(nodes = score_nodes))
 }
 
 build_snv_scores_detail_node <- function(id){
@@ -1078,24 +1107,39 @@ basic_ranking <- function(inc = NULL){
   }
   
   # compute RANK for each classifier 
-  #if(ncol(nodes_data))
-  ranked_nodes_data_na_last <- apply(X = nodes_data[,-1], MARGIN = 2, 
-                                     FUN = function(x) data.table::frankv(x, na.last = T, order = -1))
-  
-  # replace NA by mean
-  nodes_data_na_mean <- apply(X = nodes_data[,-1], MARGIN = 2, FUN = function(x) {
-    x[is.na(x)] <- mean(x = x, na.rm =T)
-    return(x)
-  })
-  
-  ranked_nodes_data_na_mean <- apply(X = nodes_data_na_mean, MARGIN = 2, 
-                                     FUN = function(x) data.table::frankv(x, na.last = F, order = -1))
-  
-  rownames(ranked_nodes_data_na_last) <- rownames(ranked_nodes_data_na_mean) <- nodes
-  
-  # compute MEAN RANK accross all the classifier 
-  mean.rank_na_last = rowMeans(ranked_nodes_data_na_last)
-  mean.rank_na_mean = rowMeans(ranked_nodes_data_na_mean)
+  if(ncol(nodes_data) > 2){ # nodes + at least 2 scores
+    ranked_nodes_data_na_last <- apply(X = nodes_data[,-1], MARGIN = 2, 
+                                       FUN = function(x) data.table::frankv(x, na.last = T, order = -1))
+    # replace NA by mean and re rank
+    nodes_data_na_mean <- apply(X = nodes_data[,-1], MARGIN = 2, 
+                                FUN = function(x) {
+                                  x[is.na(x)] <- mean(x = x, na.rm =T)
+                                  return(x)
+                                }) 
+    
+    ranked_nodes_data_na_mean <- apply(X = nodes_data_na_mean, MARGIN = 2, 
+                                       FUN = function(x) data.table::frankv(x, na.last = F, order = -1))
+    rownames(ranked_nodes_data_na_last) <- rownames(ranked_nodes_data_na_mean) <- nodes
+    
+    # compute MEAN RANK accross all the classifier 
+    mean.rank_na_last = rowMeans(ranked_nodes_data_na_last)
+    mean.rank_na_mean = rowMeans(ranked_nodes_data_na_mean)
+    
+  } else { # only on predictor
+    x <- nodes_data[,-1]
+    ranked_nodes_data_na_last <- data.table::frankv(x, na.last = T, order = -1)
+    # replace NA by mean and re rank
+    nodes_data_na_mean <- mean(x = x, na.rm =T)
+    x[is.na(x)] <- nodes_data_na_mean
+    ranked_nodes_data_na_mean <- data.table::frankv(x, na.last = T, order = -1)
+    names(ranked_nodes_data_na_last) <- names(ranked_nodes_data_na_mean) <- nodes
+    
+    # compute MEAN RANK accross all the classifier 
+    mean.rank_na_last = ranked_nodes_data_na_last
+    mean.rank_na_mean = ranked_nodes_data_na_mean
+  }
+
+ 
   
   # compute FINAL RANK
   rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
