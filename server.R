@@ -517,6 +517,16 @@ server <- function(input, output, session) {
   buildNetwork <- eventReactive(input$buildNetwork,{
     # shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
     
+    print("buildNetwork")
+    
+    # start by destroying everything
+    if(!is.null(values$current_nodes)){
+      print("cleaning")
+      visNetworkProxy("my_network") %>%
+        visRemoveNodes(id = values$current_nodes$id) %>%
+        visRemoveEdges(id = values$current_edges$id)
+    }
+    
     id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
     
     switch(input$network_type,
@@ -565,45 +575,51 @@ server <- function(input, output, session) {
     basic_ranking()
     
     values$scores_data <- scores_data
-    values$all_nodes <- snv_nodes
-    values$all_edges <- snv_edges
-    
-    all_ne <- list(nodes = values$all_nodes,
-                   edges = values$all_edges)
-    
-    save(all_ne, file = 'objects/all_ne.rda')
-    
-    values$current_edges <- values$all_edges
-    values$current_nodes <- values$all_nodes
+    values$current_edges <- snv_edges
+    values$current_nodes <- snv_nodes
     
     meta_values_mapped <- "blue"
-    vn <- visNetwork(values$current_nodes, 
-                     values$current_edges) %>%
+    
+    print(paste0("network_type : ",input$network_type, " ; current_nodes : ", nrow(values$current_nodes), " ; current_edges : ", nrow(values$current_edges)))
+    
+    # vn <- visNetwork(values$current_nodes, 
+    #                  values$current_edges) %>%
+    #   visEvents(doubleClick = "function(nodes) {
+    #             Shiny.onInputChange('current_node_id', nodes.nodes);
+    #             ;}") %>%
+    #   visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = F) %>%
+    #   visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
+    #   #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
+    #   #visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
+    #   visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
+    #   visLayout(randomSeed = 2018) %>% 
+    #   visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
+    #visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
+    
+    # for (g in values$annotations$query){
+    #   vn <- vn %>% visGroups(groupname = paste0("Scores_",g), background = "#97C2FC",
+    #                          color = "#2B7CE9", shape = "square")
+    # }
+    
+    if (!is.null(id))
+      removeNotification(id)
+    # saveRDS(object = vn, file = "objects/init_vn.rds")
+    return(list(nodes = values$current_nodes, edges = values$current_edges))
+  })
+  
+  output$my_network <- renderVisNetwork({
+    vn_components <- buildNetwork()
+    
+    visNetwork(vn_components$nodes, 
+               vn_components$edges) %>%
       visEvents(doubleClick = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = F) %>%
       visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
-      #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
-      #visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
       visLayout(randomSeed = 2018) %>% 
       visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
-    #visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
-    
-    for (g in values$annotations$query){
-      vn <- vn %>% visGroups(groupname = paste0("Scores_",g), background = "#97C2FC",
-                             color = "#2B7CE9", shape = "square")
-    }
-    
-    if (!is.null(id))
-      removeNotification(id)
-    saveRDS(object = vn, file = "objects/init_vn.rds")
-    return(vn)
-  })
-  
-  output$my_network <- renderVisNetwork({
-    buildNetwork()
   })
   
   #### BUILDING PLOT ####
@@ -652,11 +668,11 @@ server <- function(input, output, session) {
   #### NODES FIGURES ####
   observe({
     
-    if(!is.null(values$current_nodes)){
+    if(!is.null(values$current_nodes) && nrow(values$current_nodes) > 0){
       svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
       
       absolute_scores <- c('pie_bayesdel', 'pie_linsight','pie_eigen','pie_iwscoring','pie_all')
-      print(input$snv_nodes_type)
+      
       if(!input$snv_nodes_type %in% absolute_scores){
         if(input$update_metascore > 0)
           svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$update_metascore,".png")
@@ -665,7 +681,7 @@ server <- function(input, output, session) {
       } else {
         svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
       }
-  
+      
       values$current_nodes$image <- as.character(values$current_nodes$image)
       values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
       
@@ -718,8 +734,6 @@ server <- function(input, output, session) {
   
   #### METASCORES ####
   observeEvent(input$update_metascore, {
-    old_figures <- dir(path = "www/scores_figures/", full.names = T)
-    file.remove(old_figures)
     
     scores_data <- build_score_nodes(values,
                                      selected_adj_scores = input$selected_scores, 
@@ -774,10 +788,10 @@ server <- function(input, output, session) {
       color_code = "#FFFFFF"
       snv_score_details <- data.frame("predictors" = "None", "value" = 0)
       return(DT::datatable(snv_score_details,
-                    rownames = FALSE,
-                    options = list(scrollX = TRUE,
-                                   lengthChange = FALSE,
-                                   searching = FALSE)))
+                           rownames = FALSE,
+                           options = list(scrollX = TRUE,
+                                          lengthChange = FALSE,
+                                          searching = FALSE)))
       
     }
     
@@ -840,7 +854,16 @@ server <- function(input, output, session) {
     return(x)
   })
   
+  onStop(function() { 
+    old_figures <- dir(path = "www/scores_figures/", full.names = T)
+    file.remove(old_figures)
+    temp_files <- dir(path = tmpDir, full.names = T)
+    file.remove(temp_files)
+    cat("Session stopped\n")
+    })
 }
+
+
 
 #### OBSOLETE ####
 # observeEvent(input$runLD, {
