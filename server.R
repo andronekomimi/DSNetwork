@@ -150,7 +150,7 @@ server <- function(input, output, session) {
       res <- as.data.frame(getVariants(hgvsids = valid_transfo,
                                        verbose = F, return.as = "DataFrame",
                                        fields = c("dbsnp","cadd","dbnsfp")))
-      res$linsight <- res$cdts_score <- res$cdts_percentile <- res$eigen <- res$bayesdel <- NA
+      res$linsight <- res$cdts_score <- res$cdts_percentile <- res$eigen <- res$bayesdel <- res$iwscoring <- NA
       
       values$res <- res
       remove(res)
@@ -228,7 +228,7 @@ server <- function(input, output, session) {
         }
         
         
-        #### fetch bayesdel ####
+        #### fetch bayesdel
         path_to_victor <- "/Users/nekomimi/Workspace/Exomes/softs/VICTOR/vAnnBase"
         filename <- tempfile(tmpdir = tmpDir, fileext = ".vcf")
         createVCF(session_values = values, filename = filename)
@@ -237,6 +237,12 @@ server <- function(input, output, session) {
         if(!is.null(value)){
           values$res$bayesdel <- value
         }
+        
+        #### fetch eigen and iwscoring from HTML request ####
+        set.seed(24102009)
+        values$res$iwscoring <- sample(x = seq(from=0, to = 1, by = 0.01), size = nrow(values$res), replace = T) #TODO
+        values$res$eigen <- sample(x = seq(from=0, to = 1, by = 0.01), size = nrow(values$res), replace = T) #TODO
+        
         
         if(sum(is.na(values$res$linsight)) == length(values$res$linsight)){ # no lINSIGHT RESULTS
           values$res$linsight <- NULL
@@ -250,8 +256,19 @@ server <- function(input, output, session) {
           values$res$bayesdel <- NULL
         }
         
+        if(sum(is.na(values$res$eigen)) == length(values$res$eigen)){ # no EIGEN RESULTS
+          values$res$eigen <- NULL
+        }
+        
+        if(sum(is.na(values$res$iwscoring)) == length(values$res$iwscoring)){ # no IWSCORING RESULTS
+          values$res$iwscoring <- NULL
+        }
+        
         res <- values$res
         save(res, file = 'objects/res.rda')
+        
+        #### create metascore pies ####
+        compute_absolute_metascore(values)
         
         #### population freq ####
         maf_infos <- values$res[,grepl(x = colnames(values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
@@ -285,7 +302,8 @@ server <- function(input, output, session) {
         
         common_scores <- c("linsight", 
                            "bayesdel",
-                           "eigen")
+                           "eigen",
+                           "iwscoring")
         
         dbnsfp_rankscores <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
         
@@ -564,7 +582,7 @@ server <- function(input, output, session) {
       visEvents(doubleClick = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
-      visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = T) %>%
+      visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = F) %>%
       visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
       #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
       #visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
@@ -636,11 +654,18 @@ server <- function(input, output, session) {
     
     if(!is.null(values$current_nodes)){
       svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
-      if(input$update_metascore > 0)
-        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$update_metascore,".png")
-      else 
-        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
       
+      absolute_scores <- c('pie_bayesdel', 'pie_linsight','pie_eigen','pie_iwscoring','pie_all')
+      print(input$snv_nodes_type)
+      if(!input$snv_nodes_type %in% absolute_scores){
+        if(input$update_metascore > 0)
+          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$update_metascore,".png")
+        else 
+          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+      } else {
+        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+      }
+  
       values$current_nodes$image <- as.character(values$current_nodes$image)
       values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
       

@@ -1138,8 +1138,8 @@ basic_ranking <- function(inc = NULL){
     mean.rank_na_last = ranked_nodes_data_na_last
     mean.rank_na_mean = ranked_nodes_data_na_mean
   }
-
- 
+  
+  
   
   # compute FINAL RANK
   rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
@@ -1193,6 +1193,84 @@ basic_ranking <- function(inc = NULL){
   
 }
 
+#### Absolute metascores ####
+compute_absolute_metascore <- function(session_values){
+  absolute_metascore <- list(
+    eigen = list(min = 0,
+                 max = 1),
+    linsight = list(min = 0,
+                    max = 0.2),
+    iwscoring = list(min = 1,
+                     max = 0),
+    bayesdel = list(min = 1,
+                    max = -1)
+  )
+  
+  colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+  colpalette_lenght <- 10
+  colpalette <- colfunc(n = colpalette_lenght)
+  
+  absolute_metascore_colpalette <- list(
+    eigen = colpalette,
+    linsight = colpalette,
+    iwscoring = colpalette,
+    bayesdel = colpalette)
+  
+  for(n in names(absolute_metascore)){
+    neg_direction <- absolute_metascore[[n]]$min > absolute_metascore[[n]]$max
+    names(absolute_metascore_colpalette[[n]]) <- sort(round(x = seq(from = absolute_metascore[[n]]$min, 
+                                                                    to = absolute_metascore[[n]]$max, 
+                                                                    length.out = colpalette_lenght), digits = 2), 
+                                                      decreasing = neg_direction) # plus petit ranking = meilleur = plus rouge
+  }
+  
+  where <- function(x, n){
+    if(is.na(x))
+      return("#CCCCCC")
+    neg_direction <- absolute_metascore[[n]]$min > absolute_metascore[[n]]$max
+    xrange <- sort(round(x = seq(from = absolute_metascore[[n]]$min, 
+                                 to = absolute_metascore[[n]]$max, 
+                                 length.out = colpalette_lenght), digits = 2), 
+                   decreasing = neg_direction)
+    if(!neg_direction){
+      if(sum(x >= xrange))
+        return(absolute_metascore_colpalette[[n]][max(which(x >= xrange))])
+      return(absolute_metascore_colpalette[[n]][1])
+    } else {
+      if(sum(x <= xrange))
+        return(absolute_metascore_colpalette[[n]][max(which(x <= xrange))])
+      return(absolute_metascore_colpalette[[n]][1])
+    }
+  }
+  
+  res_meta <- session_values$res[, c("query", names(absolute_metascore))]
+  for(n in names(absolute_metascore)){
+    res_meta[[n]] <- sapply(X = res_meta[[n]], FUN = function(x1) where(x = x1, n = n))
+  }
+  
+  apply(X = res_meta, MARGIN = 1, FUN = function(n){
+    ## pies
+    for(i in names(absolute_metascore)){
+      png(paste0(path_to_images,"pie_",i,"_",n[names(n) == "query"],".png"),
+          width = 2000, height = 2000,
+          units = "px")
+      par(lwd = 0.001)
+      pie(x = 1, col = n[names(n) == i], labels = "")
+      dev.off()
+      par(lwd = 1)
+    }
+    
+    png(paste0(path_to_images,"pie_all_",n[names(n) == "query"],".png"), width = 2000, height = 2000,
+        units = "px")
+    par(lwd = 0.001)
+    pie(x = rep(1, times = length(absolute_metascore)), col = n[names(n) != "query"], labels = "")
+    dev.off()
+    par(lwd = 1)
+  })
+  
+  
+  
+}
 
 #### Friedman Test : compute and plot ####
 ## This function has been copied from mlr/R/plotCritDifferences.R and modified to fit with our purpose

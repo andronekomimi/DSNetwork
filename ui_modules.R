@@ -4,6 +4,7 @@ library(shinyBS)
 library(d3heatmap)
 require(plotly)
 require(ggrepel)
+library(shinyjqui)
 
 source('helper.R', local = TRUE)
 
@@ -98,8 +99,8 @@ output_plot_row <- function(){
   fluidRow(
     column(width = 12,
            br(),
-           plotlyOutput(outputId = "my_plot",
-                        height = "400px", width = "auto"),
+           jqui_resizable(plotlyOutput(outputId = "my_plot",
+                        height = "400px", width = "auto")),
            br(),
            br(),
            verbatimTextOutput("selection"))
@@ -109,20 +110,24 @@ output_plot_row <- function(){
 nodes_modifiers_box <- function(){
   box(width = NULL, status = "warning", 
       height = "500px", collapsible = TRUE,
-      selectInput("snv_nodes_type", "SNV Nodes",
+      selectInput(inputId = "snv_nodes_type",
+                  label = "SNV Nodes",
+                  multiple = FALSE,
                   choices = c(
                     "Scores Pie" = 'pie_scores',
-                    "CADD" = 'cadd.phred', 
-                    "BayesDel" = 'bayesdel', 
-                    "LINSIGHT" = 'linsight', 
-                    "Eigen" = 'eigen', 
-                    "Metascore" = 'pie_metascores', 
-                    "Rank (NA last)" = 'pie_rank_na_last',
-                    "Rank (NA mean)" = 'pie_rank_na_mean'
-                  ),
+                    list(
+                      `Relative metascores` = c("Rank (NA last)" = 'pie_rank_na_last',
+                                                "Rank (NA mean)" = 'pie_rank_na_mean'),
+                      `Absolute metascores` = c("BayesDel" = 'pie_bayesdel', 
+                                                "LINSIGHT" = 'pie_linsight', 
+                                                "Eigen" = 'pie_eigen',
+                                                "IW-Scoring" = 'pie_iwscoring',
+                                                "All absolute metascores" = 'pie_all')
+                      )
+                    ),
                   selected = 'pie_scores'
       ),
-      conditionalPanel(condition="input.snv_nodes_type=='pie_scores' | input.snv_nodes_type=='pie_rank_na_last' | input.snv_nodes_type=='pie_rank_na_last'",
+      conditionalPanel(condition="input.snv_nodes_type=='pie_scores' | input.snv_nodes_type=='pie_rank_na_last' | input.snv_nodes_type=='pie_rank_na_mean'",
                        fluidRow(
                          column(width = 12,
                                 selectInput("selected_scores", 'Predictors',
@@ -157,7 +162,7 @@ network_modifiers_row <- function(){
 
 network_results_modules <- function(){
   conditionalPanel(condition="input.buildNetwork",
-                   visNetworkOutput("my_network", height = "400px")
+                   jqui_resizable(visNetworkOutput("my_network", height = "400px"))
   )
 }
 
