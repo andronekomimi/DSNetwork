@@ -857,7 +857,7 @@ server <- function(input, output, session) {
   onStop(function() { 
     old_figures <- dir(path = "www/scores_figures/", full.names = T)
     file.remove(old_figures)
-    temp_files <- dir(path = tmpDir, full.names = T)
+    temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
     file.remove(temp_files)
     cat("Session stopped\n")
     })
