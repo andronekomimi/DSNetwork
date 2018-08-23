@@ -121,7 +121,9 @@ nodes_modifiers_box <- function(){
                       `Absolute metascores` = c("BayesDel" = 'pie_bayesdel', 
                                                 "LINSIGHT" = 'pie_linsight', 
                                                 "Eigen" = 'pie_eigen',
-                                                "IW-Scoring" = 'pie_iwscoring',
+                                                "Eigen-PC" = 'pie_eigen_pc',
+                                                "IW-Scoring Known" = 'pie_iwscoring_known',
+                                                "IW-Scoring Novel" = 'pie_iwscoring_novel',
                                                 "All absolute metascores" = 'pie_all')
                       )
                     ),

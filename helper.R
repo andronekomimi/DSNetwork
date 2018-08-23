@@ -11,7 +11,7 @@ require(c3)
 #devtools::install_github("viking/r-yaml")
 
 path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
-MAX_VAR <- 10
+MAX_VAR <- 20
 
 ld_breaks <- seq(0,1, by = 0.01)
 colfunc <- colorRampPalette(c("yellow","red"))
@@ -1196,14 +1196,18 @@ basic_ranking <- function(inc = NULL){
 #### Absolute metascores ####
 compute_absolute_metascore <- function(session_values){
   absolute_metascore <- list(
-    eigen = list(min = 0,
-                 max = 1),
-    linsight = list(min = 0,
-                    max = 0.2),
-    iwscoring = list(min = 1,
-                     max = 0),
-    bayesdel = list(min = 1,
-                    max = -1)
+    eigen = list(min = 1,
+                 max = 99),
+    eigen_pc = list(min = 1,
+                    max = 99),
+    linsight = list(min = 0.03,
+                    max = 1),
+    iwscoring_known = list(min = -5,
+                     max = 6),
+    iwscoring_novel = list(min = -5,
+                           max = 6),
+    bayesdel = list(min = -1.4,
+                    max = 0.9)
   )
   
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
@@ -1212,8 +1216,10 @@ compute_absolute_metascore <- function(session_values){
   
   absolute_metascore_colpalette <- list(
     eigen = colpalette,
+    eigen_pc = colpalette,
     linsight = colpalette,
-    iwscoring = colpalette,
+    iwscoring_known = colpalette,
+    iwscoring_novel = colpalette,
     bayesdel = colpalette)
   
   for(n in names(absolute_metascore)){
@@ -1442,4 +1448,68 @@ extractBayesDel <- function(path_to_victor, filename){
   } else {
     return(NULL)
   }
+}
+
+extract_LINSIGHT_range <- function(){
+  min_range <- +Inf
+  max_range <- -Inf
+  for(chr in c(1:22,"X")){
+    load(paste0('data/LINSIGHT/LINSIGHT_chr',chr,'.rda'))
+    local_min <- min(gr$score, na.rm = TRUE)
+    local_max <- max(gr$score, na.rm = TRUE)
+    print(paste0("chr",chr, " : ", local_min, " <-> ", local_max))
+    if(local_max > max_range){
+      max_range <- local_max
+    }
+    
+    if(local_min < min_range){
+      max_range <- local_min
+    }
+  }
+  return(list(min = min_range, max = max_range))
+}
+
+extract_BAYESDEL_range <- function(){
+  min_range <- +Inf
+  max_range <- -Inf
+  #cadd_data_dir <- "/Users/nekomimi/Workspace/vexor/vexor/data/cadd_scores/"
+  #path_to_victor <- "/Users/nekomimi/Workspace/Exomes/softs/VICTOR/vAnnBase"
+  cadd_data_dir <- "~/Transit/data/cadd_scores/"
+  path_to_victor <- "/home/lemaud01/thesis/workspace/exomes/softs/VICTOR/vAnnBase"
+  
+  RES <- mclapply(X = c(1:22,"X","Y","MT"), mc.cores = 8, FUN = function(chr) {
+    filename <- tempfile(tmpdir = "~/Transit/data/bayesdel", fileext = ".vcf")
+    gr <- readRDS(file = paste0(cadd_data_dir,"cadd",chr,".RDS"))
+    print(length(gr))
+    # create a VCF
+    vcf_desc_0 <- "##fileformat=VCFv4.1"
+    vcf_desc_1 <- paste0("##fileDate=",gsub(x = Sys.Date(), pattern = "-",replacement = ""))
+    vcf_desc_2 <- '##INFO=<ID=MAF,Number=A,Type=Float,Description="MAF">'
+    vcf_header <- "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
+    vcf_content <- paste(rep(seqlevelsInUse(gr), times = length(gr)), start(gr), ".", gr$Ref, gr$Alt, 100, "PASS", paste0("MAF:"), sep = "\t")
+    
+    write(x = vcf_desc_0, file = filename)
+    write(x = vcf_desc_1, file = filename, append = T)
+    write(x = vcf_desc_2, file = filename, append = T)
+    write(x = vcf_header, file = filename, append = T)
+    write(x = vcf_content, file = filename, append = T)
+    
+    value <- extractBayesDel(path_to_victor, filename)
+    
+    local_min <- min(value, na.rm = TRUE)
+    local_max <- max(value, na.rm = TRUE)
+    print(paste0("chr",chr, " : ", local_min, " <-> ", local_max))
+    if(local_max > max_range){
+      max_range <- local_max
+    }
+    
+    if(local_min < min_range){
+      min_range <- local_min
+    }
+    
+    return(list(min = min_range, max = max_range))
+  })
+  
+  return(RES)
+  
 }

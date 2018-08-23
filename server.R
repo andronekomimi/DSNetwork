@@ -17,7 +17,7 @@ server <- function(input, output, session) {
     locus_38 = "rs62485509\nrs720475",
     locus_6 = "rs181595184\nrs12129763\nrs6686987\nrs55899544\nrs6427943\nrs6678914\nrs6703244\nrs12028423\nrs12131882\nrs12132085\nrs12129456\nrs12129536\nrs10920365\nrs2167588\nrs4950774\nrs12032424\nrs4950775\nrs4950836\nrs6143572\nrs896548\nrs4245706\nrs12032080\nrs3795598\nrs12143329\nrs4950837\nrs12021815\nrs60573451\nrs140473199",
     locus_2 = "rs11102694\nrs2358994\nrs2358995\nrs7547478\nrs7513707\nrs12022378\nrs3761936\nrs11102701\nrs11102702\nrs12046289\nrs112974454",
-    locus_0 = "rs6864776\n5:44527739:ATACT:A\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:AG:A\nrs7710996\nrs6451763\n5:44527050:A:C\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:TA:T\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
+    locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
   
   #### CONF ####
   tmpDir <- 'temp/'
@@ -111,7 +111,6 @@ server <- function(input, output, session) {
   query_control <- eventReactive(input$fetch_annotations, {
     shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
                           disabled = TRUE)
-    id <<- showNotification(paste("Fetching for annotations..."), duration = 0, type = "message")
     
     modstring <- c()
     if(!is.null(input$query_file))
@@ -135,731 +134,755 @@ server <- function(input, output, session) {
     values$maf_infos <- as.matrix(data.frame(waiting = ""))
     values$annotations <- as.matrix(data.frame(waiting = ""))
     
-    modstring <- c()
-    if(!is.null(input$query_file))
-      modstring <- c(modstring, transform_query_file(input$query_file$datapath))
-    
-    if(nchar(input$query) > 0)
-      modstring <- c(modstring, transform_query(input$query))
-    
-    valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
-    save(valid_transfo, file = 'objects/valid_transfo.rda')
-    
-    if(length(valid_transfo) > 0){
-      #### run myvariant ####
-      res <- as.data.frame(getVariants(hgvsids = valid_transfo,
-                                       verbose = F, return.as = "DataFrame",
-                                       fields = c("dbsnp","cadd","dbnsfp")))
-      res$linsight <- res$cdts_score <- res$cdts_percentile <- res$eigen <- res$bayesdel <- res$iwscoring <- NA
+    withProgress(message = 'Fetching annotations', value = 0, {
+      n <- 10
+      modstring <- c()
+      if(!is.null(input$query_file))
+        modstring <- c(modstring, transform_query_file(input$query_file$datapath))
       
-      values$res <- res
-      remove(res)
-      if(!is.null(values$res) && nrow(values$res) > 0){
+      if(nchar(input$query) > 0)
+        modstring <- c(modstring, transform_query(input$query))
+      
+      valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
+      save(valid_transfo, file = 'objects/valid_transfo.rda')
+      
+      if(length(valid_transfo) > 0){
+        #### run myvariant ####
+        incProgress(1/n, detail = "Interrogating MyVariant.info...")
+        res <- as.data.frame(getVariants(hgvsids = valid_transfo,
+                                         verbose = F, return.as = "DataFrame",
+                                         fields = c("dbsnp","cadd","dbnsfp")))
         
-        #### renommage des doublons ####
-        duplicated_entries <- unique(values$res$query[duplicated(values$res$query)])
-        row_2_delete <- c() 
         
-        if(length(duplicated_entries) > 0){
-          for(duplicated_entry in duplicated_entries){
-            values$res[values$res$query == duplicated_entry,]$query <- paste0(values$res[values$res$query == duplicated_entry,]$query,"_",
-                                                                              values$res[values$res$query == duplicated_entry,]$dbsnp.ref,".",
-                                                                              values$res[values$res$query == duplicated_entry,]$dbsnp.alt)
-          }
-        }
         
-        #### order ####
-        values$res <- values$res[order(values$res$dbsnp.chrom, values$res$dbsnp.hg19.start),]
+        #### add metascores columns ####
+        res$linsight <- res$cdts_score <- res$cdts_percentile <- res$eigen <- res$eigen_pc <- res$bayesdel <- res$iwscoring_known <- res$iwscoring_novel <- NA
         
-        #### global range ####
-        global_ranges <- apply(X = values$res, MARGIN = 1, 
-                               FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"]$X_id, 
-                                                              query_id = x[names(x) == "query"]$query))
-        names(global_ranges) <- NULL
-        global_ranges <- do.call("c", global_ranges) 
-        global_ranges <- sort(global_ranges)
-        
-        save(global_ranges, file = "objects/global_ranges.rda")
-        values$global_ranges <- global_ranges
-        
-        ### remove nonfound variant lines 
-        if("notfound" %in% colnames(values$res)){
-          values$notfound_id <- paste(values$res[!is.na(values$res$notfound),"query"], collapse = ", ")
-          values$res <- values$res[-which(values$res$notfound == TRUE), ]
-        }
-        
-        #### fetch linsight ####
-        requested_chromosomes <- seqlevelsInUse(global_ranges)
-        
-        for(requested_chr in requested_chromosomes){
-          if(file.exists(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
-            load(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
-            hits <- findOverlaps(query = values$global_ranges, subject = gr)
-            for(i in seq_along(hits)){ 
-              hit <- hits[i]
-              query <- values$global_ranges[queryHits(hit)]$query
-              value <- gr[subjectHits(hit)]$score
-              values$res[values$res$query == query,"linsight"] <- value
+        values$res <- res
+        remove(res)
+        if(!is.null(values$res) && nrow(values$res) > 0){
+          
+          #### renommage des doublons ####
+          duplicated_entries <- unique(values$res$query[duplicated(values$res$query)])
+          row_2_delete <- c() 
+          
+          if(length(duplicated_entries) > 0){
+            for(duplicated_entry in duplicated_entries){
+              values$res[values$res$query == duplicated_entry,]$query <- paste0(values$res[values$res$query == duplicated_entry,]$query,"_",
+                                                                                values$res[values$res$query == duplicated_entry,]$dbsnp.ref,".",
+                                                                                values$res[values$res$query == duplicated_entry,]$dbsnp.alt)
             }
           }
           
-          #### fetch cdts ####
-          if(file.exists(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
-            load(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
-            hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
-            for(i in seq_along(hits)){ 
-              hit <- hits[i]
-              query <- global_ranges[queryHits(hit)]$query
-              value1 <- CDTS[subjectHits(hit)]$CDTS
-              value2 <- CDTS[subjectHits(hit)]$percentile
-              values$res[values$res$query == query,"cdts_score"] <- value1
-              values$res[values$res$query == query,"cdts_percentile"] <- value2
+          #### order ####
+          values$res <- values$res[order(values$res$dbsnp.chrom, values$res$dbsnp.hg19.start),]
+          
+          #### global range ####
+          global_ranges <- apply(X = values$res, MARGIN = 1, 
+                                 FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"]$X_id, 
+                                                                query_id = x[names(x) == "query"]$query))
+          names(global_ranges) <- NULL
+          global_ranges <- do.call("c", global_ranges) 
+          global_ranges <- sort(global_ranges)
+          
+          save(global_ranges, file = "objects/global_ranges.rda")
+          values$global_ranges <- global_ranges
+          
+          ### remove nonfound variant lines 
+          if("notfound" %in% colnames(values$res)){
+            values$notfound_id <- paste(values$res[!is.na(values$res$notfound),"query"], collapse = ", ")
+            values$res <- values$res[-which(values$res$notfound == TRUE), ]
+          }
+          
+          #### fetch linsight ####
+          incProgress(1/n, detail = "Extracting LINSIGHT scores...")
+          requested_chromosomes <- seqlevelsInUse(global_ranges)
+          
+          for(requested_chr in requested_chromosomes){
+            if(file.exists(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
+              load(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
+              hits <- findOverlaps(query = values$global_ranges, subject = gr)
+              for(i in seq_along(hits)){ 
+                hit <- hits[i]
+                query <- values$global_ranges[queryHits(hit)]$query
+                value <- gr[subjectHits(hit)]$score
+                values$res[values$res$query == query,"linsight"] <- value
+              }
+            }
+            
+            #### fetch cdts ####
+            incProgress(1/n, detail = "Extracting CDTS data...")
+            if(file.exists(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
+              load(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
+              hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
+              for(i in seq_along(hits)){ 
+                hit <- hits[i]
+                query <- global_ranges[queryHits(hit)]$query
+                value1 <- CDTS[subjectHits(hit)]$CDTS
+                value2 <- CDTS[subjectHits(hit)]$percentile
+                values$res[values$res$query == query,"cdts_score"] <- value1
+                values$res[values$res$query == query,"cdts_percentile"] <- value2
+              }
             }
           }
-        }
-        
-        #### store CDTS scores on the complete region
-        cdts_hits <- findOverlaps(query = range(values$global_ranges), subject = CDTS, maxgap = 100)
-        if(length(cdts_hits) > 0){
-          cdts_hits <- as.data.frame(CDTS[subjectHits(cdts_hits)])
-          values$cdts_region <- cdts_hits
-        } else {
-          values$cdts_region <- NULL
-        }
-        
-        
-        #### fetch bayesdel
-        path_to_victor <- "/Users/nekomimi/Workspace/Exomes/softs/VICTOR/vAnnBase"
-        filename <- tempfile(tmpdir = tmpDir, fileext = ".vcf")
-        createVCF(session_values = values, filename = filename)
-        value <- extractBayesDel(path_to_victor, filename)
-        
-        if(!is.null(value)){
-          values$res$bayesdel <- value
-        }
-        
-        #### fetch eigen and iwscoring from HTML request ####
-        set.seed(24102009)
-        values$res$iwscoring <- sample(x = seq(from=0, to = 1, by = 0.01), size = nrow(values$res), replace = T) #TODO
-        values$res$eigen <- sample(x = seq(from=0, to = 1, by = 0.01), size = nrow(values$res), replace = T) #TODO
-        
-        
-        if(sum(is.na(values$res$linsight)) == length(values$res$linsight)){ # no lINSIGHT RESULTS
-          values$res$linsight <- NULL
-        }
-        
-        if(sum(is.na(values$res$cdts_score)) == length(values$res$cdts_score)){ # no CDTS RESULTS
-          values$res$cdts_score <- values$res$cdts_percentile <- NULL
-        }
-        
-        if(sum(is.na(values$res$bayesdel)) == length(values$res$bayesdel)){ # no BAYESDEL RESULTS
-          values$res$bayesdel <- NULL
-        }
-        
-        if(sum(is.na(values$res$eigen)) == length(values$res$eigen)){ # no EIGEN RESULTS
-          values$res$eigen <- NULL
-        }
-        
-        if(sum(is.na(values$res$iwscoring)) == length(values$res$iwscoring)){ # no IWSCORING RESULTS
-          values$res$iwscoring <- NULL
-        }
-        
-        res <- values$res
-        save(res, file = 'objects/res.rda')
-        
-        #### create metascore pies ####
-        compute_absolute_metascore(values)
-        
-        #### population freq ####
-        maf_infos <- values$res[,grepl(x = colnames(values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
-        colnames(maf_infos) <- gsub(x = colnames(maf_infos), pattern = "cadd.1000g.(.*)", replacement = "MAF_\\1_1000G")
-        row.names(maf_infos) <- NULL
-        values$maf_infos <- as.matrix(maf_infos)
-        
-        #### raw annotations ####
-        annotations_infos <- data.frame(values$res, stringsAsFactors = FALSE)
-        
-        # supprimer not found
-        # if("notfound" %in% colnames(annotations_infos)){
-        #   annotations_infos <- annotations_infos[is.na(annotations_infos$notfound),]
-        #   annotations_infos$notfound <- NULL
-        # }
-        
-        # supprimer licence
-        annotations_infos <- annotations_infos[,!grepl(x = colnames(annotations_infos), pattern = "license")]
-        
-        # suppriner un niveau de nested
-        annotations_infos <- data.frame(lapply(annotations_infos, 
-                                               function(x) unlist(lapply(x, paste, collapse = ","))), 
-                                        stringsAsFactors = FALSE)
-        # suppriner NA column
-        # annotations_infos <- annotations_infos[apply(X = annotations_infos, MARGIN = 1, FUN = function(x) sum(is.na(x)) != (length(x) - 1)),]
-        
-        values$annotations <- annotations_infos
-        save(annotations_infos, file = "objects/annotations.rda")
-        
-        common_fields <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "query|X_id|cadd.ref|cadd.alt|cdts")]
-        
-        common_scores <- c("linsight", 
-                           "bayesdel",
-                           "eigen",
-                           "iwscoring")
-        
-        dbnsfp_rankscores <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
-        
-        cadd_raw_scores <- read.csv(file = 'data/CADD_scores_from_myvariant.info.tsv', header = T, sep = "\t", stringsAsFactors = F)
-        cadd_raw_scores <- cadd_raw_scores[cadd_raw_scores$is_included == "x",]$field
-        
-        #### split res in 2 -> non-syn vs other
-        non_syn_res <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-        values$all_nonsyn_res <- values$res[non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, dbnsfp_rankscores)) ]
-        values$all_regul_res <- values$res[!non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, cadd_raw_scores)) ]
-        
-        if(nrow(values$all_nonsyn_res) > 0){
-          adjusted_scores <- sapply(X = c(dbnsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$all_nonsyn_res, score_name = x))
-          switch (class(adjusted_scores),
-                  matrix = {
-                    rownames(adjusted_scores) <- NULL
-                    adjusted_scores <- as.list(data.frame(adjusted_scores))
-                  },
-                  numeric = {
-                    names(adjusted_scores) <- gsub(x = names(adjusted_scores), pattern = "(.*[a-z]).\\d+.?\\d+$", replacement = "\\1")
-                    adjusted_scores <- lapply(split(adjusted_scores, names(adjusted_scores)), unname)
-                  }
-          )
           
-          adjusted_scores <- adjusted_scores[sapply(X = adjusted_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
-          
-          for(s in names(adjusted_scores)){
-            values$all_nonsyn_res[[s]] <- adjusted_scores[[s]]
+          #### store CDTS scores on the complete region
+          cdts_hits <- findOverlaps(query = range(values$global_ranges), subject = CDTS, maxgap = 100)
+          if(length(cdts_hits) > 0){
+            cdts_hits <- as.data.frame(CDTS[subjectHits(cdts_hits)])
+            values$cdts_region <- cdts_hits
+          } else {
+            values$cdts_region <- NULL
           }
           
-        } else {
-          adjusted_scores <- NULL
-        }     
-        
-        
-        if(nrow(values$all_regul_res) > 0){
-          raw_scores <- sapply(X = c(cadd_raw_scores, common_scores), FUN = function(x) extract_score_and_convert(values$all_regul_res, score_name = x))
-          switch (class(raw_scores),
-                  matrix = {
-                    rownames(raw_scores) <- NULL
-                    raw_scores <- as.list(data.frame(raw_scores))
-                  },
-                  numeric = {
-                    names(raw_scores) <- gsub(x = names(raw_scores), pattern = "(.*[a-z]).\\d+.?\\d+$", replacement = "\\1")
-                    raw_scores <- lapply(split(raw_scores, names(raw_scores)), unname)
-                  }
-          )
           
-          raw_scores <- raw_scores[sapply(X = raw_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
+          #### fetch bayesdel
+          incProgress(1/n, detail = "Extracting BayesDel scores...")
+          path_to_victor <- "/Users/nekomimi/Workspace/Exomes/softs/VICTOR/vAnnBase"
+          filename <- tempfile(tmpdir = tmpDir, fileext = ".vcf")
+          createVCF(session_values = values, filename = filename)
+          value <- extractBayesDel(path_to_victor, filename)
           
-          for(s in names(raw_scores)){
-            #print(raw_scores[[s]])
-            values$all_regul_res[[s]] <- raw_scores[[s]]
+          if(!is.null(value)){
+            values$res$bayesdel <- value
           }
           
-        } else {
-          raw_scores <- NULL
+          #### fetch eigen, eigen_pc and iwscoring from HTML request ####
+          incProgress(1/n, detail = "Interrogating SNPNexus for IW-Scoring and EIGEN scores...")
+          set.seed(24102009)
+          values$res$iwscoring_known <- sample(x = seq(from=0, to = 1, by = 0.01), size = nrow(values$res), replace = T) #TODO
+          values$res$iwscoring_novel <- sample(x = seq(from=0, to = 1, by = 0.01), size = nrow(values$res), replace = T) #TODO
+          values$res$eigen <- sample(x = seq(from=1, to = 99, by = 0.01), size = nrow(values$res), replace = T) #TODO
+          values$res$eigen_pc <- sample(x = seq(from=1, to = 99, by = 0.01), size = nrow(values$res), replace = T) #TODO
+          
+          if(sum(is.na(values$res$linsight)) == length(values$res$linsight)){ # no lINSIGHT RESULTS
+            values$res$linsight <- NULL
+          }
+          
+          if(sum(is.na(values$res$cdts_score)) == length(values$res$cdts_score)){ # no CDTS RESULTS
+            values$res$cdts_score <- values$res$cdts_percentile <- NULL
+          }
+          
+          if(sum(is.na(values$res$bayesdel)) == length(values$res$bayesdel)){ # no BAYESDEL RESULTS
+            values$res$bayesdel <- NULL
+          }
+          
+          if(sum(is.na(values$res$eigen)) == length(values$res$eigen)){ # no EIGEN RESULTS
+            values$res$eigen <- NULL
+          }
+          
+          if(sum(is.na(values$res$eigen_pc)) == length(values$res$eigen_pc)){ # no EIGENPC RESULTS
+            values$res$eigen_pc <- NULL
+          }
+          
+          if(sum(is.na(values$res$iwscoring_known)) == length(values$res$iwscoring_known)){ # no IWSCORING RESULTS
+            values$res$iwscoring_known <- NULL
+          }
+          
+          if(sum(is.na(values$res$iwscoring_novel)) == length(values$res$iwscoring_novel)){ # no IWSCORING RESULTS
+            values$res$iwscoring_novel <- NULL
+          }
+          
+          res <- values$res
+          save(res, file = 'objects/res.rda')
+          
+          incProgress(5/n, detail = "Aggregating data...")
+          #### create metascore pies ####
+          compute_absolute_metascore(values)
+          
+          #### population freq ####
+          maf_infos <- values$res[,grepl(x = colnames(values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
+          colnames(maf_infos) <- gsub(x = colnames(maf_infos), pattern = "cadd.1000g.(.*)", replacement = "MAF_\\1_1000G")
+          row.names(maf_infos) <- NULL
+          values$maf_infos <- as.matrix(maf_infos)
+          
+          #### raw annotations ####
+          annotations_infos <- data.frame(values$res, stringsAsFactors = FALSE)
+          
+          # supprimer not found
+          # if("notfound" %in% colnames(annotations_infos)){
+          #   annotations_infos <- annotations_infos[is.na(annotations_infos$notfound),]
+          #   annotations_infos$notfound <- NULL
+          # }
+          
+          # supprimer licence
+          annotations_infos <- annotations_infos[,!grepl(x = colnames(annotations_infos), pattern = "license")]
+          
+          # suppriner un niveau de nested
+          annotations_infos <- data.frame(lapply(annotations_infos, 
+                                                 function(x) unlist(lapply(x, paste, collapse = ","))), 
+                                          stringsAsFactors = FALSE)
+          # suppriner NA column
+          # annotations_infos <- annotations_infos[apply(X = annotations_infos, MARGIN = 1, FUN = function(x) sum(is.na(x)) != (length(x) - 1)),]
+          
+          values$annotations <- annotations_infos
+          save(annotations_infos, file = "objects/annotations.rda")
+          
+          common_fields <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "query|X_id|cadd.ref|cadd.alt|cdts")]
+          
+          common_scores <- c("linsight", 
+                             "bayesdel",
+                             "eigen",
+                             "eigen_pc",
+                             "iwscoring_known",
+                             "iwscoring_novel")
+          
+          dbnsfp_rankscores <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
+          
+          cadd_raw_scores <- read.csv(file = 'data/CADD_scores_from_myvariant.info.tsv', header = T, sep = "\t", stringsAsFactors = F)
+          cadd_raw_scores <- cadd_raw_scores[cadd_raw_scores$is_included == "x",]$field
+          
+          #### split res in 2 -> non-syn vs other
+          non_syn_res <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
+          values$all_nonsyn_res <- values$res[non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, dbnsfp_rankscores)) ]
+          values$all_regul_res <- values$res[!non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, cadd_raw_scores)) ]
+          
+          if(nrow(values$all_nonsyn_res) > 0){
+            adjusted_scores <- sapply(X = c(dbnsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$all_nonsyn_res, score_name = x))
+            switch (class(adjusted_scores),
+                    matrix = {
+                      rownames(adjusted_scores) <- NULL
+                      adjusted_scores <- as.list(data.frame(adjusted_scores))
+                    },
+                    numeric = {
+                      names(adjusted_scores) <- gsub(x = names(adjusted_scores), pattern = "(.*[a-z]).\\d+.?\\d+$", replacement = "\\1")
+                      adjusted_scores <- lapply(split(adjusted_scores, names(adjusted_scores)), unname)
+                    }
+            )
+            
+            adjusted_scores <- adjusted_scores[sapply(X = adjusted_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
+            
+            for(s in names(adjusted_scores)){
+              values$all_nonsyn_res[[s]] <- adjusted_scores[[s]]
+            }
+            
+          } else {
+            adjusted_scores <- NULL
+          }     
+          
+          
+          if(nrow(values$all_regul_res) > 0){
+            raw_scores <- sapply(X = c(cadd_raw_scores, common_scores), FUN = function(x) extract_score_and_convert(values$all_regul_res, score_name = x))
+            switch (class(raw_scores),
+                    matrix = {
+                      rownames(raw_scores) <- NULL
+                      raw_scores <- as.list(data.frame(raw_scores))
+                    },
+                    numeric = {
+                      names(raw_scores) <- gsub(x = names(raw_scores), pattern = "(.*[a-z]).\\d+.?\\d+$", replacement = "\\1")
+                      raw_scores <- lapply(split(raw_scores, names(raw_scores)), unname)
+                    }
+            )
+            
+            raw_scores <- raw_scores[sapply(X = raw_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
+            
+            for(s in names(raw_scores)){
+              #print(raw_scores[[s]])
+              values$all_regul_res[[s]] <- raw_scores[[s]]
+            }
+            
+          } else {
+            raw_scores <- NULL
+          }
+          
+          
+          if(nrow(values$all_nonsyn_res) > MAX_VAR){
+            #print("faut trier all_nonsyn_res")
+            values$nonsyn_res <- values$all_nonsyn_res[1:MAX_VAR,]
+          } else {
+            #print("pas besoin de trier all_nonsyn_res")
+            values$nonsyn_res <- values$all_nonsyn_res
+          }
+          
+          if(nrow(values$all_regul_res) > MAX_VAR){
+            #print("faut trier all_regul_res")
+            values$regul_res <- values$all_regul_res[1:MAX_VAR,]
+          } else {
+            #print("pas besoin de trier all_regul_res")
+            values$regul_res <- values$all_regul_res
+          }
+          
+          
+          save(raw_scores, adjusted_scores, file = "objects/scores.rda")
+          values$raw_scores <- names(raw_scores)
+          values$adjusted_scores <- names(adjusted_scores)
         }
-        
-        
-        if(nrow(values$all_nonsyn_res) > MAX_VAR){
-          #print("faut trier all_nonsyn_res")
-          values$nonsyn_res <- values$all_nonsyn_res[1:MAX_VAR,]
-        } else {
-          #print("pas besoin de trier all_nonsyn_res")
-          values$nonsyn_res <- values$all_nonsyn_res
-        }
-        
-        if(nrow(values$all_regul_res) > MAX_VAR){
-          #print("faut trier all_regul_res")
-          values$regul_res <- values$all_regul_res[1:MAX_VAR,]
-        } else {
-          #print("pas besoin de trier all_regul_res")
-          values$regul_res <- values$all_regul_res
-        }
-        
-        
-        save(raw_scores, adjusted_scores, file = "objects/scores.rda")
-        values$raw_scores <- names(raw_scores)
-        values$adjusted_scores <- names(adjusted_scores)
       }
-    }
+      
+      if(!is.null(values$res)){
+        shinyBS::updateButton(session = session, inputId = "runLD", 
+                              disabled = FALSE)
+      } else {
+        shinyBS::updateButton(session = session, inputId = "runLD",
+                              disabled = TRUE)
+      }
+    })
+  })
     
-    if(!is.null(values$res)){
+    output$query_res <- renderText({ 
+      if(!is.null(values$res) && nrow(values$res) > 0){
+        ifelse(test = is.null(values$notfound_id), 
+               no = paste0("No Annotations for the following variants: ", 
+                           values$notfound_id,"."), 
+               yes = "Annotations found for all variants")  
+      }
+    })
+    
+    output$populations <- DT::renderDataTable({
+      DT::datatable(values$maf_infos,
+                    options = list(scrollX = TRUE))
+    })
+    
+    output$raw_data <- DT::renderDataTable({
+      DT::datatable(as.matrix(values$annotations),
+                    options = list(scrollX = TRUE))
+    })
+    
+    output$downloadRawTable <- downloadHandler(
+      filename = "annotations_table.csv",
+      content = function(file) {
+        write.csv(as.matrix(values$annotations), file)
+      }
+    )
+    
+    output$downloadFreqTable <- downloadHandler(
+      filename = "frequencies_table.csv",
+      content = function(file) {
+        write.csv(values$maf_infos, file)
+      }
+    )
+    
+    #### FETCH LD INFOS ####
+    runLD <- eventReactive(input$runLD,{
+      my_res <- values$my_res
+      if(is.null(my_res))
+        return(NULL)
+      
+      # shinyBS::updateButton(session = session, inputId = "runLD", 
+      #                       disabled = TRUE)
+      id <<- showNotification(paste("Computing linkage disequilibrium..."), duration = 0, type = "message")
+      
+      
+      if(nrow(my_res) > 1){
+        my_ranges <- apply(X = my_res, MARGIN = 1, 
+                           FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"], 
+                                                          query_id = x[names(x) == "query"]))
+        names(x = my_ranges) <- NULL
+        my_ranges <- do.call("c", my_ranges) 
+        my_ranges <- sort(my_ranges)
+        
+      } else {
+        my_ranges <- hgvsToGRange(hgvs_id = my_res$X_id, 
+                                  query_id = my_res$query)
+      }
+      
+      # build ilets
+      hits <- findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000000) #1Mbp
+      ilets <- c()
+      
+      for(i in queryHits(hits)){
+        ilets <- c(ilets, paste(subjectHits(hits[queryHits(hits) == i]), collapse = "_"))
+      }
+      
+      ilets <- unique(ilets)
+      
+      ld_results <- sapply(ilets, function(selection){
+        current_range  <- setStudyRange(my_ranges, selection)
+        ld <- matrix(current_range$query) # notfound set to all
+        
+        if(length(current_range) > 1){
+          region <- setStudyRegion(current_range)
+          tryCatch({
+            ld <- computeLDHeatmap(region = region,
+                                   requested_variants = current_range$query, 
+                                   results_dir = resultDir, 
+                                   vcf_dir = app.conf$VCF, 
+                                   tabix_path = app.conf$TABIX, 
+                                   population = input$population, 
+                                   tempDir = tmpDir, i = selection)
+          }, error = function(e) {
+            print(e)
+          })
+        }
+        return(ld)
+      })
+      
+      save(ld_results, file = "objects/ld_results.rda")
+      values$ld <- ld_results
+      
+    })
+    
+    output$runld_res <- renderText({ 
+      if(!is.null(values$res) && nrow(values$res) > 0){
+        runLD()
+        if (!is.null(id))
+          removeNotification(id)
+        
+        notfound <- do.call("c", values$ld[1,])
+        
+        #### update LD edges ####
+        snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
+        values$current_edges <- snv_edges
+        
+        visNetworkProxy("my_network") %>%
+          visUpdateEdges(edges = snv_edges)
+        
+        return(ifelse(test = length(notfound) > 0, 
+                      yes = paste0('No LD data for the following variants: ', paste(notfound, collapse = ', ')),
+                      no = "LD computation succeed for all variants"))  
+      }
+    })
+    
+    #### BUILDING NETWORK ####
+    buildNetwork <- eventReactive(input$buildNetwork,{
+      # shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
+      
+      print("buildNetwork")
+      
+      # start by destroying everything
+      if(!is.null(values$current_nodes)){
+        print("cleaning")
+        visNetworkProxy("my_network") %>%
+          visRemoveNodes(id = values$current_nodes$id) %>%
+          visRemoveEdges(id = values$current_edges$id)
+      }
+      
+      id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
+      
+      switch(input$network_type,
+             non_syn = {
+               my_res <- values$all_nonsyn_res
+             },
+             regul = {
+               my_res <- values$all_regul_res
+             }
+      )
+      
+      event.data <- event_data("plotly_selected", source = "subset")
+      
+      if(is.null(event.data) == T){
+        if(nrow(my_res) > MAX_VAR){
+          my_res <- my_res[1:MAX_VAR,]
+        } else {
+          my_res <- my_res
+        }
+      } else {
+        my_selection <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
+        if(nrow(my_selection) > MAX_VAR){
+          my_res <- my_res[my_res$query %in% my_selection$query[1:MAX_VAR],]
+        } else {
+          my_res <- my_res[my_res$query %in% my_selection$query,]
+        }
+      }
+      
+      values$my_res <- my_res
+      
+      snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
+      save(snv_edges, file = "objects/snv_edges.rda")
+      snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type)
+      save(snv_nodes, file = "objects/snv_nodes.rda")
+      
+      non_null_raw_scores <- values$raw_scores
+      non_null_adj_scores <- values$adjusted_scores
+      
+      scores_data <- build_score_nodes(session_values = values, 
+                                       selected_adj_scores = non_null_adj_scores, 
+                                       selected_raw_scores = non_null_raw_scores, 
+                                       network_type = input$network_type)
+      
+      #print(head(scores_data))
+      
+      basic_ranking()
+      
+      values$scores_data <- scores_data
+      values$current_edges <- snv_edges
+      values$current_nodes <- snv_nodes
+      
+      meta_values_mapped <- "blue"
+      
+      print(paste0("network_type : ",input$network_type, " ; current_nodes : ", nrow(values$current_nodes), " ; current_edges : ", nrow(values$current_edges)))
+      
+      # vn <- visNetwork(values$current_nodes, 
+      #                  values$current_edges) %>%
+      #   visEvents(doubleClick = "function(nodes) {
+      #             Shiny.onInputChange('current_node_id', nodes.nodes);
+      #             ;}") %>%
+      #   visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = F) %>%
+      #   visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
+      #   #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
+      #   #visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
+      #   visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
+      #   visLayout(randomSeed = 2018) %>% 
+      #   visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
+      #visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
+      
+      # for (g in values$annotations$query){
+      #   vn <- vn %>% visGroups(groupname = paste0("Scores_",g), background = "#97C2FC",
+      #                          color = "#2B7CE9", shape = "square")
+      # }
+      
+      if (!is.null(id))
+        removeNotification(id)
+      # saveRDS(object = vn, file = "objects/init_vn.rds")
+      return(list(nodes = values$current_nodes, edges = values$current_edges))
+    })
+    
+    output$my_network <- renderVisNetwork({
+      vn_components <- buildNetwork()
+      save(vn_components, file = "objects/vn_components.rda")
+      visNetwork(vn_components$nodes, 
+                 vn_components$edges) %>%
+        visEvents(doubleClick = "function(nodes) {
+                Shiny.onInputChange('current_node_id', nodes.nodes);
+                ;}") %>%
+        visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = F) %>%
+        visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
+        visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
+        visLayout(randomSeed = 2018) %>% 
+        #visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
+        visPhysics("repulsion", repulsion = list(nodeDistance = 1000))
+    })
+    
+    #### BUILDING PLOT ####
+    buildPlot <- eventReactive(input$fetch_annotations,{
+      
+      my_data <- as.data.frame(values$global_ranges)
+      my_data$cdts_score <- values$res$cdts_score
+      my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
+      my_data$consequences <- sapply(res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+      my_data$no_cdts <- is.na(my_data$cdts_score)
+      my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
+      values$my_data <- my_data
+      return(my_data)
+    })
+    
+    output$my_plot <- renderPlotly({
+      my_data <- buildPlot()
+      text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
+      text_snp <- paste(text_snp, paste0("\nConsequences: ", my_data$consequences))
+      xa <- list(title = "",
+                 zeroline = FALSE,
+                 showline = TRUE,
+                 showticklabels = TRUE,
+                 showgrid = TRUE)
+      plot_ly(type = "scatter", mode = "markers", my_data, x = ~start, y = ~cdts_score, 
+              showlegend = F, source = "subset") %>%
+        add_trace(data = values$cdts_region, 
+                  type = 'scatter', 
+                  mode = 'lines',
+                  x = ~start, 
+                  y = ~CDTS, 
+                  hoverinfo = "none",
+                  line = list(color = 'gray'), 
+                  opacity = 0.3,
+                  showlegend = F) %>%
+        add_trace( data = my_data,
+                   x = ~start,
+                   y = ~cdts_score,
+                   text =  text_snp,
+                   split = ~non_synonymous,
+                   hoverinfo = 'text',
+                   # legendgroup = 'In network', 
+                   # name = 'In network', 
+                   showlegend = T) %>%
+        layout(xaxis = xa, dragmode =  "select")
+    })
+    
+    #### NODES FIGURES ####
+    observe({
+      
+      if(!is.null(values$current_nodes) && nrow(values$current_nodes) > 0){
+        svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
+        
+        absolute_scores <- c('pie_bayesdel', 'pie_linsight','pie_eigen','pie_iwscoring_known','pie_iwscoring_novel','pie_all')
+        
+        if(!input$snv_nodes_type %in% absolute_scores){
+          if(input$update_metascore > 0)
+            svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$update_metascore,".png")
+          else 
+            svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+        } else {
+          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+        }
+        
+        values$current_nodes$image <- as.character(values$current_nodes$image)
+        values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
+        
+        visNetworkProxy("my_network") %>%
+          visUpdateNodes(nodes = svn_nodes)
+      }
+      
+    })
+    
+    #### SCORES ####
+    observe({
+      # non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)])
+      # non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
+      non_null_raw_scores <- values$raw_scores
+      non_null_adj_scores <- values$adjusted_scores
+      non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores, 
+                                               pattern = "score|rawscore", replacement = "")
+      non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names,
+                                               replacement = "", pattern = "\\.$")
+      non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names, 
+                                               replacement = " ", pattern = "\\.")
+      non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names, 
+                                               pattern = "_(.*)_", replacement = " (\\1)")
+      
+      non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores, 
+                                               pattern = "score|rankscore", replacement = "")
+      non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names,
+                                               replacement = "", pattern = "\\.$")
+      non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names, 
+                                               replacement = " ", pattern = "\\.")
+      non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names, 
+                                               pattern = "_(.*)_", replacement = " (\\1)")
+      
+      switch(input$network_type,
+             non_syn = {
+               predictors <- non_null_adj_scores
+             },
+             regul = {
+               predictors <- non_null_raw_scores
+             }
+      )
+      
+      if(length(non_null_raw_scores) > 0 || length(non_null_adj_scores) > 0){
+        updateSelectizeInput(session, "selected_scores",
+                             choice = predictors,
+                             selected = predictors)
+      }
+    })
+    
+    
+    #### METASCORES ####
+    observeEvent(input$update_metascore, {
+      
+      scores_data <- build_score_nodes(values,
+                                       selected_adj_scores = input$selected_scores, 
+                                       selected_raw_scores = input$selected_scores, 
+                                       inc = input$update_metascore, network_type = input$network_type)
+      values$scores_data <- scores_data
+      
+      basic_ranking(inc = input$update_metascore)
+      
+      svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
+      svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", 
+                                svn_nodes$id,input$update_metascore,".png")
+      
+      visNetworkProxy("my_network") %>% 
+        visUpdateNodes(nodes = svn_nodes)
+    })
+    
+    
+    observeEvent(input$update_metascore, {
+      
+      # supprimer les nodes qui n'appartiennent pas aux scores selectionnés
+      selected_scores <- c(input$adj_scores, input$raw_scores)
+      score_nodes <- values$nodes[values$nodes$shape == "triangle",]
+      score_edges <- values$edges[values$nodes$type == "score_edges",]
+      nodes_id_2_remove <- score_nodes[!grepl(x = score_nodes$id, pattern = paste(selected_scores, collapse = "|")),]$id
+      
+      # nodes a garder
+      nodes_2_keep <- values$nodes[!values$nodes$id %in% nodes_id_2_remove,]    
+      
+      visNetworkProxy("my_network") %>%
+        visUpdateNodes(nodes = nodes_2_keep) %>%
+        visUpdateEdges(edges = score_edges)
+      
+      visNetworkProxy("my_network") %>%
+        visRemoveNodes(id = nodes_id_2_remove)
+    })
+    
+    #### SCORES SUBGRAPH ####
+    observeEvent(input$current_node_id, {
+      values$selected_node <- input$current_node_id
+    })
+    
+    
+    #### SVN SCORES DETAIL ####
+    output$snv_score_details <- DT::renderDataTable({
+      
       if (!is.null(id))
         removeNotification(id)
       id <<- NULL
-      shinyBS::updateButton(session = session, inputId = "runLD", 
-                            disabled = FALSE)
-    } else {
-      # shinyBS::updateButton(session = session, inputId = "runLD", 
-      #                       disabled = TRUE)
-    }
-  })
-  
-  output$query_res <- renderText({ 
-    if(!is.null(values$res) && nrow(values$res) > 0){
-      ifelse(test = is.null(values$notfound_id), 
-             no = paste0("No Annotations for the following variants: ", 
-                         values$notfound_id,"."), 
-             yes = "Annotations found for all variants")  
-    }
-  })
-  
-  output$populations <- DT::renderDataTable({
-    DT::datatable(values$maf_infos,
-                  options = list(scrollX = TRUE))
-  })
-  
-  output$raw_data <- DT::renderDataTable({
-    DT::datatable(as.matrix(values$annotations),
-                  options = list(scrollX = TRUE))
-  })
-  
-  output$downloadRawTable <- downloadHandler(
-    filename = "annotations_table.csv",
-    content = function(file) {
-      write.csv(as.matrix(values$annotations), file)
-    }
-  )
-  
-  output$downloadFreqTable <- downloadHandler(
-    filename = "frequencies_table.csv",
-    content = function(file) {
-      write.csv(values$maf_infos, file)
-    }
-  )
-  
-  #### FETCH LD INFOS ####
-  runLD <- eventReactive(input$runLD,{
-    my_res <- values$my_res
-    if(is.null(my_res))
-      return(NULL)
-    
-    # shinyBS::updateButton(session = session, inputId = "runLD", 
-    #                       disabled = TRUE)
-    id <<- showNotification(paste("Computing linkage disequilibrium..."), duration = 0, type = "message")
-    
-    
-    if(nrow(my_res) > 1){
-      my_ranges <- apply(X = my_res, MARGIN = 1, 
-                         FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"], 
-                                                        query_id = x[names(x) == "query"]))
-      names(x = my_ranges) <- NULL
-      my_ranges <- do.call("c", my_ranges) 
-      my_ranges <- sort(my_ranges)
       
-    } else {
-      my_ranges <- hgvsToGRange(hgvs_id = my_res$X_id, 
-                                query_id = my_res$query)
-    }
-    
-    # build ilets
-    hits <- findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000000) #1Mbp
-    ilets <- c()
-    
-    for(i in queryHits(hits)){
-      ilets <- c(ilets, paste(subjectHits(hits[queryHits(hits) == i]), collapse = "_"))
-    }
-    
-    ilets <- unique(ilets)
-    
-    ld_results <- sapply(ilets, function(selection){
-      current_range  <- setStudyRange(my_ranges, selection)
-      ld <- matrix(current_range$query) # notfound set to all
-      
-      if(length(current_range) > 1){
-        region <- setStudyRegion(current_range)
-        tryCatch({
-          ld <- computeLDHeatmap(region = region,
-                                 requested_variants = current_range$query, 
-                                 results_dir = resultDir, 
-                                 vcf_dir = app.conf$VCF, 
-                                 tabix_path = app.conf$TABIX, 
-                                 population = input$population, 
-                                 tempDir = tmpDir, i = selection)
-        }, error = function(e) {
-          print(e)
-        })
+      if(is.null(values$my_res)){
+        color_code = "#FFFFFF"
+        snv_score_details <- data.frame("predictors" = "None", "value" = 0)
+        return(DT::datatable(snv_score_details,
+                             rownames = FALSE,
+                             options = list(scrollX = TRUE,
+                                            lengthChange = FALSE,
+                                            searching = FALSE)))
+        
       }
-      return(ld)
+      
+      if(!is.null(values$selected_node) && values$selected_node == '') {
+        values$selected_node <- as.character(values$my_res$query)[1]
+      }
+      
+      snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
+      #print(snv_score_details)
+      color_code <- as.character(snv_score_details$color)
+      snv_score_details$id <- gsub(x = snv_score_details$id, pattern = paste0("_", values$selected_node), replacement = "")
+      snv_score_details <- snv_score_details[,-2] #suppression de la colonne 'color' 
+      colnames(snv_score_details) <- c("predictors", "value")
+      
+      DT::datatable(snv_score_details,
+                    rownames = FALSE,
+                    options = list(scrollX = TRUE,
+                                   lengthChange = FALSE,
+                                   searching = FALSE))
+    }%>% DT::formatStyle(
+      'value',
+      backgroundColor = DT::styleEqual(as.character(snv_score_details$value), color_code)
+    ))
+    
+    output$snv_score_details_id <- renderText({
+      if(is.null(values$my_res))
+        return(NULL)
+      #print(values$selected_node)
+      if(!is.null(values$selected_node) && values$selected_node == '') 
+        values$selected_node <- as.character(values$my_res$query)[1]
+      
+      values$selected_node
     })
     
-    save(ld_results, file = "objects/ld_results.rda")
-    values$ld <- ld_results
-    
-  })
-  
-  output$runld_res <- renderText({ 
-    if(!is.null(values$res) && nrow(values$res) > 0){
-      runLD()
-      if (!is.null(id))
-        removeNotification(id)
+    #### VARIANT SELECTION FROM PLOTLY ####
+    output$selection <- renderPrint({
+      event.data <- event_data("plotly_selected", source = "subset")
       
-      notfound <- do.call("c", values$ld[1,])
+      if(is.null(event.data) == T ) return("Please select an area containing variants...")
+      if(!"curveNumber" %in% colnames(event.data)) return("Please select an area containing variants...")
       
-      #### update LD edges ####
-      snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
-      values$current_edges <- snv_edges
+      x <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
       
-      visNetworkProxy("my_network") %>%
-        visUpdateEdges(edges = snv_edges)
-      
-      return(ifelse(test = length(notfound) > 0, 
-                    yes = paste0('No LD data for the following variants: ', paste(notfound, collapse = ', ')),
-                    no = "LD computation succeed for all variants"))  
-    }
-  })
-  
-  #### BUILDING NETWORK ####
-  buildNetwork <- eventReactive(input$buildNetwork,{
-    # shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
-    
-    print("buildNetwork")
-    
-    # start by destroying everything
-    if(!is.null(values$current_nodes)){
-      print("cleaning")
-      visNetworkProxy("my_network") %>%
-        visRemoveNodes(id = values$current_nodes$id) %>%
-        visRemoveEdges(id = values$current_edges$id)
-    }
-    
-    id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
-    
-    switch(input$network_type,
-           non_syn = {
-             my_res <- values$all_nonsyn_res
-           },
-           regul = {
-             my_res <- values$all_regul_res
-           }
-    )
-    
-    event.data <- event_data("plotly_selected", source = "subset")
-    
-    if(is.null(event.data) == T){
-      if(nrow(my_res) > MAX_VAR){
-        my_res <- my_res[1:MAX_VAR,]
-      } else {
-        my_res <- my_res
-      }
-    } else {
-      my_selection <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
-      if(nrow(my_selection) > MAX_VAR){
-        my_res <- my_res[my_res$query %in% my_selection$query[1:MAX_VAR],]
-      } else {
-        my_res <- my_res[my_res$query %in% my_selection$query,]
-      }
-    }
-    
-    values$my_res <- my_res
-    
-    snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
-    save(snv_edges, file = "objects/snv_edges.rda")
-    snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type)
-    save(snv_nodes, file = "objects/snv_nodes.rda")
-    
-    non_null_raw_scores <- values$raw_scores
-    non_null_adj_scores <- values$adjusted_scores
-    
-    scores_data <- build_score_nodes(session_values = values, 
-                                     selected_adj_scores = non_null_adj_scores, 
-                                     selected_raw_scores = non_null_raw_scores, 
-                                     network_type = input$network_type)
-    
-    #print(head(scores_data))
-    
-    basic_ranking()
-    
-    values$scores_data <- scores_data
-    values$current_edges <- snv_edges
-    values$current_nodes <- snv_nodes
-    
-    meta_values_mapped <- "blue"
-    
-    print(paste0("network_type : ",input$network_type, " ; current_nodes : ", nrow(values$current_nodes), " ; current_edges : ", nrow(values$current_edges)))
-    
-    # vn <- visNetwork(values$current_nodes, 
-    #                  values$current_edges) %>%
-    #   visEvents(doubleClick = "function(nodes) {
-    #             Shiny.onInputChange('current_node_id', nodes.nodes);
-    #             ;}") %>%
-    #   visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = F) %>%
-    #   visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
-    #   #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
-    #   #visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
-    #   visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
-    #   visLayout(randomSeed = 2018) %>% 
-    #   visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
-    #visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
-    
-    # for (g in values$annotations$query){
-    #   vn <- vn %>% visGroups(groupname = paste0("Scores_",g), background = "#97C2FC",
-    #                          color = "#2B7CE9", shape = "square")
-    # }
-    
-    if (!is.null(id))
-      removeNotification(id)
-    # saveRDS(object = vn, file = "objects/init_vn.rds")
-    return(list(nodes = values$current_nodes, edges = values$current_edges))
-  })
-  
-  output$my_network <- renderVisNetwork({
-    vn_components <- buildNetwork()
-    
-    visNetwork(vn_components$nodes, 
-               vn_components$edges) %>%
-      visEvents(doubleClick = "function(nodes) {
-                Shiny.onInputChange('current_node_id', nodes.nodes);
-                ;}") %>%
-      visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = F) %>%
-      visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
-      visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
-      visLayout(randomSeed = 2018) %>% 
-      visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
-  })
-  
-  #### BUILDING PLOT ####
-  buildPlot <- eventReactive(input$fetch_annotations,{
-    
-    my_data <- as.data.frame(values$global_ranges)
-    my_data$cdts_score <- values$res$cdts_score
-    my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-    my_data$no_cdts <- is.na(my_data$cdts_score)
-    my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
-    values$my_data <- my_data
-    return(my_data)
-  })
-  
-  output$my_plot <- renderPlotly({
-    my_data <- buildPlot()
-    text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
-    xa <- list(title = "",
-               zeroline = FALSE,
-               showline = TRUE,
-               showticklabels = TRUE,
-               showgrid = TRUE)
-    plot_ly(type = "scatter", mode = "markers", my_data, x = ~start, y = ~cdts_score, 
-            showlegend = F, source = "subset") %>%
-      add_trace(data = values$cdts_region, 
-                type = 'scatter', 
-                mode = 'lines',
-                x = ~start, 
-                y = ~CDTS, 
-                hoverinfo = "none",
-                line = list(color = 'gray'), 
-                opacity = 0.3,
-                showlegend = F) %>%
-      add_trace( data = my_data,
-                 x = ~start,
-                 y = ~cdts_score,
-                 text =  text_snp,
-                 split = ~non_synonymous,
-                 hoverinfo = 'text',
-                 # legendgroup = 'In network', 
-                 # name = 'In network', 
-                 showlegend = T) %>%
-      layout(xaxis = xa, dragmode =  "select")
-  })
-  
-  #### NODES FIGURES ####
-  observe({
-    
-    if(!is.null(values$current_nodes) && nrow(values$current_nodes) > 0){
-      svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
-      
-      absolute_scores <- c('pie_bayesdel', 'pie_linsight','pie_eigen','pie_iwscoring','pie_all')
-      
-      if(!input$snv_nodes_type %in% absolute_scores){
-        if(input$update_metascore > 0)
-          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$update_metascore,".png")
-        else 
-          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
-      } else {
-        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+      network_choices <- c()
+      if(sum(x$non_synonymous) > 0){
+        network_choices <- c(network_choices, 
+                             "non synonymous variants" = "non_syn")
       }
       
-      values$current_nodes$image <- as.character(values$current_nodes$image)
-      values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
+      if(sum(!x$non_synonymous) > 0){
+        network_choices <- c(network_choices, 
+                             "synonymous and non-coding variants" = "regul")
+      }
       
-      visNetworkProxy("my_network") %>%
-        visUpdateNodes(nodes = svn_nodes)
-    }
-    
-  })
-  
-  #### SCORES ####
-  observe({
-    # non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)])
-    # non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
-    non_null_raw_scores <- values$raw_scores
-    non_null_adj_scores <- values$adjusted_scores
-    non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores, 
-                                             pattern = "score|rawscore", replacement = "")
-    non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names,
-                                             replacement = "", pattern = "\\.$")
-    non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names, 
-                                             replacement = " ", pattern = "\\.")
-    non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names, 
-                                             pattern = "_(.*)_", replacement = " (\\1)")
-    
-    non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores, 
-                                             pattern = "score|rankscore", replacement = "")
-    non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names,
-                                             replacement = "", pattern = "\\.$")
-    non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names, 
-                                             replacement = " ", pattern = "\\.")
-    non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names, 
-                                             pattern = "_(.*)_", replacement = " (\\1)")
-    
-    switch(input$network_type,
-           non_syn = {
-             predictors <- non_null_adj_scores
-           },
-           regul = {
-             predictors <- non_null_raw_scores
-           }
-    )
-    
-    if(length(non_null_raw_scores) > 0 || length(non_null_adj_scores) > 0){
-      updateSelectizeInput(session, "selected_scores",
-                           choice = predictors,
-                           selected = predictors)
-    }
-  })
-  
-  
-  #### METASCORES ####
-  observeEvent(input$update_metascore, {
-    
-    scores_data <- build_score_nodes(values,
-                                     selected_adj_scores = input$selected_scores, 
-                                     selected_raw_scores = input$selected_scores, 
-                                     inc = input$update_metascore, network_type = input$network_type)
-    values$scores_data <- scores_data
-    
-    basic_ranking(inc = input$update_metascore)
-    
-    svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
-    svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", 
-                              svn_nodes$id,input$update_metascore,".png")
-    
-    visNetworkProxy("my_network") %>% 
-      visUpdateNodes(nodes = svn_nodes)
-  })
-  
-  
-  observeEvent(input$update_metascore, {
-    
-    # supprimer les nodes qui n'appartiennent pas aux scores selectionnés
-    selected_scores <- c(input$adj_scores, input$raw_scores)
-    score_nodes <- values$nodes[values$nodes$shape == "triangle",]
-    score_edges <- values$edges[values$nodes$type == "score_edges",]
-    nodes_id_2_remove <- score_nodes[!grepl(x = score_nodes$id, pattern = paste(selected_scores, collapse = "|")),]$id
-    
-    # nodes a garder
-    nodes_2_keep <- values$nodes[!values$nodes$id %in% nodes_id_2_remove,]    
-    
-    visNetworkProxy("my_network") %>%
-      visUpdateNodes(nodes = nodes_2_keep) %>%
-      visUpdateEdges(edges = score_edges)
-    
-    visNetworkProxy("my_network") %>%
-      visRemoveNodes(id = nodes_id_2_remove)
-  })
-  
-  #### SCORES SUBGRAPH ####
-  observeEvent(input$current_node_id, {
-    values$selected_node <- input$current_node_id
-  })
-  
-  
-  #### SVN SCORES DETAIL ####
-  output$snv_score_details <- DT::renderDataTable({
-    
-    if (!is.null(id))
-      removeNotification(id)
-    id <<- NULL
-    
-    if(is.null(values$my_res)){
-      color_code = "#FFFFFF"
-      snv_score_details <- data.frame("predictors" = "None", "value" = 0)
-      return(DT::datatable(snv_score_details,
-                           rownames = FALSE,
-                           options = list(scrollX = TRUE,
-                                          lengthChange = FALSE,
-                                          searching = FALSE)))
+      updateSelectInput(session, "network_type",
+                        choices = network_choices,
+                        selected = network_choices[1]
+      )
       
-    }
+      return(x)
+    })
     
-    if(!is.null(values$selected_node) && values$selected_node == '') {
-      values$selected_node <- as.character(values$my_res$query)[1]
-    }
-    
-    snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
-    #print(snv_score_details)
-    color_code <- as.character(snv_score_details$color)
-    snv_score_details$id <- gsub(x = snv_score_details$id, pattern = paste0("_", values$selected_node), replacement = "")
-    snv_score_details <- snv_score_details[,-2] #suppression de la colonne 'color' 
-    colnames(snv_score_details) <- c("predictors", "value")
-    
-    DT::datatable(snv_score_details,
-                  rownames = FALSE,
-                  options = list(scrollX = TRUE,
-                                 lengthChange = FALSE,
-                                 searching = FALSE))
-  }%>% DT::formatStyle(
-    'value',
-    backgroundColor = DT::styleEqual(as.character(snv_score_details$value), color_code)
-  ))
-  
-  output$snv_score_details_id <- renderText({
-    if(is.null(values$my_res))
-      return(NULL)
-    #print(values$selected_node)
-    if(!is.null(values$selected_node) && values$selected_node == '') 
-      values$selected_node <- as.character(values$my_res$query)[1]
-    
-    values$selected_node
-  })
-  
-  #### VARIANT SELECTION FROM PLOTLY ####
-  output$selection <- renderPrint({
-    event.data <- event_data("plotly_selected", source = "subset")
-    
-    if(is.null(event.data) == T ) return("Please select an area containing variants...")
-    if(!"curveNumber" %in% colnames(event.data)) return("Please select an area containing variants...")
-    
-    x <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
-    
-    network_choices <- c()
-    if(sum(x$non_synonymous) > 0){
-      network_choices <- c(network_choices, 
-                           "non synonymous variants" = "non_syn")
-    }
-    
-    if(sum(!x$non_synonymous) > 0){
-      network_choices <- c(network_choices, 
-                           "synonymous and non-coding variants" = "regul")
-    }
-    
-    updateSelectInput(session, "network_type",
-                      choices = network_choices,
-                      selected = network_choices[1]
-    )
-    
-    return(x)
-  })
-  
-  onStop(function() { 
-    old_figures <- dir(path = "www/scores_figures/", full.names = T)
-    file.remove(old_figures)
-    temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
-    file.remove(temp_files)
-    cat("Session stopped\n")
+    onStop(function() { 
+      old_figures <- dir(path = "www/scores_figures/", full.names = T)
+      file.remove(old_figures)
+      temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
+      file.remove(temp_files)
+      cat("Session stopped\n")
     })
 }
 
