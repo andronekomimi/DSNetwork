@@ -33,7 +33,7 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 
-# Directorie
+# Directories
 data/*
 networks/*
 vexor_analysis/*
@@ -48,8 +48,9 @@ misc/*
 *.rda
 
 # figures
-www/scores_figures/.*
+www/scores_figures/*
 
 #dev files
 scripts/study.R
+demo/*
 test*.R
