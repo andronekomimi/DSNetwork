@@ -5,6 +5,7 @@ library(d3heatmap)
 require(plotly)
 require(ggrepel)
 library(shinyjqui)
+require(shinyjs)
 
 source('helper.R', local = TRUE)
 
@@ -35,14 +36,15 @@ populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
                  "Toscani in Italy (TSI)" = 'TSI',
                  "Yoruba in Ibadan, Nigeria (YRI)" = 'YRI')
 
-preload_loci <- c("Locus 2 [chr1:113948389-14948389]" = "locus_2",
+preload_loci <- c("FGFR2" = "locus_0",
+                  "Locus 2 [chr1:113948389-14948389]" = "locus_2",
                   "Locus 6 [chr1:201687176-202687176]" = "locus_6",
                   "Locus 38 [chr7:143574929-144574929]" = "locus_38",
                   "Locus 60 [chr13:32468810-33472626]" = "locus_60",
                   "Locus 70 [chr17:77281387-78281725]" = "locus_70",
                   "Locus 78 [chr22:40376234-41527870]" = "locus_78",
-                  "Locus 80 [chr3:86537543-8753754]" = "locus_80",
-                  "FGFR2" = "locus_0")
+                  "Locus 80 [chr3:86537543-8753754]" = "locus_80"
+)
 
 sidebar_content <- function(){
   sidebarMenu(
@@ -55,8 +57,7 @@ sidebar_content <- function(){
 
 input_data_module <- function(){
   list(
-    br(),
-    textAreaInput("query", "1) Enter variant ids", "", rows = 5, 
+    textAreaInput("query", "Enter variant ids", "", rows = 5, 
                   placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
     fileInput("query_file", "or load text file (one variant id per line)", 
               multiple = FALSE, 
@@ -65,10 +66,7 @@ input_data_module <- function(){
                 "text/comma-separated-values,text/plain",
                 ".csv")
     ),
-    selectInput(inputId = 'preload',
-                label = '0) Load preset query',
-                choices = preload_loci),
-    actionButton("preload_loci", "Load preset query", icon = icon("caret-right")),
+    checkboxInput(inputId = "fetch_snpnexus", label = "Fetch annotations from SNPnexus (significatively increase fetching duration)"),
     shinyBS::bsButton(inputId = "fetch_annotations", 
                       label = "Fetch Annotations", 
                       icon = icon("search"), disabled = FALSE),
@@ -76,103 +74,97 @@ input_data_module <- function(){
     tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
     br(),
     verbatimTextOutput("query_res"),
-    tags$style(type="text/css", "#query_res {white-space: pre-wrap;}")
-    #downloadButton('downloadRawTable', 'Download raw results (csv)')
-  )
-}
-
-input_network_module <- function(){
-  list(
-    hr(),
-    selectInput(inputId = 'network_type',
-                label = '3) Choose the network to build',
-                choices = c("non synonymous variants" = "non_syn",
-                            "synonymous and non-coding variants" = "regul"),
-                width = "100%"),
-    shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
-                      disabled = FALSE, icon = icon("gear")),
-    br()
-  )
-}
-
-output_plot_row <- function(){
-  fluidRow(
-    column(width = 12,
-           br(),
-           jqui_resizable(plotlyOutput(outputId = "my_plot",
-                        height = "400px", width = "auto")),
-           br(),
-           br(),
-           verbatimTextOutput("selection"))
-  )
-}
-
-nodes_modifiers_box <- function(){
-  box(width = NULL, status = "warning", 
-      height = "500px", collapsible = TRUE,
-      selectInput(inputId = "snv_nodes_type",
-                  label = "SNV Nodes",
-                  multiple = FALSE,
-                  choices = c(
-                    "Scores Pie" = 'pie_scores',
-                    list(
-                      `Relative metascores` = c("Rank (NA last)" = 'pie_rank_na_last',
-                                                "Rank (NA mean)" = 'pie_rank_na_mean'),
-                      `Absolute metascores` = c("BayesDel" = 'pie_bayesdel', 
-                                                "LINSIGHT" = 'pie_linsight', 
-                                                "Eigen" = 'pie_eigen',
-                                                "Eigen-PC" = 'pie_eigen_pc',
-                                                "IW-Scoring Known" = 'pie_iwscoring_known',
-                                                "IW-Scoring Novel" = 'pie_iwscoring_novel',
-                                                "All absolute metascores" = 'pie_all')
-                      )
-                    ),
-                  selected = 'pie_scores'
-      ),
-      conditionalPanel(condition="input.snv_nodes_type=='pie_scores' | input.snv_nodes_type=='pie_rank_na_last' | input.snv_nodes_type=='pie_rank_na_mean'",
-                       fluidRow(
-                         column(width = 12,
-                                selectInput("selected_scores", 'Predictors',
-                                            choices = c(),
-                                            selectize = TRUE, multiple = TRUE))
-                       ),
-                       actionButton("update_metascore", "Update"),
-                       p(
-                         class = "text-muted", br(),
-                         paste("This option enables to select the set of prediction and",
-                               "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
-                         )
-                       )
-      )
-  )
-}
-
-network_modifiers_row <- function(){
-  fluidRow(
-    column(width = 6,
-           nodes_modifiers_box()
-    ),
-    column(width = 6, 
-           box(width = NULL, status = "warning", 
-               height = "500px", collapsible = TRUE,
-               textOutput(outputId = "snv_score_details_id"),
-               DT::dataTableOutput(outputId = "snv_score_details")
-           )
+    tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
+    box(title = "pre", width = 12,
+        collapsible = TRUE, collapsed = TRUE,
+        selectInput(inputId = 'preload',
+                    label = '0) Load preset query',
+                    choices = preload_loci),
+        actionButton("preload_loci", "Load preset query", icon = icon("caret-right"))
     )
   )
 }
 
+output_plot_row <- function(){
+  helpText("Qu'est qu'on regarde bordel ??!")
+  jqui_resizable(plotlyOutput(outputId = "my_plot",
+                              height = "400px", width = "auto"))
+}
+
+raw_results_row <- function(){
+  list(
+    htmlOutput("selection"),
+    fluidRow(column(width = 6, downloadButton('downloadRawTable', 'Download raw results (csv)')),
+             column(width = 6, shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
+                                                 disabled = FALSE, icon = icon("gear"))))
+  )
+}
+
+selection_module <- function(){
+  selectInput(inputId = 'network_type',
+              label = 'Choose the network to build',
+              choices = c("non synonymous variants" = "non_syn",
+                          "synonymous and non-coding variants" = "regul"),
+              width = "100%")
+}
+
+nodes_modifiers_box <- function(){
+  list(
+    selectInput(inputId = "snv_nodes_type",
+                label = "5) Predictors selection",
+                multiple = FALSE,
+                choices = c(
+                  "Scores Pie" = 'pie_scores',
+                  list(
+                    `Relative metascores` = c("Rank (NA last)" = 'pie_rank_na_last',
+                                              "Rank (NA mean)" = 'pie_rank_na_mean'),
+                    `Absolute metascores` = c("BayesDel" = 'pie_bayesdel', 
+                                              "LINSIGHT" = 'pie_linsight', 
+                                              "IW-Scoring Known (K10)" = 'pie_iwscoring_known',
+                                              "IW-Scoring Novel (K6)" = 'pie_iwscoring_novel',
+                                              "All absolute metascores" = 'pie_all')
+                  )
+                ),
+                selected = 'pie_scores'
+    ),
+    conditionalPanel(condition="input.snv_nodes_type=='pie_scores' | input.snv_nodes_type=='pie_rank_na_last' | input.snv_nodes_type=='pie_rank_na_mean'",
+                     fluidRow(
+                       column(width = 12,
+                              selectInput("selected_scores", 'Predictors',
+                                          choices = c(),
+                                          selectize = TRUE, multiple = TRUE))
+                     ),
+                     actionButton("update_metascore", "Update"),
+                     p(
+                       class = "text-muted", br(),
+                       paste("This option enables to select the set of prediction and",
+                             "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
+                       )
+                     )
+    )
+  )
+}
+
+# network_modifiers_row <- function(){
+#   box(width = NULL, status = "warning", 
+#       height = "500px", collapsible = TRUE,
+#       textOutput(outputId = "snv_score_details_id"),
+#       DT::dataTableOutput(outputId = "snv_score_details")
+#   )
+# }
+
 network_results_modules <- function(){
-  conditionalPanel(condition="input.buildNetwork",
-                   jqui_resizable(visNetworkOutput("my_network", height = "400px"))
+  list(
+    jqui_resizable(visNetworkOutput("my_network", height = "400px")),
+    bsModal(id = "modalExample", title = "Details", trigger = "current_node_id", size = "small",
+            DT::dataTableOutput(outputId = "snv_score_details"))
   )
 }
 
 ld_mapping_module <- function(){
   list(
-    hr(),
     selectInput(inputId = 'population',
-                label = '4) Choose the population to use',
+                label = 'Choose the population to use',
                 choices = populations),
     shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
                       icon = icon("gear"), disabled = FALSE),
@@ -183,23 +175,22 @@ ld_mapping_module <- function(){
   )
 }
 
-predictors_selection <- function(){
-  fluidRow(
-    column(width = 12,
-           selectInput("predictors", 'Predictors',width = "50%",
-                       choices = c(), selectize = TRUE, multiple = TRUE),
-           bsButton(inputId = 'get_predictors_info', label = "Get info",
-                    icon = icon("search")),
-           br(),br()
-    )
-  )
-}
+
 
 
 
 
 #### OBSOLETE ####
-
+# predictors_selection <- function(){
+#   fluidRow(
+#     column(width = 12,
+#            selectInput("predictors", 'Predictors',width = "50%",
+#                        choices = c(), selectize = TRUE, multiple = TRUE),
+#            bsButton(inputId = 'get_predictors_info', label = "Get info",
+#                     icon = icon("search"))
+#     )
+#   )
+# }
 # output_predictors_results_modules <- function(){
 #   tabPanel(title = h5("Scores information"),
 #            value = "scores_stats",
@@ -324,5 +315,19 @@ predictors_selection <- function(){
 #                             ),
 #                             imageOutput("ld_plot", height = 600)
 #            )
+#   )
+# }
+#
+# output_plot_row.old <- function(){
+#   fluidRow(
+#     column(width = 12,
+#            br(),
+#            jqui_resizable(plotlyOutput(outputId = "my_plot",
+#                                        height = "400px", width = "auto")),
+#            box(title = "Variant selection",
+#                width = 12,
+#                collapsible = TRUE, 
+#                collapsed = FALSE, 
+#                htmlOutput("selection")))
 #   )
 # }

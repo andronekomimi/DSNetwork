@@ -23,10 +23,7 @@ cor_colfunc <- colorRampPalette(c("blue","white","red"))
 cor_color_breaks <- cor_colfunc(length(cor_breaks))
 names(cor_color_breaks) <- sort(cor_breaks, decreasing = F)
 
-# output$values <- renderPrint({
-#   list(x4 = input$x4)
-# })
-
+invert_scores <- c("")
 
 hgvsToGRange <- function(hgvs_id, query_id){
   
@@ -713,10 +710,10 @@ build_snv_edges.old <- function(session_values, edges_type, edges_range, network
           ld_values_mapped[ld_values_mapped == i] <- ld_color_breaks[names(ld_color_breaks) == i]
         }
         
-        snp_comb <- unlist(strsplit(x = names(ld_values_mapped), split = "_"))
+        svn_comb <- unlist(strsplit(x = names(ld_values_mapped), split = "_"))
         edges <- data.frame(id = paste0("edge_ld_", 1:length(ld_values_mapped)),
-                            from = snp_comb[(1:length(snp_comb) %% 2 != 0)], 
-                            to = snp_comb[(1:length(snp_comb) %% 2 == 0)],
+                            from = svn_comb[(1:length(svn_comb) %% 2 != 0)], 
+                            to = svn_comb[(1:length(svn_comb) %% 2 == 0)],
                             width = 1,
                             dashes = FALSE,
                             xvalue = nodes_edges,
@@ -748,10 +745,10 @@ build_snv_edges.old <- function(session_values, edges_type, edges_range, network
         edges <- rbind(edges, new_rows)
       }
     } else {
-      snp_comb <- t(combn(x = my_ranges$query, m = 2))
-      edges <- data.frame(id = paste0("edge_ld_",1:nrow(snp_comb)),
-                          from = snp_comb[,1], 
-                          to = snp_comb[,2],
+      svn_comb <- t(combn(x = my_ranges$query, m = 2))
+      edges <- data.frame(id = paste0("edge_ld_",1:nrow(svn_comb)),
+                          from = svn_comb[,1], 
+                          to = svn_comb[,2],
                           width = 1,
                           dashes = FALSE,
                           xvalue = 0,
@@ -837,14 +834,14 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
   }
   
   if(edges_type == "1"){ #linkage
-    
+    print("linkage")
     ld_results <- session_values$ld
     nodes_edges <- c()
     
-    snp_comb <- t(combn(x = my_ranges$query, m = 2))
-    edges <- data.frame(id = paste0("edge_ld_",1:nrow(snp_comb)),
-                        from = snp_comb[,1], 
-                        to = snp_comb[,2],
+    svn_comb <- t(combn(x = my_ranges$query, m = 2))
+    edges <- data.frame(id = paste0("edge_ld_",1:nrow(svn_comb)),
+                        from = svn_comb[,1], 
+                        to = svn_comb[,2],
                         width = 2,
                         dashes = FALSE,
                         xvalue = 0,
@@ -898,8 +895,6 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
   return(edges)
 } 
 
-
-
 build_snv_nodes <- function(session_values, network_type){
   
   nodes <- NULL
@@ -916,6 +911,7 @@ build_snv_nodes <- function(session_values, network_type){
                       label = node_names,
                       shape = "circularImage",
                       image = paste0("scores_figures/pie_scores_",node_names,".png"),
+                      #title = NA,
                       font.size = 30,
                       size = 50,
                       fixed = F, x = NA, y = NA,
@@ -929,6 +925,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   
   load('data/scores_correlation_matrice.rda')
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
+  invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
   my_res <- session_values$my_res
   
@@ -964,14 +961,18 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   
   if(ncol(nodes_data) >= 1){
     score_nodes <- NULL
-    score_edges <- NULL
-    
     scores_values_mapped <- list()
     
     # créer les echelles coloriques pour chaque scores
     for(selected_score in selected_scores){
       d <-  nodes_data[[selected_score]]
-      colpalette <- colfunc(n = length(unique(d)))
+      
+      if(selected_score %in% invert_scores){
+        colpalette <- invert_colfunc(n = length(unique(d)))
+      } else {
+        colpalette <- colfunc(n = length(unique(d)))
+      }
+      
       names(colpalette) <- sort(unique(d), decreasing = T, na.last = T)
       d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
       
@@ -997,26 +998,33 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
     
     
     # les scores à proprement parler
-    for(n in nodes_data$nodes){
+    nodes_titles <- c()
+    
+    for(n in as.character(nodes_data$nodes)){
       
       scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
+      scores_details <- paste0("\n\t- ",
+                               paste(paste0(selected_scores, " : ",scores_values), 
+                                     collapse = "\n\t- "))
+      nodes_titles <- c(nodes_titles, scores_details)
       new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
                                color = as.character(scores_values_mapped[row.names(scores_values_mapped) == n,]),
                                label = as.character(scores_values),
                                shape = "square",
                                image = NA,
+                               #title = NA,
                                font.size = 10,
                                size = 30,
                                group = paste0("Scores_",n))
+      
+      # tri des couleur pour des blocks colorés dans les pie charts
+      new_n_rows <- new_n_rows[order(new_n_rows$color),]
       
       if(is.null(score_nodes)){
         score_nodes <- new_n_rows
       } else {
         score_nodes <- rbind(score_nodes, new_n_rows)
       }
-      
-      #save(score_nodes, file = "objects/score_nodes.rda")
-      
       
       ## creation des figures
       new_n_rows$h <- 1
@@ -1026,7 +1034,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       new_n_rows$color <- as.character(new_n_rows$color)
       custom_colors <- new_n_rows$color
       names(custom_colors) <- new_n_rows$label
-      
+
       ## pies
       png(paste0(path_to_images,"pie_scores_",n,inc,".png"), width = 2000, height = 2000,
           units = "px")
@@ -1037,10 +1045,12 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       
     }
     
+    names(nodes_titles) <- as.character(nodes_data$nodes)
   }
   
   
-  return(list(nodes = score_nodes))
+  return(list(nodes = score_nodes,
+              nodes_titles = nodes_titles))
 }
 
 build_snv_scores_detail_node <- function(id){
@@ -1099,6 +1109,8 @@ extract_score_and_convert.old <- function(my_res_infos, score_name, sub_score_na
 #### Basic Ranking ####
 basic_ranking <- function(inc = NULL){
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+  invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+  
   load("objects/nodes_data.rda")
   nodes <- as.character(nodes_data$nodes)
   
@@ -1196,10 +1208,6 @@ basic_ranking <- function(inc = NULL){
 #### Absolute metascores ####
 compute_absolute_metascore <- function(session_values){
   absolute_metascore <- list(
-    eigen = list(min = 1,
-                 max = 99),
-    eigen_pc = list(min = 1,
-                    max = 99),
     linsight = list(min = 0.03,
                     max = 1),
     iwscoring_known = list(min = -5,
@@ -1215,8 +1223,6 @@ compute_absolute_metascore <- function(session_values){
   colpalette <- colfunc(n = colpalette_lenght)
   
   absolute_metascore_colpalette <- list(
-    eigen = colpalette,
-    eigen_pc = colpalette,
     linsight = colpalette,
     iwscoring_known = colpalette,
     iwscoring_novel = colpalette,
@@ -1440,7 +1446,8 @@ createVCF <- function(session_values, filename){
 
 
 extractBayesDel <- function(path_to_victor, filename){
-  cmd <- paste(path_to_victor,filename,"--ann=BayesDel_nsfp33a_noAF -x=3 --min=-1.5 --step=0.01 --indel=max --padding=1 -o", paste0(filename,".gz"))
+  cmd <- paste0(path_to_victor,"vAnnBase ",filename," --genome ",path_to_victor,"data/hg19/ --ann ",path_to_victor,"data/hg19/BayesDel_nsfp33a_noAF -x 3 --min -1.5 --step 0.01 --indel max --padding 1 -o ", filename,".gz")
+  print(cmd)
   system(command = cmd, intern = F)
   if(file.exists(paste0(filename,".gz"))){
     vcf <- vcfR::read.vcfR(paste0(filename,".gz"), verbose = F)
@@ -1513,3 +1520,11 @@ extract_BAYESDEL_range <- function(){
   return(RES)
   
 }
+
+snpnexusIDconversion <- function(snpnexusID){
+  #snpnexusID = chr5:44546628:A/G:1
+  snpnexusID <- unlist(strsplit(x = unlist(strsplit(x = snpnexusID, split = ":")), split = "/"))
+  formatSingleHgvs(snpnexusID[1], as.numeric(snpnexusID[2]), snpnexusID[3], snpnexusID[4])
+}
+
+

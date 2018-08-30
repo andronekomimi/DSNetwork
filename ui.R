@@ -2,8 +2,15 @@ library(shinydashboard)
 library(visNetwork)
 library(shinyBS)
 library(d3heatmap)
+require(shinyjs)
 
 source('ui_modules.R')
+
+jscode <- "
+shinyjs.collapse = function(boxid) {
+$('#' + boxid).closest('.box').find('[data-widget=collapse]').click();
+}
+"
 
 dashboardPage(
   header = dashboardHeader(title = "DSNetwork"),
@@ -12,6 +19,9 @@ dashboardPage(
     sidebar_content()
   ),
   body = dashboardBody(
+    shinyalert::useShinyalert(),
+    useShinyjs(),
+    extendShinyjs(text = jscode),
     tags$head(tags$style(
       HTML(".shiny-notification {
              position:fixed;
@@ -24,30 +34,53 @@ dashboardPage(
     )),
     tabItems(
       tabItem(tabName = "main",
-              box(width = "100%", height = "100%",
-                  fluidRow(
-                    column(width = 4, 
-                           input_data_module(),
-                           input_network_module(),
-                           ld_mapping_module()
-                    ),
-                    column(width = 8, 
-                           conditionalPanel(condition="input.fetch_annotations",
-                                            output_plot_row(),
-                                            network_results_modules()
+              fluidRow(box(id = "input_box", title = "Request panel", status = "primary",
+                           solidHeader = FALSE, background = NULL, width = 12,
+                           collapsible = TRUE, collapsed = FALSE,
+                           fluidRow(
+                             column(width = 4, 
+                                    input_data_module()
+                             ),
+                             column(width = 8, 
+                                    conditionalPanel(condition="input.fetch_annotations",
+                                                     output_plot_row()
+                                    )       
+                             )
                            )
                            
-                    )
-                  ),
-                  hr(),
-                  fluidRow(
-                    column(width = 12,
-                           conditionalPanel(condition="input.buildNetwork",
-                                            network_modifiers_row()
+              )), # end request panel
+              fluidRow(box(id = "selection_box", title = "Selection panel", status = "info",
+                           solidHeader = FALSE, background = NULL, width = 12,
+                           collapsible = TRUE, collapsed = FALSE,
+                           conditionalPanel(condition="input.fetch_annotations",
+                                            fluidRow(
+                                              column(width = 4, 
+                                                     selection_module()
+                                              ),
+                                              column(width = 8, 
+                                                     raw_results_row()
+                                              )
+                                            )
                            )
-                    )
-                  )
-              )
+                           
+              )), # end selection panel
+              fluidRow(box(title = "Network panel", status = "success",
+                           solidHeader = FALSE, background = NULL, width = 12,
+                           collapsible = TRUE, collapsed = FALSE,
+                           conditionalPanel(condition="input.fetch_annotations",
+                                            fluidRow(
+                                              column(width = 4, 
+                                                     ld_mapping_module(),
+                                                     nodes_modifiers_box()   
+                                              ),
+                                              column(width = 8, 
+                                                     network_results_modules()
+                                                     )
+                                            )
+                           )
+                           
+              )) # end network
+
       ),
       tabItem(tabName = "readme",
               includeMarkdown("README.Rmd")
