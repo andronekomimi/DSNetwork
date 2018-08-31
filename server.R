@@ -5,6 +5,7 @@ library(myvariant)
 library(shinyBS)
 require(plotly)
 require(shinyjs)
+require(tableHTML)
 
 options(shiny.trace = FALSE)
 
@@ -31,7 +32,6 @@ server <- function(input, output, session) {
   path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
   
   values <- reactiveValues()
-  values$maf_infos <- as.matrix(data.frame(waiting = ""))
   values$annotations <- as.matrix(data.frame(waiting = ""))
   values$all_edges <- NULL
   values$all_nodes <- NULL
@@ -136,9 +136,7 @@ server <- function(input, output, session) {
   
   #### FETCH ANNOTATIONS ####
   observeEvent(input$fetch_annotations, {
-    values$maf_infos <- as.matrix(data.frame(waiting = ""))
-    values$annotations <- as.matrix(data.frame(waiting = ""))
-    
+
     withProgress(message = 'Fetching annotations', value = 0, {
       n <- 10
       modstring <- c()
@@ -305,33 +303,6 @@ server <- function(input, output, session) {
           #### create metascore pies ####
           compute_absolute_metascore(values)
           
-          #### population freq ####
-          maf_infos <- values$res[,grepl(x = colnames(values$res), pattern = "query|cadd.ref|cadd.alt|cadd.1000g|maf")] 
-          colnames(maf_infos) <- gsub(x = colnames(maf_infos), pattern = "cadd.1000g.(.*)", replacement = "MAF_\\1_1000G")
-          row.names(maf_infos) <- NULL
-          values$maf_infos <- as.matrix(maf_infos)
-          
-          #### raw annotations ####
-          annotations_infos <- data.frame(values$res, stringsAsFactors = FALSE)
-          
-          # supprimer not found
-          # if("notfound" %in% colnames(annotations_infos)){
-          #   annotations_infos <- annotations_infos[is.na(annotations_infos$notfound),]
-          #   annotations_infos$notfound <- NULL
-          # }
-          
-          # supprimer licence
-          annotations_infos <- annotations_infos[,!grepl(x = colnames(annotations_infos), pattern = "license")]
-          
-          # suppriner un niveau de nested
-          annotations_infos <- data.frame(lapply(annotations_infos, 
-                                                 function(x) unlist(lapply(x, paste, collapse = ","))), 
-                                          stringsAsFactors = FALSE)
-          # suppriner NA column
-          # annotations_infos <- annotations_infos[apply(X = annotations_infos, MARGIN = 1, FUN = function(x) sum(is.na(x)) != (length(x) - 1)),]
-          
-          values$annotations <- annotations_infos
-          save(annotations_infos, file = "objects/annotations.rda")
           
           common_fields <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "query|X_id|cadd.ref|cadd.alt")]
           
@@ -428,6 +399,99 @@ server <- function(input, output, session) {
         }
       }
       
+      local({
+        #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
+        annotations_fields <- c("query","X_id", "cadd.consequence", common_scores)
+        annotations_infos <- values$res[,annotations_fields]
+        annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+        values$annotations <- annotations_infos
+        save(annotations_infos, file = "objects/annotations.rda")
+        
+        output$raw_data <- DT::renderDataTable({
+          if(input$network_type == "regul"){
+            DT::datatable(as.matrix(values$annotations[!non_syn_res,]), 
+                          options = list(scrollX = TRUE,
+                                         ordering = FALSE,
+                                         selected = c(1, 3, 8, 10)))
+          } else {
+            DT::datatable(as.matrix(values$annotations[non_syn_res,]),
+                          options = list(scrollX = TRUE,ordering=F))
+          }
+        })
+        
+        output$downloadRawTable <- downloadHandler(
+          filename = "annotations_table.tsv",
+          content = function(file) {
+            readr::write_delim(x = values$res, path = file, delim = "\t")
+          }
+        )
+        
+        #### BUILDING FIRST DEFAULT PLOT ####
+        my_data <- data.frame(values$global_ranges, stringsAsFactors = F)
+        my_data$cdts_score <- values$res$cdts_score
+        my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
+        my_data$consequences <- sapply(values$res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+        my_data$no_cdts <- is.na(my_data$cdts_score)
+        my_data$selected <- TRUE
+        
+        if(input$network_type == "regul"){
+          my_data[my_data$non_synonymous]$selected <- FALSE
+        } else {
+          my_data[!my_data$non_synonymous]$selected <- FALSE
+        }
+        
+        if(nrow(my_data) > MAX_VAR){
+          my_data[(MAX_VAR+1):nrow(my_data),]$selected <- FALSE
+        }
+          
+        my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
+        values$my_data <- my_data
+        
+        output$my_plot <- renderPlotly({
+          my_data <- values$my_data
+          text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
+          text_snp <- paste(text_snp, paste0("\nConsequences: ", my_data$consequences))
+          xa <- list(title = "",
+                     zeroline = FALSE,
+                     showline = TRUE,
+                     showticklabels = TRUE,
+                     showgrid = TRUE)
+          plot_ly(type = "scatter", mode = "markers", my_data, x = ~start, y = ~cdts_score, 
+                  showlegend = F, source = "subset") %>%
+            add_trace(data = values$cdts_region, 
+                      type = 'scatter', 
+                      mode = 'lines',
+                      x = ~start, 
+                      y = ~CDTS, 
+                      hoverinfo = "none",
+                      line = list(color = 'gray'), 
+                      opacity = 0.3,
+                      showlegend = F) %>%
+            add_trace( data = my_data,
+                       x = ~start,
+                       y = ~cdts_score,
+                       text =  text_snp,
+                       split = ~non_synonymous,
+                       hoverinfo = 'text',
+                       # legendgroup = 'In network', 
+                       # name = 'In network', 
+                       showlegend = T) %>%
+            add_trace( data = my_data,
+                       x = ~start,
+                       y = ~cdts_score,
+                       #text =  text_snp,
+                       split = ~selected,
+                       # hoverinfo = 'text',
+                       # legendgroup = 'In network', 
+                       # name = 'In network', 
+                       showlegend = T) %>%
+            layout(xaxis = xa, dragmode =  "select")
+        })
+        
+        
+      })
+      
+      
       if(!is.null(values$res)){
         shinyBS::updateButton(session = session, inputId = "runLD", 
                               disabled = FALSE)
@@ -446,31 +510,7 @@ server <- function(input, output, session) {
              yes = "Annotations found for all variants")  
     }
   })
-  
-  output$populations <- DT::renderDataTable({
-    DT::datatable(values$maf_infos,
-                  options = list(scrollX = TRUE))
-  })
-  
-  output$raw_data <- DT::renderDataTable({
-    DT::datatable(as.matrix(values$annotations),
-                  options = list(scrollX = TRUE))
-  })
-  
-  output$downloadRawTable <- downloadHandler(
-    filename = "annotations_table.csv",
-    content = function(file) {
-      write.csv(as.matrix(values$annotations), file)
-    }
-  )
-  
-  output$downloadFreqTable <- downloadHandler(
-    filename = "frequencies_table.csv",
-    content = function(file) {
-      write.csv(values$maf_infos, file)
-    }
-  )
-  
+
   #### FETCH LD INFOS ####
   runLD <- eventReactive(input$runLD,{
     my_res <- values$my_res
@@ -542,7 +582,7 @@ server <- function(input, output, session) {
       #### update LD edges ####
       snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
       values$current_edges <- snv_edges
-
+      
       visNetworkProxy("my_network") %>%
         visUpdateEdges(edges = snv_edges)
       
@@ -566,9 +606,14 @@ server <- function(input, output, session) {
     
     # start by destroying everything
     if(!is.null(values$current_nodes)){
-      print("cleaning")
+      print("cleaning nodes")
       visNetworkProxy("my_network") %>%
-        visRemoveNodes(id = values$current_nodes$id) %>%
+        visRemoveNodes(id = values$current_nodes$id)
+    }
+    
+    if(!is.null(values$current_edges)){
+      print("cleaning edges")
+      visNetworkProxy("my_network") %>%
         visRemoveEdges(id = values$current_edges$id)
     }
     
@@ -669,8 +714,10 @@ server <- function(input, output, session) {
       visPhysics("repulsion", repulsion = list(nodeDistance = 1000))
   })
   
-  #### BUILDING PLOT ####
-  buildPlot <- eventReactive(input$fetch_annotations,{
+  #### UPDATE PLOT ####
+  buildPlot <- eventReactive(input$raw_data_rows_selected, {
+    s = input$raw_data_rows_selected
+    print(s)
     
     my_data <- as.data.frame(values$global_ranges)
     my_data$cdts_score <- values$res$cdts_score
@@ -823,71 +870,29 @@ server <- function(input, output, session) {
   
   #### SCORES SUBGRAPH ####
   observeEvent(input$current_node_id, {
+    cat("1",input$current_node_id,"\n")
     values$selected_node <- input$current_node_id
-    # shinyalert(title = input$current_node_id,
-    #            text = "This is a modal",
-    #            closeOnEsc = TRUE,
-    #            closeOnClickOutside = TRUE,
-    #            html = FALSE,
-    #            type = "",
-    #            showConfirmButton = TRUE,
-    #            showCancelButton = FALSE,
-    #            confirmButtonText = "OK",
-    #            confirmButtonCol = "#AEDEF4",
-    #            timer = 0,
-    #            imageUrl = "",
-    #            animation = TRUE)
-  })
-  
-  
-  #### SVN SCORES DETAIL ####
-  output$snv_score_details <- DT::renderDataTable({
-    
-    if (!is.null(id))
-      removeNotification(id)
-    id <<- NULL
-    
-    if(is.null(values$my_res)){
-      color_code = "#FFFFFF"
-      snv_score_details <- data.frame("predictors" = "None", "value" = 0)
-      return(DT::datatable(snv_score_details,
-                           rownames = FALSE,
-                           options = list(scrollX = TRUE,
-                                          lengthChange = FALSE,
-                                          searching = FALSE)))
-      
-    }
-    
-    if(!is.null(values$selected_node) && values$selected_node == '') {
-      values$selected_node <- as.character(values$my_res$query)[1]
-    }
-    
     snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
-    #print(snv_score_details)
     color_code <- as.character(snv_score_details$color)
     snv_score_details$id <- gsub(x = snv_score_details$id, pattern = paste0("_", values$selected_node), replacement = "")
     snv_score_details <- snv_score_details[,-2] #suppression de la colonne 'color' 
     colnames(snv_score_details) <- c("predictors", "value")
-    
-    DT::datatable(snv_score_details,
-                  rownames = FALSE,
-                  options = list(scrollX = TRUE,
-                                 lengthChange = FALSE,
-                                 searching = FALSE))
-  }%>% DT::formatStyle(
-    'value',
-    backgroundColor = DT::styleEqual(as.character(snv_score_details$value), color_code)
-  ))
-  
-  output$snv_score_details_id <- renderText({
-    if(is.null(values$my_res))
-      return(NULL)
-    #print(values$selected_node)
-    if(!is.null(values$selected_node) && values$selected_node == '') 
-      values$selected_node <- as.character(values$my_res$query)[1]
-    
-    values$selected_node
+    rownames(snv_score_details) <- NULL
+    snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),digits = 4)
+    #save(snv_score_details, file = "objects/snv_score_details.rda")
+    tab <- tableHTML(snv_score_details, theme = 'scientific', rownames = FALSE)
+    for (i in 1:nrow(snv_score_details)) { 
+      tab <- tab %>% add_css_row(css = list(c('background-color','font-weight'), 
+                                            c(color_code[i],'bold')), rows = i+1) # first column is header
+    }
+    tab <- tab %>% add_css_column(css = list(c('background-color','text-align','font-weight'),
+                                             c('white','left','normal')), columns = 1)
+    shinyalert(title = "You did it!", html = TRUE,
+               text = as.character(tags$div(style = "text-align:-webkit-center",
+                                            tab)))
   })
+  
+  
   
   #### VARIANT SELECTION FROM PLOTLY ####
   output$selection <- renderUI({
@@ -1250,7 +1255,53 @@ server <- function(input, output, session) {
 #     d1 %>% c3(y = 'cdts_percentile', x = 'query') %>% c3_bar() %>% legend(hide= T) %>% grid('y', show = F, lines = data.frame(value = 0)) %>% tickAxis("x", values = c(1))
 #   }
 # })
-
+# getSelectedNodeID <- eventReactive(input$current_node_id, {
+#   cat("2",input$current_node_id,"\n")
+#   if(is.null(values$my_res)){
+#     color_code = "#FFFFFF"
+#     snv_score_details <- data.frame("predictors" = "None", "value" = 0)
+#     return(DT::datatable(snv_score_details,
+#                          rownames = FALSE,
+#                          options = list(scrollX = TRUE,
+#                                         lengthChange = FALSE,
+#                                         searching = FALSE)))
+#     
+#   }
+#   
+#   if(!is.null(values$selected_node) && values$selected_node == '') {
+#     values$selected_node <- as.character(values$my_res$query)[1]
+#   }
+#   
+#   snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
+#   #print(snv_score_details)
+#   color_code <- as.character(snv_score_details$color)
+#   snv_score_details$id <- gsub(x = snv_score_details$id, pattern = paste0("_", values$selected_node), replacement = "")
+#   snv_score_details <- snv_score_details[,-2] #suppression de la colonne 'color' 
+#   colnames(snv_score_details) <- c("predictors", "value")
+#   return(snv_score_details)
+# })
+# 
+# #### SVN SCORES DETAIL ####
+# output$snv_score_details <- DT::renderDataTable({
+#   DT::datatable(getSelectedNodeID(),
+#                 rownames = FALSE,
+#                 options = list(scrollX = TRUE,
+#                                lengthChange = FALSE,
+#                                searching = FALSE))
+# }%>% DT::formatStyle(
+#   'value',
+#   backgroundColor = DT::styleEqual(as.character(snv_score_details$value), color_code)
+# ))
+# 
+# output$snv_score_details_id <- renderText({
+#   if(is.null(values$my_res))
+#     return(NULL)
+#   #print(values$selected_node)
+#   if(!is.null(values$selected_node) && values$selected_node == '') 
+#     values$selected_node <- as.character(values$my_res$query)[1]
+#   
+#   values$selected_node
+# })
 
 
 

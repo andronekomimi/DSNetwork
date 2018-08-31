@@ -75,13 +75,10 @@ input_data_module <- function(){
     br(),
     verbatimTextOutput("query_res"),
     tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
-    box(title = "pre", width = 12,
-        collapsible = TRUE, collapsed = TRUE,
-        selectInput(inputId = 'preload',
-                    label = '0) Load preset query',
-                    choices = preload_loci),
-        actionButton("preload_loci", "Load preset query", icon = icon("caret-right"))
-    )
+    selectInput(inputId = 'preload',
+                label = '0) Load preset query',
+                choices = preload_loci),
+    actionButton("preload_loci", "Load preset query", icon = icon("caret-right"))
   )
 }
 
@@ -93,8 +90,9 @@ output_plot_row <- function(){
 
 raw_results_row <- function(){
   list(
+    DT::dataTableOutput("raw_data"),
     htmlOutput("selection"),
-    fluidRow(column(width = 6, downloadButton('downloadRawTable', 'Download raw results (csv)')),
+    fluidRow(column(width = 6, downloadButton('downloadRawTable', 'Download all (TSV)')),
              column(width = 6, shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
                                                  disabled = FALSE, icon = icon("gear"))))
   )
@@ -102,7 +100,7 @@ raw_results_row <- function(){
 
 selection_module <- function(){
   selectInput(inputId = 'network_type',
-              label = 'Choose the network to build',
+              label = 'Choose the network to build', selected = "regul",
               choices = c("non synonymous variants" = "non_syn",
                           "synonymous and non-coding variants" = "regul"),
               width = "100%")

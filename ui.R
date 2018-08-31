@@ -38,10 +38,10 @@ dashboardPage(
                            solidHeader = FALSE, background = NULL, width = 12,
                            collapsible = TRUE, collapsed = FALSE,
                            fluidRow(
-                             column(width = 4, 
+                             column(width = 3, 
                                     input_data_module()
                              ),
-                             column(width = 8, 
+                             column(width = 9, 
                                     conditionalPanel(condition="input.fetch_annotations",
                                                      output_plot_row()
                                     )       
@@ -54,10 +54,10 @@ dashboardPage(
                            collapsible = TRUE, collapsed = FALSE,
                            conditionalPanel(condition="input.fetch_annotations",
                                             fluidRow(
-                                              column(width = 4, 
+                                              column(width = 3, 
                                                      selection_module()
                                               ),
-                                              column(width = 8, 
+                                              column(width = 9, 
                                                      raw_results_row()
                                               )
                                             )
@@ -69,11 +69,11 @@ dashboardPage(
                            collapsible = TRUE, collapsed = FALSE,
                            conditionalPanel(condition="input.fetch_annotations",
                                             fluidRow(
-                                              column(width = 4, 
+                                              column(width = 3, 
                                                      ld_mapping_module(),
                                                      nodes_modifiers_box()   
                                               ),
-                                              column(width = 8, 
+                                              column(width = 9, 
                                                      network_results_modules()
                                                      )
                                             )
