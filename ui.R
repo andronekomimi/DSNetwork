@@ -1,8 +1,9 @@
-library(shinydashboard)
-library(visNetwork)
-library(shinyBS)
-library(d3heatmap)
+require(shinydashboard)
+require(visNetwork)
+require(shinyBS)
+require(d3heatmap)
 require(shinyjs)
+require(shinyalert)
 
 source('ui_modules.R')
 
@@ -34,6 +35,7 @@ dashboardPage(
     )),
     tabItems(
       tabItem(tabName = "main",
+              presentation_module(),
               fluidRow(box(id = "input_box", title = "Request panel", status = "primary",
                            solidHeader = FALSE, background = NULL, width = 12,
                            collapsible = TRUE, collapsed = FALSE,
@@ -70,17 +72,19 @@ dashboardPage(
                            conditionalPanel(condition="input.fetch_annotations",
                                             fluidRow(
                                               column(width = 3, 
-                                                     ld_mapping_module(),
-                                                     nodes_modifiers_box()   
+                                                     box(width = "100%",
+                                                         ld_mapping_module(),
+                                                         nodes_modifiers_box()
+                                                     ) 
                                               ),
                                               column(width = 9, 
                                                      network_results_modules()
-                                                     )
+                                              )
                                             )
                            )
                            
               )) # end network
-
+              
       ),
       tabItem(tabName = "readme",
               includeMarkdown("README.Rmd")

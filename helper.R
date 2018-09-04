@@ -1444,7 +1444,6 @@ createVCF <- function(session_values, filename){
   write(x = vcf_content, file = filename, append = T)
 }
 
-
 extractBayesDel <- function(path_to_victor, filename){
   cmd <- paste0(path_to_victor,"vAnnBase ",filename," --genome ",path_to_victor,"data/hg19/ --ann ",path_to_victor,"data/hg19/BayesDel_nsfp33a_noAF -x 3 --min -1.5 --step 0.01 --indel max --padding 1 -o ", filename,".gz")
   print(cmd)
@@ -1521,6 +1520,30 @@ extract_BAYESDEL_range <- function(){
   
 }
 
+createSNPnexusInput <- function(session_values, filename){
+  res <- session_values$res
+  #chromosome      3       55279372        A       C       1
+  file_content <- paste("chromosome",res$dbsnp.chrom, res$dbsnp.hg19.start, res$dbsnp.ref, res$dbsnp.alt, 1, sep = "\t")
+  write(x = file_content, file = filename, append = T)
+}
+
+runSNPnexus <- function(python_path, path_to_snpnexus, filename, waiting_time){
+  
+  cmd <- paste0(python_path, " ",path_to_snpnexus,"SNPnexus_IW_web_retriever.py ",filename," ",filename,"_known ",filename,"_novel ", waiting_time)
+  print(cmd)
+  output <- system(command = cmd, intern = T)
+  print(output)
+  
+  if(file.exists(paste0(filename,"_known")) && file.exists(paste0(filename,"_novel"))){
+    return(list(
+      readr::read_csv(file = paste0(filename,"_known")),
+      readr::read_csv(file = paste0(filename,"_novel"))
+    ))
+  } else {
+    return(NULL)
+  }
+}
+
 snpnexusIDconversion <- function(snpnexusID){
   #snpnexusID = chr5:44546628:A/G:1
   snpnexusID <- unlist(strsplit(x = unlist(strsplit(x = snpnexusID, split = ":")), split = "/"))
@@ -1528,3 +1551,7 @@ snpnexusIDconversion <- function(snpnexusID){
 }
 
 
+
+createButton <- function(id) {
+  sprintf('<button id="lol" type="button" class="btn btn-default action-button">See details ...</button>',id)
+}

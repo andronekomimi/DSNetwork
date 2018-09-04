@@ -56,42 +56,49 @@ sidebar_content <- function(){
 }
 
 input_data_module <- function(){
-  list(
-    textAreaInput("query", "Enter variant ids", "", rows = 5, 
-                  placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
-    fileInput("query_file", "or load text file (one variant id per line)", 
-              multiple = FALSE, 
-              accept = c(
-                "text/csv",
-                "text/comma-separated-values,text/plain",
-                ".csv")
-    ),
-    checkboxInput(inputId = "fetch_snpnexus", label = "Fetch annotations from SNPnexus (significatively increase fetching duration)"),
-    shinyBS::bsButton(inputId = "fetch_annotations", 
-                      label = "Fetch Annotations", 
-                      icon = icon("search"), disabled = FALSE),
-    verbatimTextOutput("transform_res"),
-    tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
-    br(),
-    verbatimTextOutput("query_res"),
-    tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
-    selectInput(inputId = 'preload',
-                label = '0) Load preset query',
-                choices = preload_loci),
-    actionButton("preload_loci", "Load preset query", icon = icon("caret-right"))
+  box(width = "100%",
+      textAreaInput("query", "Enter variant ids", "", rows = 5, 
+                    placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
+      fileInput("query_file", "or load text file (one variant id per line)", 
+                multiple = FALSE, 
+                accept = c(
+                  "text/csv",
+                  "text/comma-separated-values,text/plain",
+                  ".csv")
+      ),
+      checkboxInput(inputId = "fetch_snpnexus", label = "Fetch annotations from SNPnexus (significatively increase fetching duration)"),
+      conditionalPanel(condition = "input.fetch_snpnexus == 1",
+                       sliderInput(inputId = "waiting", 
+                                   label = "How long are you willing to wait ?", 
+                                   min = 1, max = 10, value = 2, step = 1),
+                       verbatimTextOutput("snpnexus_res"),
+                       tags$style(type="text/css", "#snpnexus_res {white-space: pre-wrap;}")),
+      shinyBS::bsButton(inputId = "fetch_annotations", 
+                        label = "Fetch Annotations", 
+                        icon = icon("search"), disabled = FALSE),
+      verbatimTextOutput("transform_res"),
+      tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
+      br(),
+      verbatimTextOutput("query_res"),
+      tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
+      selectInput(inputId = 'preload',
+                  label = '0) Load preset query',
+                  choices = preload_loci),
+      actionButton("preload_loci", "Load preset query", icon = icon("caret-right"))
   )
 }
 
 output_plot_row <- function(){
-  helpText("Qu'est qu'on regarde bordel ??!")
-  jqui_resizable(plotlyOutput(outputId = "my_plot",
-                              height = "400px", width = "auto"))
+  list(
+    helpText("Qu'est-ce qu'on regarde bordel ??!"),
+    jqui_resizable(plotlyOutput(outputId = "my_plot",
+                                height = "400px", width = "auto"))
+  )
 }
 
 raw_results_row <- function(){
   list(
     DT::dataTableOutput("raw_data"),
-    htmlOutput("selection"),
     fluidRow(column(width = 6, downloadButton('downloadRawTable', 'Download all (TSV)')),
              column(width = 6, shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
                                                  disabled = FALSE, icon = icon("gear"))))
@@ -99,11 +106,13 @@ raw_results_row <- function(){
 }
 
 selection_module <- function(){
-  selectInput(inputId = 'network_type',
-              label = 'Choose the network to build', selected = "regul",
-              choices = c("non synonymous variants" = "non_syn",
-                          "synonymous and non-coding variants" = "regul"),
-              width = "100%")
+  box(width = "100%",
+      selectInput(inputId = 'network_type',
+                  label = 'Choose the network to build', selected = "regul",
+                  choices = c("non synonymous variants" = "non_syn",
+                              "synonymous and non-coding variants" = "regul"),
+                  width = "100%")
+  )
 }
 
 nodes_modifiers_box <- function(){
@@ -153,7 +162,7 @@ nodes_modifiers_box <- function(){
 
 network_results_modules <- function(){
   list(
-    jqui_resizable(visNetworkOutput("my_network", height = "400px")),
+    jqui_resizable(visNetworkOutput("my_network", height = "600px")),
     bsModal(id = "modalExample", title = "Details", trigger = "current_node_id", size = "small",
             DT::dataTableOutput(outputId = "snv_score_details"))
   )
@@ -173,7 +182,14 @@ ld_mapping_module <- function(){
   )
 }
 
-
+presentation_module <- function(){
+  fluidRow(box(id = "intro_box", title = "DSNetwork", solidHeader = FALSE, background = NULL, width = 12,
+               collapsible = TRUE, collapsed = TRUE,
+               column(width = 12, 
+                      helpText("Text de presentation")
+               )
+  ))
+}
 
 
 

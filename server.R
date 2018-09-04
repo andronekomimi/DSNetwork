@@ -1,11 +1,13 @@
-library(shiny)
-library(d3heatmap)
-library(visNetwork)
-library(myvariant)
-library(shinyBS)
+require(shiny)
+require(d3heatmap)
+require(visNetwork)
+require(myvariant)
+require(shinyBS)
 require(plotly)
 require(shinyjs)
 require(tableHTML)
+require(magrittr)
+require(shinyalert)
 
 options(shiny.trace = FALSE)
 
@@ -135,8 +137,15 @@ server <- function(input, output, session) {
   output$transform_res <- renderText({ query_control() })
   
   #### FETCH ANNOTATIONS ####
+  
+  # observeEvent(input$fetch_annotations, {
+  #   js$collapse("intro_box")
+  #   js$collapse("selection_box")
+  #   js$collapse("network_box")
+  # })
+  
   observeEvent(input$fetch_annotations, {
-
+    
     withProgress(message = 'Fetching annotations', value = 0, {
       n <- 10
       modstring <- c()
@@ -255,42 +264,56 @@ server <- function(input, output, session) {
           #### fetch SNPnexus from HTML request ####
           if(input$fetch_snpnexus){
             incProgress(4/n, detail = "Interrogating SNPNexus platform...")
-            if(input$preload == "locus_0"){
+            path_to_snpnexus <- "/Users/nekomimi/Workspace/DSNetwork/softs/snpnexus/"
+            python_path <- "/Users/nekomimi/anaconda/bin/python"
+            
+            # create temp snps file
+            filename <- tempfile(tmpdir = tmpDir, fileext = ".txt")
+            print(filename)
+            createSNPnexusInput(session_values = values, filename = filename)
+            value <- runSNPnexus(python_path = python_path,
+                                 path_to_snpnexus = path_to_snpnexus, 
+                                 filename = filename, 
+                                 waiting_time = input$waiting)
+            
+            save(value, file = "objects/value.rda")
+            
+            if(!is.null(value)){
               pre_res <- values$res
-              save(pre_res, file = 'objects/pre_res.rda')
-              x1 <- readr::read_tsv(file = "demo/known_workflow.txt")
-              x2 <- readr::read_tsv(file = "demo/novel_workflow.txt")
-              snpnexus_res <- merge(x = x1, y = x2, by.x = "ID", by.y = "ID", all = T)
+              save(pre_res, file = "objects/pre_res.rda")
+              #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,gwava_region,gwava_tss,gwava_unmatched,remm,iwscorek11,pvalk11,iwscorek10,pvalk10`
+              x1 <- value[[1]] 
+              #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,remm,iwscoren8,pvaln8,iwscoren6,pvaln6`
+              x2 <- value[[2]]
+              snpnexus_res <- merge(x = x1, y = x2, by.x = "id", by.y = "id", all = T)
               
               #convert id to submit to myvariant info to get a common id between snpnexus and res
-              converted_id <- sapply(X = snpnexus_res$ID, FUN = function(x) snpnexusIDconversion(x))
+              converted_id <- sapply(X = snpnexus_res$id, FUN = function(x) snpnexusIDconversion(x))
               snpnexus_res$converted_id <- converted_id
               # merge results based on common id
               pre_res <- merge(y = snpnexus_res, x = pre_res, by.y = "converted_id", by.x = "X_id", all = T)
               # metascores
-              pre_res$iwscoring_novel <- pre_res$score_integrated_6scores
-              pre_res$iwscoring_known <- pre_res$score_integrated_10scores
+              pre_res$iwscoring_novel <- pre_res$iwscoren6
+              pre_res$iwscoring_known <- pre_res$iwscorek10
               # non-coding scores
-              colnames(pre_res)[colnames(pre_res) == "deepseq_sig_log2.x"] <- "deepseq_sig_log2" #deppsea : Lower score indicates higher likelihood of functional significance of the variant. But log2 is in the "good" direction
-              colnames(pre_res)[colnames(pre_res) == "eigen_score.x"] <- "eigen_nc"
-              colnames(pre_res)[colnames(pre_res) == "eigen_pc_score.x"] <- "eigen_pc_nc" #higher score more likelihood of the variant to be functional. 
-              colnames(pre_res)[colnames(pre_res) == "fathmm_nc_score.x"] <- "fathmm_nc" #Scores above 0.5 are predicted to be deleterious
-              colnames(pre_res)[colnames(pre_res) == "fitcons_score.x"] <- "fitcons_nc" #with higher scores indicating more potential
-              colnames(pre_res)[colnames(pre_res) == "funseq_score.x"] <- "funseq" #higher scores indicating more likely to be functional.
-              colnames(pre_res)[colnames(pre_res) == "remm_score.x"] <- "remm" #higher scores indicating more likely to be deleterious.
+              colnames(pre_res)[colnames(pre_res) == "deepsea.x"] <- "deepseq_sig_log2@" #deppsea : Lower score indicates higher likelihood of functional significance of the variant. But log2 is in the "good" direction
+              colnames(pre_res)[colnames(pre_res) == "eigen.x"] <- "eigen_nc"
+              colnames(pre_res)[colnames(pre_res) == "eigen_pc.x"] <- "eigen_pc_nc" #higher score more likelihood of the variant to be functional. 
+              colnames(pre_res)[colnames(pre_res) == "fathmm.x"] <- "fathmm_nc" #Scores above 0.5 are predicted to be deleterious
+              colnames(pre_res)[colnames(pre_res) == "fitcons.x"] <- "fitcons_nc" #with higher scores indicating more potential
+              colnames(pre_res)[colnames(pre_res) == "funseq2.x"] <- "funseq" #higher scores indicating more likely to be functional.
+              colnames(pre_res)[colnames(pre_res) == "remm.x"] <- "remm" #higher scores indicating more likely to be deleterious.
               #gwava : higher scores indicating variants predicted as more likely to be functional.
               
               # suppress unsued column
-              pre_res <- pre_res[,!grepl(x = colnames(pre_res), pattern = "\\.x$|\\.y$|^score_integrated|ID")]
+              pre_res <- pre_res[,!grepl(x = colnames(pre_res), pattern = "\\.x$|\\.y$|^iwscore|converted_id|pval")]
               
               # re-insert res table
               values$res <- pre_res
             } else {
-              set.seed(24102009)
-              values$res$iwscoring_known <- sample(x = seq(from=-5, to = 6, by = 0.01), size = nrow(values$res), replace = T) #TODO
-              values$res$iwscoring_novel <- sample(x = seq(from=-5, to = 6, by = 0.01), size = nrow(values$res), replace = T) #TODO
-              values$res$eigen <- sample(x = seq(from=-2, to = 2, by = 0.01), size = nrow(values$res), replace = T) #TODO
-              values$res$eigen_pc <- sample(x = seq(from=-2, to = 2, by = 0.01), size = nrow(values$res), replace = T) #TODO
+              local({
+                output$snpnexus_res <- renderText({ "SNPnexus taking too long to answer, sorry..." })
+              })
             }
           } else {
             incProgress(4/n, detail = "Skipping SNPNexus...")
@@ -409,13 +432,26 @@ server <- function(input, output, session) {
         
         output$raw_data <- DT::renderDataTable({
           if(input$network_type == "regul"){
-            DT::datatable(as.matrix(values$annotations[!non_syn_res,]), 
+            n <- seq(min(sum(!non_syn_res), MAX_VAR))
+            DT::datatable(data = as.matrix(values$annotations[!non_syn_res,]), 
+                          extensions = 'Scroller',
+                          selection = list(mode = 'multiple', selected = n),
                           options = list(scrollX = TRUE,
                                          ordering = FALSE,
-                                         selected = c(1, 3, 8, 10)))
+                                         deferRender = TRUE,
+                                         scrollY = 400,
+                                         scroller = TRUE
+                          ))
           } else {
-            DT::datatable(as.matrix(values$annotations[non_syn_res,]),
-                          options = list(scrollX = TRUE,ordering=F))
+            n <- min(sum(non_syn_res), MAX_VAR)
+            DT::datatable(data = as.matrix(values$annotations[non_syn_res,]), 
+                          extensions = 'Scroller',
+                          selection = list(mode = 'multiple', selected = n),
+                          options = list(scrollX = TRUE,
+                                         ordering = FALSE,
+                                         deferRender = TRUE,
+                                         scrollY = 400,
+                                         scroller = TRUE))
           }
         })
         
@@ -425,80 +461,43 @@ server <- function(input, output, session) {
             readr::write_delim(x = values$res, path = file, delim = "\t")
           }
         )
-        
-        #### BUILDING FIRST DEFAULT PLOT ####
-        my_data <- data.frame(values$global_ranges, stringsAsFactors = F)
-        my_data$cdts_score <- values$res$cdts_score
-        my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-        my_data$consequences <- sapply(values$res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
-        my_data$no_cdts <- is.na(my_data$cdts_score)
-        my_data$selected <- TRUE
-        
-        if(input$network_type == "regul"){
-          my_data[my_data$non_synonymous]$selected <- FALSE
-        } else {
-          my_data[!my_data$non_synonymous]$selected <- FALSE
-        }
-        
-        if(nrow(my_data) > MAX_VAR){
-          my_data[(MAX_VAR+1):nrow(my_data),]$selected <- FALSE
-        }
-          
-        my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
-        values$my_data <- my_data
-        
-        output$my_plot <- renderPlotly({
-          my_data <- values$my_data
-          text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
-          text_snp <- paste(text_snp, paste0("\nConsequences: ", my_data$consequences))
-          xa <- list(title = "",
-                     zeroline = FALSE,
-                     showline = TRUE,
-                     showticklabels = TRUE,
-                     showgrid = TRUE)
-          plot_ly(type = "scatter", mode = "markers", my_data, x = ~start, y = ~cdts_score, 
-                  showlegend = F, source = "subset") %>%
-            add_trace(data = values$cdts_region, 
-                      type = 'scatter', 
-                      mode = 'lines',
-                      x = ~start, 
-                      y = ~CDTS, 
-                      hoverinfo = "none",
-                      line = list(color = 'gray'), 
-                      opacity = 0.3,
-                      showlegend = F) %>%
-            add_trace( data = my_data,
-                       x = ~start,
-                       y = ~cdts_score,
-                       text =  text_snp,
-                       split = ~non_synonymous,
-                       hoverinfo = 'text',
-                       # legendgroup = 'In network', 
-                       # name = 'In network', 
-                       showlegend = T) %>%
-            add_trace( data = my_data,
-                       x = ~start,
-                       y = ~cdts_score,
-                       #text =  text_snp,
-                       split = ~selected,
-                       # hoverinfo = 'text',
-                       # legendgroup = 'In network', 
-                       # name = 'In network', 
-                       showlegend = T) %>%
-            layout(xaxis = xa, dragmode =  "select")
-        })
-        
-        
       })
       
+      #### BUILDING DATA FOR FIRST DEFAULT PLOT ####
+      my_data <- data.frame(values$global_ranges, stringsAsFactors = F)
+      my_data$cdts_score <- values$res$cdts_score
+      my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
+      my_data$consequences <- sapply(values$res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+      my_data$no_cdts <- is.na(my_data$cdts_score)
+      my_data$selected <- TRUE
       
-      if(!is.null(values$res)){
-        shinyBS::updateButton(session = session, inputId = "runLD", 
-                              disabled = FALSE)
+      if(input$network_type == "regul"){
+        if(sum(my_data$non_synonymous) > 0){
+          my_data[my_data$non_synonymous,]$selected <- FALSE
+        }
       } else {
-        shinyBS::updateButton(session = session, inputId = "runLD",
-                              disabled = TRUE)
+        if(sum(!my_data$non_synonymous) > 0){
+          my_data[!my_data$non_synonymous,]$selected <- FALSE
+        }
       }
+      
+      if(nrow(my_data) > MAX_VAR){
+        my_data[(MAX_VAR+1):nrow(my_data),]$selected <- FALSE
+      }
+      
+      my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
+      
+      # reste inchangé
+      my_data$shape <- "x"
+      my_data$shape[my_data$non_synonymous] <- "o"
+      my_data$size <- 10
+      
+      # sera MAJ
+      my_data$color <- "blue"
+      my_data$color[my_data$selected] <- "red"
+      
+      values$my_data <- my_data
+      save(my_data, file = "objects/my_data.rda")
     })
   })
   
@@ -510,7 +509,7 @@ server <- function(input, output, session) {
              yes = "Annotations found for all variants")  
     }
   })
-
+  
   #### FETCH LD INFOS ####
   runLD <- eventReactive(input$runLD,{
     my_res <- values$my_res
@@ -601,8 +600,26 @@ server <- function(input, output, session) {
   
   buildNetwork <- eventReactive(input$buildNetwork,{
     # shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
-    
     print("buildNetwork")
+    
+    if(is.null(values$my_data))
+      return(NULL)
+    
+    my_data <- values$my_data
+    
+    if(input$network_type == "regul"){
+      absolute_idx <- which(!my_data$non_synonymous)
+      my_res <- values$all_regul_res
+    } else {
+      absolute_idx <- which(my_data$non_synonymous)
+      my_res <- values$all_nonsyn_res
+    }
+    
+    s1 = input$raw_data_rows_selected
+    
+    if(!(is.null(s1))){
+      my_res <- my_res[sort(s1),]
+    }
     
     # start by destroying everything
     if(!is.null(values$current_nodes)){
@@ -619,31 +636,24 @@ server <- function(input, output, session) {
     
     id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
     
-    switch(input$network_type,
-           non_syn = {
-             my_res <- values$all_nonsyn_res
-           },
-           regul = {
-             my_res <- values$all_regul_res
-           }
-    )
     
-    event.data <- event_data("plotly_selected", source = "subset")
     
-    if(is.null(event.data) == T){
-      if(nrow(my_res) > MAX_VAR){
-        my_res <- my_res[1:MAX_VAR,]
-      } else {
-        my_res <- my_res
-      }
-    } else {
-      my_selection <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
-      if(nrow(my_selection) > MAX_VAR){
-        my_res <- my_res[my_res$query %in% my_selection$query[1:MAX_VAR],]
-      } else {
-        my_res <- my_res[my_res$query %in% my_selection$query,]
-      }
-    }
+    #     event.data <- event_data("plotly_selected", source = "subset")
+    # 
+    #     if(is.null(event.data) == T){
+    #       if(nrow(my_res) > MAX_VAR){
+    #         my_res <- my_res[1:MAX_VAR,]
+    #       } else {
+    #         my_res <- my_res
+    #       }
+    #     } else {
+    #       my_selection <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
+    #       if(nrow(my_selection) > MAX_VAR){
+    #         my_res <- my_res[my_res$query %in% my_selection$query[1:MAX_VAR],]
+    #       } else {
+    #         my_res <- my_res[my_res$query %in% my_selection$query,]
+    #       }
+    #     }
     
     values$my_res <- my_res
     
@@ -693,11 +703,23 @@ server <- function(input, output, session) {
     if (!is.null(id))
       removeNotification(id)
     # saveRDS(object = vn, file = "objects/init_vn.rds")
+    
+    if(!is.null(values$res)){
+      shinyBS::updateButton(session = session, inputId = "runLD", 
+                            disabled = FALSE)
+    } else {
+      shinyBS::updateButton(session = session, inputId = "runLD",
+                            disabled = TRUE)
+    }
+    
     return(list(nodes = values$current_nodes, edges = values$current_edges))
   })
   
   output$my_network <- renderVisNetwork({
     vn_components <- buildNetwork()
+    if(is.null(vn_components))
+      return(NULL)
+    
     save(vn_components, file = "objects/vn_components.rda")
     visNetwork(vn_components$nodes, 
                vn_components$edges) %>%
@@ -715,49 +737,81 @@ server <- function(input, output, session) {
   })
   
   #### UPDATE PLOT ####
-  buildPlot <- eventReactive(input$raw_data_rows_selected, {
-    s = input$raw_data_rows_selected
-    print(s)
+  buildPlot <- eventReactive(c(input$fetch_annotations, input$raw_data_rows_selected), {
+    if(is.null(values$my_data))
+      return(NULL)
     
-    my_data <- as.data.frame(values$global_ranges)
-    my_data$cdts_score <- values$res$cdts_score
-    my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-    my_data$consequences <- sapply(values$res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
-    my_data$no_cdts <- is.na(my_data$cdts_score)
-    my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
-    values$my_data <- my_data
+    my_data <- values$my_data
+    
+    if(input$network_type == "regul"){
+      absolute_idx <- which(!my_data$non_synonymous)
+    } else {
+      absolute_idx <- which(my_data$non_synonymous)
+    }
+    
+    s1 = input$raw_data_rows_selected
+    s2 = input$raw_data_rows_current
+    
+    if(!(is.null(s1))){
+      my_data$selected <- FALSE
+      my_data$color <- "blue"
+      my_data[sort(absolute_idx[s1]),]$selected <- TRUE
+      my_data$color[my_data$selected] <- "red"
+    }
+    
     return(my_data)
   })
   
+  buildPlot_d <- buildPlot %>% debounce(2000)
+  
   output$my_plot <- renderPlotly({
-    my_data <- buildPlot()
+    my_data <- buildPlot_d()
+    if(is.null(my_data) || nrow(my_data) == 0)
+      return(NULL)
+    
+    cdts_region_line <- values$cdts_region
+    cdts_region_line$color = "gray"
+    cdts_region_line$size = 1
+    cdts_region_line$shape = "line-ew"
+    
     text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
     text_snp <- paste(text_snp, paste0("\nConsequences: ", my_data$consequences))
-    xa <- list(title = "",
+    xa <- list(title = levels(my_data$seqnames),
                zeroline = FALSE,
                showline = TRUE,
                showticklabels = TRUE,
                showgrid = TRUE)
-    plot_ly(type = "scatter", mode = "markers", my_data, x = ~start, y = ~cdts_score, 
+    
+    plot_ly(data = my_data,
+            type = "scatter",
+            mode = "markers",
+            x = ~start,
+            y = ~cdts_score,
+            symbol = ~I(shape), color = ~I(color), size = ~I(size),
+            marker = list(
+              opacity = 0.5
+            ),
             showlegend = F, source = "subset") %>%
-      add_trace(data = values$cdts_region, 
-                type = 'scatter', 
+      add_trace(data = cdts_region_line,
+                type = 'scatter',
                 mode = 'lines',
-                x = ~start, 
-                y = ~CDTS, 
+                x = ~start,
+                y = ~CDTS,
                 hoverinfo = "none",
                 line = list(color = 'gray'), 
                 opacity = 0.3,
                 showlegend = F) %>%
-      add_trace( data = my_data,
-                 x = ~start,
-                 y = ~cdts_score,
-                 text =  text_snp,
-                 split = ~non_synonymous,
-                 hoverinfo = 'text',
-                 # legendgroup = 'In network', 
-                 # name = 'In network', 
-                 showlegend = T) %>%
+      add_trace(data = my_data,
+                x = ~start,
+                y = ~cdts_score,
+                text =  text_snp,
+                type = "scatter", 
+                mode = "markers",
+                #split = ~non_synonymous,
+                hoverinfo = 'text',
+                # legendgroup = 'In network',
+                # name = 'In network',
+                showlegend = T) %>%
       layout(xaxis = xa, dragmode =  "select")
   })
   
@@ -887,7 +941,7 @@ server <- function(input, output, session) {
     }
     tab <- tab %>% add_css_column(css = list(c('background-color','text-align','font-weight'),
                                              c('white','left','normal')), columns = 1)
-    shinyalert(title = "You did it!", html = TRUE,
+    shinyalert(title = input$current_node_id, html = TRUE,
                text = as.character(tags$div(style = "text-align:-webkit-center",
                                             tab)))
   })
