@@ -4,12 +4,16 @@ require(shinyBS)
 require(d3heatmap)
 require(shinyjs)
 require(shinyalert)
+require(markdown)
 
 source('ui_modules.R')
 
 jscode <- "
 shinyjs.collapse = function(boxid) {
 $('#' + boxid).closest('.box').find('[data-widget=collapse]').click();
+};
+shinyjs.myFunction = function(idx) {
+    alert('Select '+idx);
 }
 "
 
@@ -40,10 +44,10 @@ dashboardPage(
                            solidHeader = FALSE, background = NULL, width = 12,
                            collapsible = TRUE, collapsed = FALSE,
                            fluidRow(
-                             column(width = 3, 
+                             column(width = 4, 
                                     input_data_module()
                              ),
-                             column(width = 9, 
+                             column(width = 8, 
                                     conditionalPanel(condition="input.fetch_annotations",
                                                      output_plot_row()
                                     )       
@@ -56,10 +60,10 @@ dashboardPage(
                            collapsible = TRUE, collapsed = FALSE,
                            conditionalPanel(condition="input.fetch_annotations",
                                             fluidRow(
-                                              column(width = 3, 
+                                              column(width = 4, 
                                                      selection_module()
                                               ),
-                                              column(width = 9, 
+                                              column(width = 8, 
                                                      raw_results_row()
                                               )
                                             )
@@ -71,13 +75,13 @@ dashboardPage(
                            collapsible = TRUE, collapsed = FALSE,
                            conditionalPanel(condition="input.fetch_annotations",
                                             fluidRow(
-                                              column(width = 3, 
+                                              column(width = 4, 
                                                      box(width = "100%",
                                                          ld_mapping_module(),
                                                          nodes_modifiers_box()
                                                      ) 
                                               ),
-                                              column(width = 9, 
+                                              column(width = 8, 
                                                      network_results_modules()
                                               )
                                             )
@@ -87,7 +91,13 @@ dashboardPage(
               
       ),
       tabItem(tabName = "readme",
-              includeMarkdown("README.Rmd")
+              shiny::includeHTML(path = "README.Rhtml")
+      ),
+      tabItem(tabName = "description",
+              about_module()
+      ),
+      tabItem(tabName = "about",
+              shiny::includeHTML("ABOUT.Rhtml")
       )
     )
   ), 

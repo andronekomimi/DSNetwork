@@ -49,8 +49,8 @@ preload_loci <- c("FGFR2" = "locus_0",
 sidebar_content <- function(){
   sidebarMenu(
     menuItem("How to get a network", tabName = "main", icon = icon("hand-o-up")),
-    helpText("Help text"),
-    menuItem("ReadMe", tabName = "readme", icon=icon("mortar-board")),
+    menuItem("Scores description", tabName = "description", icon = icon("info-circle")),
+    menuItem("Read Me", tabName = "readme", icon = icon("mortar-board")),
     menuItem("About", tabName = "about", icon = icon("question"))
   )
 }
@@ -59,6 +59,9 @@ input_data_module <- function(){
   box(width = "100%",
       textAreaInput("query", "Enter variant ids", "", rows = 5, 
                     placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
+      div(style = "text-align:-webkit-right", 
+          actionLink(inputId = "load_demo", label = "load sample data")),
+      br(),
       fileInput("query_file", "or load text file (one variant id per line)", 
                 multiple = FALSE, 
                 accept = c(
@@ -66,21 +69,19 @@ input_data_module <- function(){
                   "text/comma-separated-values,text/plain",
                   ".csv")
       ),
-      checkboxInput(inputId = "fetch_snpnexus", label = "Fetch annotations from SNPnexus (significatively increase fetching duration)"),
+      checkboxInput(inputId = "fetch_snpnexus", label = "Fetch annotations from SNPnexus (significatively increases fetching duration)"),
       conditionalPanel(condition = "input.fetch_snpnexus == 1",
                        sliderInput(inputId = "waiting", 
-                                   label = "How long are you willing to wait ?", 
-                                   min = 1, max = 10, value = 2, step = 1),
-                       verbatimTextOutput("snpnexus_res"),
-                       tags$style(type="text/css", "#snpnexus_res {white-space: pre-wrap;}")),
+                                   label = "How long are you willing to wait ? (default: 5 min)", 
+                                   min = 1, max = 10, value = 5, step = 1)),
       shinyBS::bsButton(inputId = "fetch_annotations", 
                         label = "Fetch Annotations", 
                         icon = icon("search"), disabled = FALSE),
-      verbatimTextOutput("transform_res"),
-      tags$style(type="text/css", "#transform_res {white-space: pre-wrap;}"),
-      br(),
-      verbatimTextOutput("query_res"),
-      tags$style(type="text/css", "#query_res {white-space: pre-wrap;}"),
+      conditionalPanel(condition = "input.fetch_annotations == 1",
+                       br(),
+                       shinyBS::bsAlert(anchorId = "alert_res"),
+                       downloadButton('downloadRawTable', 'Download results (TSV)'))
+      ,
       selectInput(inputId = 'preload',
                   label = '0) Load preset query',
                   choices = preload_loci),
@@ -90,7 +91,10 @@ input_data_module <- function(){
 
 output_plot_row <- function(){
   list(
-    helpText("Qu'est-ce qu'on regarde bordel ??!"),
+    div(style = "color:gray", 
+        HTML(paste0("This plot represents the requested variants along the map of sequence constraint "),
+             "- <b>C</b>ontect-<b>D</b>ependent <b>T</b>olerence <b>S</b>core (CDTS) - ",
+             "determined throught alignment of thousands of human genomes.")),
     jqui_resizable(plotlyOutput(outputId = "my_plot",
                                 height = "400px", width = "auto"))
   )
@@ -99,9 +103,9 @@ output_plot_row <- function(){
 raw_results_row <- function(){
   list(
     DT::dataTableOutput("raw_data"),
-    fluidRow(column(width = 6, downloadButton('downloadRawTable', 'Download all (TSV)')),
-             column(width = 6, shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
-                                                 disabled = FALSE, icon = icon("gear"))))
+    div(style = "text-align:-webkit-right", 
+        shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
+                          disabled = TRUE, icon = icon("gear")))
   )
 }
 
@@ -141,7 +145,8 @@ nodes_modifiers_box <- function(){
                                           choices = c(),
                                           selectize = TRUE, multiple = TRUE))
                      ),
-                     actionButton("update_metascore", "Update"),
+                     shinyBS::bsButton(inputId = 'update_metascore', label = 'Update',  
+                                       icon = icon("gear"), disabled = TRUE),
                      p(
                        class = "text-muted", br(),
                        paste("This option enables to select the set of prediction and",
@@ -162,9 +167,7 @@ nodes_modifiers_box <- function(){
 
 network_results_modules <- function(){
   list(
-    jqui_resizable(visNetworkOutput("my_network", height = "600px")),
-    bsModal(id = "modalExample", title = "Details", trigger = "current_node_id", size = "small",
-            DT::dataTableOutput(outputId = "snv_score_details"))
+    jqui_resizable(visNetworkOutput("my_network", height = "600px"))
   )
 }
 
@@ -174,11 +177,17 @@ ld_mapping_module <- function(){
                 label = 'Choose the population to use',
                 choices = populations),
     shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
-                      icon = icon("gear"), disabled = FALSE),
+                      icon = icon("gear"), disabled = TRUE),
     br(),
-    br(),
-    verbatimTextOutput("runld_res"),
-    tags$style(type="text/css", "#runld_res {white-space: pre-wrap;}")
+    shinyBS::bsAlert(anchorId = "alert_ld"),
+    sliderInput("ld_range", "LD range",
+                min = 0, max = 1, value = c(0, 1), step = 0.1), 
+    shinyBS::bsButton(inputId = 'update_ld', label = 'Update',  
+                      icon = icon("gear"), disabled = TRUE),
+    p(class = "text-muted",
+      br(),
+      "This option enables to select the interval of LD values represented between variants"
+    )
   )
 }
 
@@ -191,8 +200,9 @@ presentation_module <- function(){
   ))
 }
 
-
-
+about_module <- function(){
+  uiOutput("scores_description")
+}
 
 #### OBSOLETE ####
 # predictors_selection <- function(){
