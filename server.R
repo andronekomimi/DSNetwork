@@ -72,6 +72,11 @@ server <- function(input, output, session) {
     updateTextAreaInput(session = session, inputId = "query", value = preload[[input$preload]])
   })
   
+  #### LOAD DEMO QUERY ####
+  observeEvent(input$load_demo, {
+    updateTextAreaInput(session = session, inputId = "query", value = preload[["locus_0"]])
+  })
+  
   #### INPUT DATA MANAGEMENT ####
   transform_query <- function(string){
     if(nchar(input$query) > 0){
@@ -115,27 +120,6 @@ server <- function(input, output, session) {
     }
   }
   
-  query_control <- eventReactive(input$fetch_annotations, {
-    shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
-                          disabled = TRUE)
-    
-    modstring <- c()
-    if(!is.null(input$query_file))
-      modstring <- c(modstring, transform_query_file(input$query_file$datapath))
-    
-    if(nchar(input$query) > 0)
-      modstring <- c(modstring, transform_query(input$query))
-    
-    fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
-    if(length(modstring) > 0){
-      if(length(fail_transfo) > 0){
-        res <- paste0('Id recognition fails for: ', paste(fail_transfo, collapse = ","), '.')
-      }
-    }            
-  })
-  
-  output$transform_res <- renderText({ query_control() })
-  
   #### FETCH ANNOTATIONS ####
   
   # observeEvent(input$fetch_annotations, {
@@ -145,6 +129,9 @@ server <- function(input, output, session) {
   # })
   
   observeEvent(input$fetch_annotations, {
+    
+    shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
+                          disabled = TRUE)
     
     withProgress(message = 'Fetching annotations', value = 0, {
       n <- 10
@@ -156,7 +143,17 @@ server <- function(input, output, session) {
         modstring <- c(modstring, transform_query(input$query))
       
       valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
-      save(valid_transfo, file = 'objects/valid_transfo.rda')
+      save(modstring, file = 'objects/modstring.rda')
+      
+      fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
+      if(length(modstring) > 0){
+        if(length(fail_transfo) > 0){
+          res <- paste0('Id recognition fails for: ', paste(fail_transfo, collapse = ","), '.')
+          shinyBS::createAlert(session = session, anchorId = "alert_res",
+                               alertId = "alert1", title = "Id recognition",
+                               content = res , append = TRUE, style = "warning")
+        }
+      }
       
       if(length(valid_transfo) > 0){
         #### run myvariant ####
@@ -311,9 +308,10 @@ server <- function(input, output, session) {
               # re-insert res table
               values$res <- pre_res
             } else {
-              local({
-                output$snpnexus_res <- renderText({ "SNPnexus taking too long to answer, sorry..." })
-              })
+              shinyBS::createAlert(session = session, anchorId = "alert_res",
+                                   alertId = "alert4", title = "Data retrieval",
+                                   content = "SNPnexus taking too long to answer, sorry..." , 
+                                   append = TRUE, style = "warning")
             }
           } else {
             incProgress(4/n, detail = "Skipping SNPNexus...")
@@ -419,40 +417,62 @@ server <- function(input, output, session) {
           save(raw_scores, adjusted_scores, file = "objects/scores.rda")
           values$raw_scores <- names(raw_scores)
           values$adjusted_scores <- names(adjusted_scores)
+          
+          if(is.null(values$notfound_id)){
+            shinyBS::createAlert(session = session, anchorId = "alert_res",
+                                 alertId = "alert2", title = "Data retrieval",
+                                 content = "Annotations found for all variants" , append = TRUE, style = "success")
+          } else {
+            shinyBS::createAlert(session = session, anchorId = "alert_res",
+                                 alertId = "alert2", title = "Data retrieval",
+                                 content = paste0("No Annotations for the following variants: ", 
+                                                  values$notfound_id,".") , append = TRUE, style = "warning")
+          }
+        } else {
+          shinyBS::createAlert(session = session, anchorId = "alert_res",
+                               alertId = "alert3", title = "Data retrieval",
+                               content = "ERROR : No Annotations found !", 
+                               append = TRUE, style = "danger")
         }
       }
       
       local({
         #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
-        annotations_fields <- c("query","X_id", "cadd.consequence", common_scores)
+        annotations_fields <- c("query","X_id", "dbsnp.chrom", "dbsnp.hg19.start", "cadd.consequence", common_scores)
         annotations_infos <- values$res[,annotations_fields]
         annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+        # annotations_infos$more <- shinyInput(actionButton, nrow(annotations_infos), 
+        #                                      'button_', label = "Fire", 
+        #                                      onclick = 'Shiny.onInputChange(\"select_button\",  this.id)')
         values$annotations <- annotations_infos
         save(annotations_infos, file = "objects/annotations.rda")
         
         output$raw_data <- DT::renderDataTable({
           if(input$network_type == "regul"){
             n <- seq(min(sum(!non_syn_res), MAX_VAR))
-            DT::datatable(data = as.matrix(values$annotations[!non_syn_res,]), 
-                          extensions = 'Scroller',
-                          selection = list(mode = 'multiple', selected = n),
-                          options = list(scrollX = TRUE,
-                                         ordering = FALSE,
-                                         deferRender = TRUE,
-                                         scrollY = 400,
-                                         scroller = TRUE
-                          ))
+            dt = values$annotations[!non_syn_res,]
           } else {
             n <- min(sum(non_syn_res), MAX_VAR)
-            DT::datatable(data = as.matrix(values$annotations[non_syn_res,]), 
-                          extensions = 'Scroller',
-                          selection = list(mode = 'multiple', selected = n),
-                          options = list(scrollX = TRUE,
-                                         ordering = FALSE,
-                                         deferRender = TRUE,
-                                         scrollY = 400,
-                                         scroller = TRUE))
+            dt = values$annotations[non_syn_res,]
           }
+          
+          DT::datatable(dt, 
+                        escape = FALSE,
+                        rownames = FALSE,
+                        extensions = c('Scroller','Buttons'),
+                        selection = list(mode = 'multiple', selected = n),
+                        options = list(dom = 'Bfrtip',
+                                       buttons = list('copy', 'print', list(
+                                         extend = 'collection',
+                                         buttons = c('csv', 'excel', 'pdf'),
+                                         text = 'Download'
+                                       )),
+                                       scrollX = TRUE,
+                                       ordering = TRUE,
+                                       deferRender = TRUE,
+                                       scrollY = 400,
+                                       scroller = TRUE)
+          )
         })
         
         output$downloadRawTable <- downloadHandler(
@@ -461,7 +481,15 @@ server <- function(input, output, session) {
             readr::write_delim(x = values$res, path = file, delim = "\t")
           }
         )
+        
+        
       })
+      
+      available_network_types <- c()
+      if(sum(!non_syn_res) > 0) available_network_types <- c(available_network_types, "synonymous and non-coding variants" = "regul")
+      if(sum(non_syn_res) > 0) available_network_types <- c(available_network_types, "non synonymous variants" = "non_syn")
+      
+      updateSelectInput(session = session, inputId = "network_type", choices = available_network_types)
       
       #### BUILDING DATA FOR FIRST DEFAULT PLOT ####
       my_data <- data.frame(values$global_ranges, stringsAsFactors = F)
@@ -470,6 +498,9 @@ server <- function(input, output, session) {
       my_data$consequences <- sapply(values$res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
       my_data$no_cdts <- is.na(my_data$cdts_score)
       my_data$selected <- TRUE
+      
+      
+      print(input$network_type)
       
       if(input$network_type == "regul"){
         if(sum(my_data$non_synonymous) > 0){
@@ -498,7 +529,18 @@ server <- function(input, output, session) {
       
       values$my_data <- my_data
       save(my_data, file = "objects/my_data.rda")
+      
+      
     })
+    
+    
+    if(!is.null(values$res) && nrow(values$res) > 0){
+      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
+                            disabled = FALSE, style = "success")
+    } else {
+      shinyBS::updateButton(session = session, inputId = "buildNetwork",
+                            disabled = TRUE, style = "primary")
+    }
   })
   
   output$query_res <- renderText({ 
@@ -511,7 +553,7 @@ server <- function(input, output, session) {
   })
   
   #### FETCH LD INFOS ####
-  runLD <- eventReactive(input$runLD,{
+  observeEvent(input$runLD,{
     my_res <- values$my_res
     if(is.null(my_res))
       return(NULL)
@@ -568,38 +610,89 @@ server <- function(input, output, session) {
     save(ld_results, file = "objects/ld_results.rda")
     values$ld <- ld_results
     
+    if (!is.null(id))
+      removeNotification(id)
+    
+    notfound <- do.call("c", values$ld[1,])
+    print(notfound)
+    
+    #### update LD edges ####
+    snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
+    values$all_edges <- snv_edges
+    values$current_edges <- snv_edges
+    
+    visNetworkProxy("my_network") %>%
+      visUpdateEdges(edges = snv_edges)
+    
+    if(length(notfound) > 0){
+      shinyBS::createAlert(session = session, anchorId = "alert_ld",
+                           alertId = "alert5", title = "Data retrieval",
+                           content = paste0('No LD data for the following variants: ', 
+                                            paste(notfound, collapse = ', ')) , 
+                           append = TRUE, style = "warning")
+    } else {
+      shinyBS::createAlert(session = session, anchorId = "alert_ld",
+                           alertId = "alert5", title = "Data retrieval",
+                           content = "LD computation succeed for all variants", 
+                           append = TRUE, style = "success")
+    }
+    
+    if(!is.null(ld_results)){
+      shinyBS::updateButton(session = session, inputId = "update_ld", 
+                            disabled = FALSE)
+    } else {
+      shinyBS::updateButton(session = session, inputId = "update_ld", 
+                            disabled = TRUE)
+    } 
   })
   
-  output$runld_res <- renderText({ 
-    if(!is.null(values$res) && nrow(values$res) > 0){
-      runLD()
-      if (!is.null(id))
-        removeNotification(id)
-      
-      notfound <- do.call("c", values$ld[1,])
-      print(notfound)
-      #### update LD edges ####
-      snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
-      values$current_edges <- snv_edges
-      
-      visNetworkProxy("my_network") %>%
-        visUpdateEdges(edges = snv_edges)
-      
-      return(ifelse(test = length(notfound) > 0, 
-                    yes = paste0('No LD data for the following variants: ', paste(notfound, collapse = ', ')),
-                    no = "LD computation succeed for all variants"))  
+  observeEvent(input$update_ld, {
+    max_ld <- as.numeric(input$ld_range[2])
+    min_ld <- as.numeric(input$ld_range[1])
+    
+    # update edges
+    ld_edges <- values$all_edges #set all color on
+    
+    if(sum((as.numeric(ld_edges$xvalue) > max_ld) | (as.numeric(ld_edges$xvalue) < min_ld)) > 0){
+      ld_edges[(as.numeric(ld_edges$xvalue) > max_ld) | (as.numeric(ld_edges$xvalue) < min_ld),]$color <- "rgba(0, 0, 0, 0)"
     }
+    values$current_edges <- ld_edges
+    # update network
+    visNetworkProxy("my_network") %>%
+      visUpdateEdges(edges = values$current_edges)
+    
   })
+  
   
   #### BUILDING NETWORK ####
-  
   observeEvent(input$buildNetwork, {
     js$collapse("input_box")
     js$collapse("selection_box")
+    shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
+  })
+  
+  observeEvent(input$raw_data_rows_selected,{
+   
+    #setdiff(input$tbl_rows_selected, input$tbl_row_last_clicked)
+    # shinyBS::updateButton(session = session, inputId = "buildNetwork", 
+    #                       disabled = FALSE, style = "warning", label = "Update Network")
+    
+    if(length(input$raw_data_rows_selected) > MAX_VAR){
+      shinyalert(title = "Selection limit", html = TRUE, type = "warning",
+                 text = as.character(tags$div(style = "text-align:-webkit-center",
+                                              paste0("Variants selection from ",
+                                                     (length(input$raw_data_rows_selected) - MAX_VAR),
+                                                     " the Network visualisation is limit (",MAX_VAR, ")")
+                 )))
+      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
+                            disabled = TRUE, style = "danger")
+    } else {
+      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
+                            disabled = FALSE, style = "success")
+    }
   })
   
   buildNetwork <- eventReactive(input$buildNetwork,{
-    # shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
     print("buildNetwork")
     
     if(is.null(values$my_data))
@@ -704,11 +797,22 @@ server <- function(input, output, session) {
       removeNotification(id)
     # saveRDS(object = vn, file = "objects/init_vn.rds")
     
-    if(!is.null(values$res)){
+    
+    shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
+    
+    if(!is.null(values$current_edges) && nrow(values$current_edges) > 0){
       shinyBS::updateButton(session = session, inputId = "runLD", 
                             disabled = FALSE)
     } else {
       shinyBS::updateButton(session = session, inputId = "runLD",
+                            disabled = TRUE)
+    } 
+    
+    if(!is.null(values$current_nodes) && nrow(values$current_nodes) > 0){
+      shinyBS::updateButton(session = session, inputId = "update_metascore", 
+                            disabled = FALSE)
+    } else {
+      shinyBS::updateButton(session = session, inputId = "update_metascore",
                             disabled = TRUE)
     }
     
@@ -717,22 +821,20 @@ server <- function(input, output, session) {
   
   output$my_network <- renderVisNetwork({
     vn_components <- buildNetwork()
+    
     if(is.null(vn_components))
       return(NULL)
     
     save(vn_components, file = "objects/vn_components.rda")
     visNetwork(vn_components$nodes, 
                vn_components$edges) %>%
-      visEvents(selectNode = "function(nodes) {
+      visEvents(doubleClick = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
-      # visEvents(selectNode = "function(nodes) {
-      #                           alert(nodes.nodes + ':' + this.body.data.nodes._data[nodes.nodes[0]].infos);}") %>%
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = TRUE, navigationButtons = FALSE) %>%
       visOptions(highlightNearest = TRUE, clickToUse = FALSE, manipulation = FALSE, nodesIdSelection = TRUE) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
       visLayout(randomSeed = 2018) %>% 
-      #visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
       visPhysics("repulsion", repulsion = list(nodeDistance = 1000))
   })
   
@@ -927,79 +1029,75 @@ server <- function(input, output, session) {
     cat("1",input$current_node_id,"\n")
     values$selected_node <- input$current_node_id
     snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
-    color_code <- as.character(snv_score_details$color)
-    snv_score_details$id <- gsub(x = snv_score_details$id, pattern = paste0("_", values$selected_node), replacement = "")
-    snv_score_details <- snv_score_details[,-2] #suppression de la colonne 'color' 
-    colnames(snv_score_details) <- c("predictors", "value")
-    rownames(snv_score_details) <- NULL
-    snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),digits = 4)
-    #save(snv_score_details, file = "objects/snv_score_details.rda")
-    tab <- tableHTML(snv_score_details, theme = 'scientific', rownames = FALSE)
-    for (i in 1:nrow(snv_score_details)) { 
-      tab <- tab %>% add_css_row(css = list(c('background-color','font-weight'), 
-                                            c(color_code[i],'bold')), rows = i+1) # first column is header
+    if(nrow(snv_score_details) > 0){
+      color_code <- as.character(snv_score_details$color)
+      text_color_code <- sapply(X = color_code, FUN = contrasting_text_color)
+      snv_score_details$id <- gsub(x = snv_score_details$id, pattern = paste0("_", values$selected_node), replacement = "")
+      snv_score_details <- snv_score_details[,-2] #suppression de la colonne 'color' 
+      colnames(snv_score_details) <- c("predictors", "value")
+      rownames(snv_score_details) <- NULL
+      snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),digits = 4)
+      #save(snv_score_details, file = "objects/snv_score_details.rda")
+      tab <- tableHTML(snv_score_details, theme = 'scientific', rownames = FALSE)
+      for (i in 1:nrow(snv_score_details)) { 
+        tab <- tab %>% add_css_row(css = list(c('background-color','font-weight','color'), 
+                                              c(color_code[i],'bold', text_color_code[i])), rows = i+1) # first column is header
+      }
+      tab <- tab %>% add_css_column(css = list(c('background-color','text-align','font-weight','color'),
+                                               c('white','left','normal','gray')), columns = 1)
+    } else {
+      tab <- "No data for the selected predictors"
     }
-    tab <- tab %>% add_css_column(css = list(c('background-color','text-align','font-weight'),
-                                             c('white','left','normal')), columns = 1)
     shinyalert(title = input$current_node_id, html = TRUE,
                text = as.character(tags$div(style = "text-align:-webkit-center",
                                             tab)))
   })
   
   
+  observeEvent(input$select_button, {
+    selectedRow <- as.numeric(strsplit(input$select_button, "_")[[1]][2])
+    print(paste('click on',selectedRow))
+  })
   
-  #### VARIANT SELECTION FROM PLOTLY ####
-  output$selection <- renderUI({
-    event.data <- event_data("plotly_selected", source = "subset")
+  output$scores_description <- renderUI({
+    X <- readr::read_tsv(file = 'data/scores_description.tsv')
+    X <- split(X, X$group_name)
     
-    if(is.null(event.data) == T ) return("Please select an area containing variants...")
-    if(!"curveNumber" %in% colnames(event.data)) return("Please select an area containing variants...")
-    
-    x <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
-    x <- x[, c("seqnames","start","query","type","cdts_score","consequences","non_synonymous")] 
-    
-    if(nrow(x) > MAX_VAR){
-      plotted_variants <- list(
-        paste0(nrow(x), " variants selected. The first ", MAX_VAR, " will be plotted."),
-        br(),
-        DT::datatable(x[1:MAX_VAR,],
-                      rownames = TRUE,
-                      options = list(scrollX = TRUE,
-                                     #pageLength = MAX_VAR,
-                                     lengthChange = FALSE,
-                                     searching = FALSE)
+    table_content <- list()
+    for(n in names(X)){
+      score_infos <- X[[n]]
+      score_infos <- score_infos[order(score_infos$name),]
+      integration_list <- list()
+      
+      for(r in 1:nrow(score_infos)){ 
+        integration_list[[length(integration_list) + 1]] <- tags$li(
+          paste0(score_infos[r,]$name,
+                 " (id: ", score_infos[r,]$id,
+                 "; scope:" , score_infos[r,]$scope, 
+                 "; orientation: ", score_infos[r,]$orientation, ")")
         )
-      )
-    } else {
-      plotted_variants <- list(
-        paste0(nrow(x), " variants selected and plotted."),
+      }
+      
+      table_content[[length(table_content) + 1]] <- p(
+        strong(n),
         br(),
-        DT::datatable(x,
-                      rownames = TRUE,
-                      options = list(scrollX = TRUE,
-                                     #pageLength = MAX_VAR,
-                                     lengthChange = FALSE,
-                                     searching = FALSE))
+        helpText(paste0(gsub(x = score_infos$description[1], pattern = ".$", replacement = ""), " (",score_infos$reference[1],").")), 
+        "Integration",
+        tags$div(style = "margin-left: 30px;",
+                 tags$ul(
+                   integration_list
+                 )
+        ),
+        hr()
       )
     }
     
-    network_choices <- c()
-    if(sum(x$non_synonymous) > 0){
-      network_choices <- c(network_choices, 
-                           "non synonymous variants" = "non_syn")
-    }
-    
-    if(sum(!x$non_synonymous) > 0){
-      network_choices <- c(network_choices, 
-                           "synonymous and non-coding variants" = "regul")
-    }
-    
-    updateSelectInput(session, "network_type",
-                      choices = network_choices,
-                      selected = network_choices[1]
+    tagList(
+      
+      table_content
+      
+      
     )
-    
-    return(plotted_variants)
   })
   
   #### ON STOP ####
@@ -1011,6 +1109,7 @@ server <- function(input, output, session) {
     cat("Session stopped\n")
   })
 }
+
 
 
 
@@ -1355,6 +1454,59 @@ server <- function(input, output, session) {
 #     values$selected_node <- as.character(values$my_res$query)[1]
 #   
 #   values$selected_node
+# })
+#### VARIANT SELECTION FROM PLOTLY ####
+# output$selection <- renderUI({
+#   event.data <- event_data("plotly_selected", source = "subset")
+#   
+#   if(is.null(event.data) == T ) return("Please select an area containing variants...")
+#   if(!"curveNumber" %in% colnames(event.data)) return("Please select an area containing variants...")
+#   
+#   x <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
+#   x <- x[, c("seqnames","start","query","type","cdts_score","consequences","non_synonymous")] 
+#   
+#   if(nrow(x) > MAX_VAR){
+#     plotted_variants <- list(
+#       paste0(nrow(x), " variants selected. The first ", MAX_VAR, " will be plotted."),
+#       br(),
+#       DT::datatable(x[1:MAX_VAR,],
+#                     rownames = TRUE,
+#                     options = list(scrollX = TRUE,
+#                                    #pageLength = MAX_VAR,
+#                                    lengthChange = FALSE,
+#                                    searching = FALSE)
+#       )
+#     )
+#   } else {
+#     plotted_variants <- list(
+#       paste0(nrow(x), " variants selected and plotted."),
+#       br(),
+#       DT::datatable(x,
+#                     rownames = TRUE,
+#                     options = list(scrollX = TRUE,
+#                                    #pageLength = MAX_VAR,
+#                                    lengthChange = FALSE,
+#                                    searching = FALSE))
+#     )
+#   }
+#   
+#   network_choices <- c()
+#   if(sum(x$non_synonymous) > 0){
+#     network_choices <- c(network_choices, 
+#                          "non synonymous variants" = "non_syn")
+#   }
+#   
+#   if(sum(!x$non_synonymous) > 0){
+#     network_choices <- c(network_choices, 
+#                          "synonymous and non-coding variants" = "regul")
+#   }
+#   
+#   updateSelectInput(session, "network_type",
+#                     choices = network_choices,
+#                     selected = network_choices[1]
+#   )
+#   
+#   return(plotted_variants)
 # })
 
 
