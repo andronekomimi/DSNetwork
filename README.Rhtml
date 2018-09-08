@@ -1,0 +1,145 @@
+<html>
+
+<head>
+<link rel="stylesheet" type="text/css" href="custom.css">
+<title>User Manual</title>
+</head>
+
+<body>
+
+<h3>User Manual</h3>
+
+<h3>Approach</h3>
+<p>In order to assist the prioritization process, we created a web application called DSNetwork for <b>D</b>ecision <b>S</b>upport <b>N</b>etwork. <br>This tool aims to provide the users with deleteriousness predictions for human variants (hg19 build), recovered from several trusted sources and present those score in a user-friendly web interface.</p>
+
+<h3>Architecture</h3>
+
+The applicationis divided into 3 panels : 1) Input, 2) Selection, 3) Visualization.
+<br>
+<img src="captures/0_welcome_page.png" alt="Home page">
+
+<h3>Input (and annotations retrieval)</h3>
+
+Either paste your variants list in the text area ...
+<br>
+<img src="captures/1_paste_data.png" alt="Paste your data">
+<br>
+
+or upload a text file containing a variant id per line.
+<br>
+<img src="captures/2_load_file.png" alt="Load your data file">
+<br>
+
+Once your data loaded, choose if you want trigger SNPNexus data. Given that we have to wait for their server to answer to get the results we can't predict the waiting time. You can configure the waiting time (in minutes) through a slide bar.
+
+<br>
+<img src="captures/3_fetch_snpnexus.png" alt="SNPnexus configuration">
+<br>
+
+Press <button class="btn btn-default action-button shiny-bound-input" type="button">Fetch annotations</button> to trigger the annotations retrieval.
+<p>
+<br>
+An overview of the results is presented in a scatter plot representing the requested variants along the map of sequence constraint <b>C</b>ontect-<b>D</b>ependent <b>T</b>olerence <b>S</b>core (CDTS) - determined throught alignment of thousands of human genomes.
+</p>
+
+<img src="captures/4_plot_0.png" alt="CDTS plot">
+<br>
+
+Legend :
+<ul>
+  <li>Color code: <font color="red"> selected variants</font>, <font color="blue"> omitted variants </font></li>
+  <li>Shape code: <i class="fa fa-circle"></i> for non-synonymous variants, <i class="fa fa-times"></i> for synonymous and non-coding variants</li>
+</ul>
+<br>
+
+First variants, up to 30, are selected by default. 
+
+<p>You can download all the annotation by pressing the <button class="btn btn-default action-button shiny-bound-input" type="button">Download results (TSV)</button></p>
+
+<h3>Selection</h3>
+
+Simultaneously, a summary table will appear in the selection panel.
+
+<br>
+<img src="captures/5_raw_table_0.png" alt="Raw results">
+
+<p>You can change the selected variants through this table.
+The number of selectable variants is restricted to 30 for ergonomic reasons.</p>
+
+<img src="captures/6_raw_table_0_error.png" alt="Over selection">
+<br>
+
+<p>You can use the reported metacsores in the summary table to select a particular subset of variants.
+In the following picture, we selected all the variants with low tolerance to mutation based on the CDTS score (cdts < 0). </p>
+
+<img src="captures/6b_raw_table_1.png" alt="Raw results after sorting">
+<br>
+
+<p>It will automatically the CDTS plot.</p>
+
+<img src="captures/6c_plot_1.png" alt="Reactive CDTS plot">
+<br>
+
+<h3>Visualization</h3>
+
+<p>Once the variants selected, press <button class="btn btn-default action-button shiny-bound-input" type="button">Build Network</button> to build the variants the decision support network.</p>
+
+<img src="captures/7_network_0.png" alt="Network">
+<br>
+
+You can the mouse to zoom in or out in the network...
+<br>
+<img src="captures/8_network_0_zoom.png" alt="Zoom">
+<br>
+
+... and get a variant's annotations details by double clicking on a node.
+<br>
+<img src="captures/9_network_0_node_details.png" alt="Node details">
+<br>
+
+By default, no linkage disequilibrium (LD) data are shown. To map LD on the network edges, choose a 1000 Genomes population and press <button class="btn btn-default action-button shiny-bound-input" type="button">Add LD information</button>.
+
+This process can take a few second (up to 1 minute)
+
+<br>
+<img src="captures/10_network_0_progressbar_ld.png" alt="LD processing">
+<br>
+
+<br>
+<img src="captures/12_network_2.png" alt="Networl with LD">
+<br>
+
+You can restrict the LD range you want to display. You have press <button class="btn btn-default action-button shiny-bound-input" type="button">Update</button> to update the network.
+For example, the variant with the lower LD lever (LD < 0.5)
+
+<br>
+<img src="captures/13_network_2_low_ld.png" alt="Network with low LD">
+<br>
+
+You can easy select a subset of predictors you are interesting in by adjusting the list of predictors. You have press <button class="btn btn-default action-button shiny-bound-input" type="button">Update</button>  to update the network.
+
+<br>
+<img src="captures/14_network_2_update_predictors.png" alt="Network with low LD">
+<br>
+
+<i class="fa fa-info-circle"></i>The predictors descriptions are available in the sidebar application.
+<br>
+<img src="captures/14_b_predictors_details.png" alt="Predictors details">
+<br>
+
+And finally, you can visualise different types of overall scores, such as the relative ranking (NA replaced by mean)....
+
+<br>
+<img src="captures/16_network_2_ranking_na_mean.png" alt="Ranking NA mean">
+
+<img src="captures/17_network_2_ranking_na_mean_zoom.png" alt="Ranking NA mean zoom">
+<br>
+
+...or absolute metascore LINSIGHT with the visualization of highier LD level.
+
+<br>
+<img src="captures/18_network_3_high_ld_linsight.png" alt="Absolute metascore">
+<br>
+
+</body>
+</html>
