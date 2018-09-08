@@ -11,7 +11,7 @@ require(c3)
 #devtools::install_github("viking/r-yaml")
 
 path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
-MAX_VAR <- 20
+MAX_VAR <- 30
 
 ld_breaks <- seq(0,1, by = 0.01)
 colfunc <- colorRampPalette(c("yellow","red"))
@@ -847,7 +847,7 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
                         xvalue = 0,
                         type = "snv_ld_edges",
                         title = "NA",
-                        color = "#DDDDDD", stringsAsFactors = FALSE)
+                        color = "rgba(0, 0, 0, 0)", stringsAsFactors = FALSE)
     
     if(!is.null(ld_results)){
       
@@ -1034,7 +1034,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       new_n_rows$color <- as.character(new_n_rows$color)
       custom_colors <- new_n_rows$color
       names(custom_colors) <- new_n_rows$label
-
+      
       ## pies
       png(paste0(path_to_images,"pie_scores_",n,inc,".png"), width = 2000, height = 2000,
           units = "px")
@@ -1150,9 +1150,7 @@ basic_ranking <- function(inc = NULL){
     mean.rank_na_last = ranked_nodes_data_na_last
     mean.rank_na_mean = ranked_nodes_data_na_mean
   }
-  
-  
-  
+
   # compute FINAL RANK
   rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
   rank_na_mean = as.numeric(rank(mean.rank_na_mean, ties.method = "average"))
@@ -1190,17 +1188,20 @@ basic_ranking <- function(inc = NULL){
         width = 2000, height = 2000,
         units = "px")
     par(lwd = 0.001)
-    pie(x = 1, col = n[names(n) == "col_na_last"], labels = n[names(n) == "final_rank_na_last"])
-    dev.off()
+    pie(x = 1, col = n[names(n) == "col_na_last"], labels = NA)
     par(lwd = 1)
+    text(x = 0, y = 0, labels = n[names(n) == "final_rank_na_last"], cex = 50)
+    dev.off()
+    
     
     png(paste0(path_to_images,"pie_rank_na_mean_",n[names(n) == "id"],inc,".png"),
         width = 2000, height = 2000,
         units = "px")
     par(lwd = 0.001)
-    pie(x = 1, col = n[names(n) == "col_na_mean"], labels = n[names(n) == "final_rank_na_mean"])
-    dev.off()
+    pie(x = 1, col = n[names(n) == "col_na_mean"], labels = NA)
+    text(x = 0, y = 0, labels = n[names(n) == "final_rank_na_mean"], cex = 50)
     par(lwd = 1)
+    dev.off()
   })
   
 }
@@ -1211,7 +1212,7 @@ compute_absolute_metascore <- function(session_values){
     linsight = list(min = 0.03,
                     max = 1),
     iwscoring_known = list(min = -5,
-                     max = 6),
+                           max = 6),
     iwscoring_novel = list(min = -5,
                            max = 6),
     bayesdel = list(min = -1.4,
@@ -1550,8 +1551,23 @@ snpnexusIDconversion <- function(snpnexusID){
   formatSingleHgvs(snpnexusID[1], as.numeric(snpnexusID[2]), snpnexusID[3], snpnexusID[4])
 }
 
-
+#### source : https://stackoverflow.com/a/45739826
+shinyInput <- function(FUN, len, id, ...) {
+  inputs <- character(len)
+  for (i in seq_len(len)) {
+    inputs[i] <- as.character(FUN(paste0(id, i), ...))
+  }
+  inputs
+}
 
 createButton <- function(id) {
-  sprintf('<button id="lol" type="button" class="btn btn-default action-button">See details ...</button>',id)
+  sprintf('<button id="lol" type="button" class="btn btn-default action-button" onclick="shinyjs.myFunction(%s)">See details ...</button>',id)
+}
+
+contrasting_text_color <- function(hex_str){
+  converted_rgb <- unlist(strsplit(x = paste(as.vector(col2rgb(paste0("#", substr(hex_str, 2, 8)))), collapse = " "), " "))
+  r <- as.numeric(converted_rgb[1])
+  g <- as.numeric(converted_rgb[2])
+  b <- as.numeric(converted_rgb[3])
+  return(ifelse(test = ( 1 - ((r * 0.299) + (g * 0.587) + (b * 0.114)) / 255 < 0.5), no = "white", yes = "black"))
 }
