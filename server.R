@@ -34,8 +34,8 @@ server <- function(input, output, session) {
       locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
     
     #### CONF ####
-    appDir <- "/home/lemaud01/romix_apps/ROmix_DSNetwork/"
-    dataDir <- "/opt/data/dsnetwork/data/"
+    appDir <- "/srv/shiny-server/dsnetwork/"
+    dataDir <- "/is3/projects/AD_AL_THESIS/apps_data/dsnetwork/"
   }
   
   

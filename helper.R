@@ -17,8 +17,8 @@ if(is.local()){
   dataDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/data/"
 } else {
   #### CONF ####
-  appDir <- "/home/lemaud01/romix_apps/ROmix_DSNetwork/"
-  dataDir <- "/opt/data/dsnetwork/data/"
+  appDir <- "/srv/shiny-server/dsnetwork/"
+  dataDir <- "/is3/projects/AD_AL_THESIS/apps_data/dsnetwork/"
 }
 
 appDir <- "/Users/nekomimi/Workspace/DSNetwork/"
