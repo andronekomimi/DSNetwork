@@ -27,13 +27,15 @@ server <- function(input, output, session) {
       locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
     
     #### CONF ####
-    appDir <- "/Users/nekomimi/Workspace/DSNetwork/"
+    appDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/"
+    dataDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/data/"
   } else {
     preload <- list(
       locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
     
     #### CONF ####
     appDir <- "/home/lemaud01/romix_apps/ROmix_DSNetwork/"
+    dataDir <- "/opt/data/dsnetwork/data/"
   }
   
   
@@ -42,7 +44,7 @@ server <- function(input, output, session) {
   dir.create(path = paste0(resultDir, "ld_figures"), showWarnings = F)
   
   app.conf <- list(TABIX = '/usr/local/bin/tabix',
-                   VCF =  paste0(appDir, 'data/1000Genomes/')) #changer ça!
+                   VCF =  paste0(dataDir, '1000Genomes/')) #changer ça!
   path_to_images <- paste0(appDir, 'www/scores_figures/')
   
   values <- reactiveValues()
@@ -219,8 +221,8 @@ server <- function(input, output, session) {
           requested_chromosomes <- seqlevelsInUse(global_ranges)
           
           for(requested_chr in requested_chromosomes){
-            if(file.exists(paste0(appDir,'data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
-              load(paste0(appDir,'data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
+            if(file.exists(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
+              load(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
               hits <- findOverlaps(query = values$global_ranges, subject = gr)
               for(i in seq_along(hits)){ 
                 hit <- hits[i]
@@ -232,8 +234,8 @@ server <- function(input, output, session) {
             
             #### fetch cdts ####
             incProgress(1/n, detail = "Extracting CDTS data...")
-            if(file.exists(paste0(appDir,'data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
-              load(paste0(appDir,'data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
+            if(file.exists(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
+              load(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
               hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
               for(i in seq_along(hits)){ 
                 hit <- hits[i]
@@ -350,7 +352,7 @@ server <- function(input, output, session) {
           
           dbnsfp_rankscores <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
           
-          cadd_raw_scores <- read.csv(file = 'data/CADD_scores_from_myvariant.info.tsv', header = T, sep = "\t", stringsAsFactors = F)
+          cadd_raw_scores <- read.csv(file = paste0(dataDir, 'CADD_scores_from_myvariant.info.tsv'), header = T, sep = "\t", stringsAsFactors = F)
           cadd_raw_scores <- cadd_raw_scores[cadd_raw_scores$is_included == "x",]$field
           
           #### split res in 2 -> non-syn vs other
@@ -1099,7 +1101,7 @@ server <- function(input, output, session) {
   })
   
   output$scores_description <- renderUI({
-    X <- readr::read_tsv(file = 'data/scores_description.tsv')
+    X <- readr::read_tsv(file = paste0(dataDir, 'scores_description.tsv'))
     X <- split(X, X$group_name)
     
     table_content <- list()

@@ -7,6 +7,20 @@ require(grid)
 require(yaml)
 require(c3)
 
+is.local <- function(){ 
+  return(grepl(x = system('uname -n',intern=T), pattern = "local"))
+}
+
+if(is.local()){
+  #### CONF ####
+  appDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/"
+  dataDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/data/"
+} else {
+  #### CONF ####
+  appDir <- "/home/lemaud01/romix_apps/ROmix_DSNetwork/"
+  dataDir <- "/opt/data/dsnetwork/data/"
+}
+
 appDir <- "/Users/nekomimi/Workspace/DSNetwork/"
 path_to_images <- paste0(appDir,"www/scores_figures/")
 MAX_VAR <- 30
@@ -22,10 +36,6 @@ cor_color_breaks <- cor_colfunc(length(cor_breaks))
 names(cor_color_breaks) <- sort(cor_breaks, decreasing = F)
 
 invert_scores <- c("")
-
-is.local <- function(){ 
-  return(grepl(x = system('uname -n',intern=T), pattern = "local"))
-}
 
 hgvsToGRange <- function(hgvs_id, query_id){
   
@@ -1151,7 +1161,7 @@ basic_ranking <- function(inc = NULL){
     mean.rank_na_last = ranked_nodes_data_na_last
     mean.rank_na_mean = ranked_nodes_data_na_mean
   }
-
+  
   # compute FINAL RANK
   rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
   rank_na_mean = as.numeric(rank(mean.rank_na_mean, ties.method = "average"))
@@ -1462,7 +1472,7 @@ extract_LINSIGHT_range <- function(){
   min_range <- +Inf
   max_range <- -Inf
   for(chr in c(1:22,"X")){
-    load(paste0(appDir,'data/LINSIGHT/LINSIGHT_chr',chr,'.rda'))
+    load(paste0(dataDir,'data/LINSIGHT/LINSIGHT_chr',chr,'.rda'))
     local_min <- min(gr$score, na.rm = TRUE)
     local_max <- max(gr$score, na.rm = TRUE)
     print(paste0("chr",chr, " : ", local_min, " <-> ", local_max))
@@ -1483,7 +1493,7 @@ extract_BAYESDEL_range <- function(){
   max_range <- -Inf
   cadd_data_dir <- "~/Transit/data/cadd_scores/"
   path_to_victor <- "/home/lemaud01/thesis/workspace/exomes/softs/VICTOR/vAnnBase"
-
+  
   RES <- mclapply(X = c(1:22,"X","Y","MT"), mc.cores = 8, FUN = function(chr) {
     filename <- tempfile(tmpdir = "~/Transit/data/bayesdel", fileext = ".vcf")
     gr <- readRDS(file = paste0(cadd_data_dir,"cadd",chr,".RDS"))

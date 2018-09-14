@@ -26,7 +26,7 @@ dashboardPage(
   body = dashboardBody(
     shinyalert::useShinyalert(),
     useShinyjs(),
-    extendShinyjs(text = jscode),
+    extendShinyjs(text = jscode, functions = c("collapse","myFunction")),
     tags$head(tags$style(
       HTML(".shiny-notification {
              position:fixed;
