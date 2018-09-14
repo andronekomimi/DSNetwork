@@ -6,6 +6,7 @@ require(grDevices)
 require(grid)
 require(yaml)
 require(c3)
+require(myvariant)
 
 is.local <- function(){ 
   return(grepl(x = system('uname -n',intern=T), pattern = "local"))
