@@ -14,24 +14,36 @@ options(shiny.trace = FALSE)
 server <- function(input, output, session) {
   
   source('helper.R', local = TRUE)
-  preload <- list(
-    locus_80 = "rs2660776\nrs2660774\nrs2575792\nrs2660773\nrs2660772\nrs1370042\nrs1160076\nrs2018075\nrs62259569\nrs2575799\nrs2253915\nrs2253916\nrs2253921\nrs2575802\nrs138876277\nrs1370044\nrs2575805\nrs144055118\nrs35711034\nrs35733956\nrs74520234\nrs147080240\nrs4859022\nrs2262594\nrs2254904\nrs729942\nrs1370045\nrs35870472\nrs34339032\nrs2660785\nrs2575815\nrs2575817\nrs2660787\nrs2575818\nrs2660788\nrs2118082\nrs2244125\nrs2660790\nrs2660791\nrs2660792\nrs2660794\nrs61340205\nrs1821751\nrs2660796\nrs2196523\nrs1370040\nrs2660797\nrs2575783\nrs2660798\nrs2575780\n3:87044690:A:AAT\nrs2575775\nrs2660799\nrs2575774\nrs2575772\nrs2043663\nrs13066793\nrs1960268\nrs1025631\nrs4859107\nrs201414876",
-    locus_78 = "rs73167030\nrs12159970\nrs73167031\nrs56150793\nrs6001911\nrs74767555\nrs111843590\nrs6001912\nrs10483203\nrs56283550\nrs12158872\nrs17001907\n22:40836155:CAAAA:C\nrs56215843\nrs61675795\nrs73167042\nrs6001915\nrs17001915\nrs73167045\nrs73167052\nrs5995856\nrs17001920\nrs6001920\nrs73167053\nrs5995860\nrs28419341\nrs28552449\nrs112375848\nrs55864500\nrs183438976\nrs73167058\nrs5995862\nrs17001943\nrs58778028\nrs73167063\nrs5995864\nrs75523053\nrs74486969\nrs61211547\nrs12159787\nrs10483204\nrs145014115\nrs4299422\nrs2899337\nrs201540223\nrs73167066\nrs71777635\nrs73167067\nrs6001930\nrs17001974\nrs6001931\nrs6001932\nrs73167069\nrs73167072\nrs73167073\nrs73167076\nrs17001977\nrs3827381\nrs3827382\nrs73167079\nrs10483205\nrs112880707\nrs73167080\nrs73167082\nrs113409089\nrs74278065\nrs6001935\nrs56135013\nrs6001937\nrs73167089\nrs113798157\nrs5995867\nrs73167090\nrs77426923\nrs56182212\nrs73167092\nrs199614224\nrs6001939\nrs73167093\nrs6001942\nrs138175438\nrs73167096\nrs73167097\nrs73167098\nrs373996442\nrs113966362\nrs73167101\nrs17001993\nrs17001994\nrs73169003\nrs10483206\nrs6001946\nrs6001949\nrs66987842\nrs17001997\nrs6001950\nrs56124626\nrs141580207\nrs112034576\nrs55993771\nrs142270009\nrs6001954\nrs5995870\nrs57693796\nrs5995871\nrs139903991\nrs55849114\nrs55722862\nrs55960299\nrs56334449\nrs55662398\nrs6001962\nrs150091203\nrs932379\nrs73169026\nrs73169028\nrs73169032\nrs55674424\nrs5995875\nrs6001965\nrs56092708\nrs16985899\nrs17002019\nrs17002020\nrs201432472\nrs73169036\nrs12160047\nrs56047425\nrs56411183\nrs73169040\nrs117423948\nrs5995876\nrs138476044\nrs146829921\nrs73169043\nrs116973859\nrs28444678\nrs375665020\nrs17002024\nrs57705902\nrs79799751\nrs6001973\nrs6001974\nrs73169051\nrs143586053\nrs17002026\nrs17002027\nrs28567076\nrs73169056\nrs55853923\nrs17002030\nrs73169057\nrs73169058\nrs73169060\nrs141597790\nrs142127948\nrs17002034\nrs17002036\nrs6001979\nrs17002038\nrs6001980\nrs55719110\nrs55997921\nrs55775031\nrs139645469\nrs73169065\nrs59047419\nrs55669535\nrs192603101\nrs73169071\nrs5995881\nrs73169072\nrs6001981\nrs145351698\nrs73169077\nrs73169078\nrs6001982\nrs73169083\nrs73169084\nrs112497956\nrs6001983\nrs718193\nrs56108505\nrs73169087\nrs73169089\nrs6001984\nrs71785733\nrs73169091\nrs117669949\nrs78694459\nrs73169096\nrs73169097\nrs145005064\nrs73169098\nrs145624734\nrs56051217",
-    locus_70 = "rs4889891\nrs9905914\nrs9896202\nrs745571\nrs745570\nrs2587505\nrs139427260\nrs71161686\nrs2587507",
-    locus_60 = "13:32866927:CAATAAATAAATA:CAATAAATA\nrs56084662\nrs11571815\nrs11571818\nrs11571833",
-    locus_38 = "rs62485509\nrs720475",
-    locus_6 = "rs181595184\nrs12129763\nrs6686987\nrs55899544\nrs6427943\nrs6678914\nrs6703244\nrs12028423\nrs12131882\nrs12132085\nrs12129456\nrs12129536\nrs10920365\nrs2167588\nrs4950774\nrs12032424\nrs4950775\nrs4950836\nrs6143572\nrs896548\nrs4245706\nrs12032080\nrs3795598\nrs12143329\nrs4950837\nrs12021815\nrs60573451\nrs140473199",
-    locus_2 = "rs11102694\nrs2358994\nrs2358995\nrs7547478\nrs7513707\nrs12022378\nrs3761936\nrs11102701\nrs11102702\nrs12046289\nrs112974454",
-    locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
   
-  #### CONF ####
-  tmpDir <- 'temp/'
-  resultDir <- 'temp/'
+  if(is.local()){
+    preload <- list(
+      locus_80 = "rs2660776\nrs2660774\nrs2575792\nrs2660773\nrs2660772\nrs1370042\nrs1160076\nrs2018075\nrs62259569\nrs2575799\nrs2253915\nrs2253916\nrs2253921\nrs2575802\nrs138876277\nrs1370044\nrs2575805\nrs144055118\nrs35711034\nrs35733956\nrs74520234\nrs147080240\nrs4859022\nrs2262594\nrs2254904\nrs729942\nrs1370045\nrs35870472\nrs34339032\nrs2660785\nrs2575815\nrs2575817\nrs2660787\nrs2575818\nrs2660788\nrs2118082\nrs2244125\nrs2660790\nrs2660791\nrs2660792\nrs2660794\nrs61340205\nrs1821751\nrs2660796\nrs2196523\nrs1370040\nrs2660797\nrs2575783\nrs2660798\nrs2575780\n3:87044690:A:AAT\nrs2575775\nrs2660799\nrs2575774\nrs2575772\nrs2043663\nrs13066793\nrs1960268\nrs1025631\nrs4859107\nrs201414876",
+      locus_78 = "rs73167030\nrs12159970\nrs73167031\nrs56150793\nrs6001911\nrs74767555\nrs111843590\nrs6001912\nrs10483203\nrs56283550\nrs12158872\nrs17001907\n22:40836155:CAAAA:C\nrs56215843\nrs61675795\nrs73167042\nrs6001915\nrs17001915\nrs73167045\nrs73167052\nrs5995856\nrs17001920\nrs6001920\nrs73167053\nrs5995860\nrs28419341\nrs28552449\nrs112375848\nrs55864500\nrs183438976\nrs73167058\nrs5995862\nrs17001943\nrs58778028\nrs73167063\nrs5995864\nrs75523053\nrs74486969\nrs61211547\nrs12159787\nrs10483204\nrs145014115\nrs4299422\nrs2899337\nrs201540223\nrs73167066\nrs71777635\nrs73167067\nrs6001930\nrs17001974\nrs6001931\nrs6001932\nrs73167069\nrs73167072\nrs73167073\nrs73167076\nrs17001977\nrs3827381\nrs3827382\nrs73167079\nrs10483205\nrs112880707\nrs73167080\nrs73167082\nrs113409089\nrs74278065\nrs6001935\nrs56135013\nrs6001937\nrs73167089\nrs113798157\nrs5995867\nrs73167090\nrs77426923\nrs56182212\nrs73167092\nrs199614224\nrs6001939\nrs73167093\nrs6001942\nrs138175438\nrs73167096\nrs73167097\nrs73167098\nrs373996442\nrs113966362\nrs73167101\nrs17001993\nrs17001994\nrs73169003\nrs10483206\nrs6001946\nrs6001949\nrs66987842\nrs17001997\nrs6001950\nrs56124626\nrs141580207\nrs112034576\nrs55993771\nrs142270009\nrs6001954\nrs5995870\nrs57693796\nrs5995871\nrs139903991\nrs55849114\nrs55722862\nrs55960299\nrs56334449\nrs55662398\nrs6001962\nrs150091203\nrs932379\nrs73169026\nrs73169028\nrs73169032\nrs55674424\nrs5995875\nrs6001965\nrs56092708\nrs16985899\nrs17002019\nrs17002020\nrs201432472\nrs73169036\nrs12160047\nrs56047425\nrs56411183\nrs73169040\nrs117423948\nrs5995876\nrs138476044\nrs146829921\nrs73169043\nrs116973859\nrs28444678\nrs375665020\nrs17002024\nrs57705902\nrs79799751\nrs6001973\nrs6001974\nrs73169051\nrs143586053\nrs17002026\nrs17002027\nrs28567076\nrs73169056\nrs55853923\nrs17002030\nrs73169057\nrs73169058\nrs73169060\nrs141597790\nrs142127948\nrs17002034\nrs17002036\nrs6001979\nrs17002038\nrs6001980\nrs55719110\nrs55997921\nrs55775031\nrs139645469\nrs73169065\nrs59047419\nrs55669535\nrs192603101\nrs73169071\nrs5995881\nrs73169072\nrs6001981\nrs145351698\nrs73169077\nrs73169078\nrs6001982\nrs73169083\nrs73169084\nrs112497956\nrs6001983\nrs718193\nrs56108505\nrs73169087\nrs73169089\nrs6001984\nrs71785733\nrs73169091\nrs117669949\nrs78694459\nrs73169096\nrs73169097\nrs145005064\nrs73169098\nrs145624734\nrs56051217",
+      locus_70 = "rs4889891\nrs9905914\nrs9896202\nrs745571\nrs745570\nrs2587505\nrs139427260\nrs71161686\nrs2587507",
+      locus_60 = "13:32866927:CAATAAATAAATA:CAATAAATA\nrs56084662\nrs11571815\nrs11571818\nrs11571833",
+      locus_38 = "rs62485509\nrs720475",
+      locus_6 = "rs181595184\nrs12129763\nrs6686987\nrs55899544\nrs6427943\nrs6678914\nrs6703244\nrs12028423\nrs12131882\nrs12132085\nrs12129456\nrs12129536\nrs10920365\nrs2167588\nrs4950774\nrs12032424\nrs4950775\nrs4950836\nrs6143572\nrs896548\nrs4245706\nrs12032080\nrs3795598\nrs12143329\nrs4950837\nrs12021815\nrs60573451\nrs140473199",
+      locus_2 = "rs11102694\nrs2358994\nrs2358995\nrs7547478\nrs7513707\nrs12022378\nrs3761936\nrs11102701\nrs11102702\nrs12046289\nrs112974454",
+      locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
+    
+    #### CONF ####
+    appDir <- "/Users/nekomimi/Workspace/DSNetwork/"
+  } else {
+    preload <- list(
+      locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
+    
+    #### CONF ####
+    appDir <- "/home/lemaud01/romix_apps/ROmix_DSNetwork/"
+  }
+  
+  
+  tmpDir <- paste0(appDir, 'temp/')
+  resultDir <-  paste0(appDir, 'temp/')
   dir.create(path = paste0(resultDir, "ld_figures"), showWarnings = F)
   
   app.conf <- list(TABIX = '/usr/local/bin/tabix',
-                   VCF = '/Users/nekomimi/Workspace/vexor/vexor/data/1000Genomes/')
-  path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
+                   VCF =  paste0(appDir, 'data/1000Genomes/')) #changer ça!
+  path_to_images <- paste0(appDir, 'www/scores_figures/')
   
   values <- reactiveValues()
   values$annotations <- as.matrix(data.frame(waiting = ""))
@@ -43,13 +55,11 @@ server <- function(input, output, session) {
   values$selected_node <- ''
   values$ld_regions <- NULL
   values$notfound_id <- NULL
-  load('data/scores_correlation_matrice.rda')
   
   # A notification ID
   id <- NULL
   
   cat("Session start\n")
-  
   
   observeEvent(c(input$query_file, input$query), ({
     
@@ -143,7 +153,7 @@ server <- function(input, output, session) {
         modstring <- c(modstring, transform_query(input$query))
       
       valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
-      save(modstring, file = 'objects/modstring.rda')
+      save(modstring, file = paste0(appDir, 'temp/objects/modstring.rda'))
       
       fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
       if(length(modstring) > 0){
@@ -195,7 +205,7 @@ server <- function(input, output, session) {
           global_ranges <- do.call("c", global_ranges) 
           global_ranges <- sort(global_ranges)
           
-          save(global_ranges, file = "objects/global_ranges.rda")
+          save(global_ranges, file = paste0(appDir, "temp/objects/global_ranges.rda"))
           values$global_ranges <- global_ranges
           
           ### remove nonfound variant lines 
@@ -209,8 +219,8 @@ server <- function(input, output, session) {
           requested_chromosomes <- seqlevelsInUse(global_ranges)
           
           for(requested_chr in requested_chromosomes){
-            if(file.exists(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
-              load(paste0('data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
+            if(file.exists(paste0(appDir,'data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
+              load(paste0(appDir,'data/LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
               hits <- findOverlaps(query = values$global_ranges, subject = gr)
               for(i in seq_along(hits)){ 
                 hit <- hits[i]
@@ -222,8 +232,8 @@ server <- function(input, output, session) {
             
             #### fetch cdts ####
             incProgress(1/n, detail = "Extracting CDTS data...")
-            if(file.exists(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
-              load(paste0('data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
+            if(file.exists(paste0(appDir,'data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
+              load(paste0(appDir,'data/CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
               hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
               for(i in seq_along(hits)){ 
                 hit <- hits[i]
@@ -248,7 +258,7 @@ server <- function(input, output, session) {
           
           #### fetch bayesdel
           incProgress(1/n, detail = "Extracting BayesDel scores...")
-          path_to_victor <- "/Users/nekomimi/Workspace/DSNetwork/softs/VICTOR/"
+          path_to_victor <- paste0(appDir, "softs/VICTOR/")
           filename <- tempfile(tmpdir = tmpDir, fileext = ".vcf")
           print(filename)
           createVCF(session_values = values, filename = filename)
@@ -261,8 +271,8 @@ server <- function(input, output, session) {
           #### fetch SNPnexus from HTML request ####
           if(input$fetch_snpnexus){
             incProgress(4/n, detail = "Interrogating SNPNexus platform...")
-            path_to_snpnexus <- "/Users/nekomimi/Workspace/DSNetwork/softs/snpnexus/"
-            python_path <- "/Users/nekomimi/anaconda/bin/python"
+            path_to_snpnexus <- paste0(appDir, "scripts/")
+            python_path <- "/Users/nekomimi/anaconda/bin/python" #### changer ça
             
             # create temp snps file
             filename <- tempfile(tmpdir = tmpDir, fileext = ".txt")
@@ -273,11 +283,11 @@ server <- function(input, output, session) {
                                  filename = filename, 
                                  waiting_time = input$waiting)
             
-            save(value, file = "objects/value.rda")
+            save(value, file = paste0(appDir, "temp/objects/value.rda"))
             
             if(!is.null(value)){
               pre_res <- values$res
-              save(pre_res, file = "objects/pre_res.rda")
+              save(pre_res, file = paste0(appDir, "temp/objects/pre_res.rda"))
               #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,gwava_region,gwava_tss,gwava_unmatched,remm,iwscorek11,pvalk11,iwscorek10,pvalk10`
               x1 <- value[[1]] 
               #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,remm,iwscoren8,pvaln8,iwscoren6,pvaln6`
@@ -318,7 +328,7 @@ server <- function(input, output, session) {
           }
           
           res <- values$res
-          save(res, file = 'objects/res.rda')
+          save(res, file = paste0(appDir, 'temp/objects/res.rda'))
           
           incProgress(2/n, detail = "Aggregating data...")
           #### create metascore pies ####
@@ -414,7 +424,7 @@ server <- function(input, output, session) {
           }
           
           
-          save(raw_scores, adjusted_scores, file = "objects/scores.rda")
+          save(raw_scores, adjusted_scores, file = paste0(appDir, "temp/objects/scores.rda"))
           values$raw_scores <- names(raw_scores)
           values$adjusted_scores <- names(adjusted_scores)
           
@@ -445,7 +455,7 @@ server <- function(input, output, session) {
         #                                      'button_', label = "Fire", 
         #                                      onclick = 'Shiny.onInputChange(\"select_button\",  this.id)')
         values$annotations <- annotations_infos
-        save(annotations_infos, file = "objects/annotations.rda")
+        save(annotations_infos, file = paste0(appDir, "temp/objects/annotations.rda"))
         
         output$raw_data <- DT::renderDataTable({
           if(input$network_type == "regul"){
@@ -516,7 +526,9 @@ server <- function(input, output, session) {
         my_data[(MAX_VAR+1):nrow(my_data),]$selected <- FALSE
       }
       
-      my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
+      if(sum(is.na(my_data$cdts_score)) > 0){
+        my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
+      }
       
       # reste inchangé
       my_data$shape <- "x"
@@ -528,7 +540,7 @@ server <- function(input, output, session) {
       my_data$color[my_data$selected] <- "red"
       
       values$my_data <- my_data
-      save(my_data, file = "objects/my_data.rda")
+      save(my_data, file = paste0(appDir, "temp/objects/my_data.rda"))
       
       
     })
@@ -558,8 +570,8 @@ server <- function(input, output, session) {
     if(is.null(my_res))
       return(NULL)
     
-    # shinyBS::updateButton(session = session, inputId = "runLD", 
-    #                       disabled = TRUE)
+    updateSliderInput(session = session, inputId = "ld_range", value = c(0,1))
+    
     id <<- showNotification(paste("Computing linkage disequilibrium..."), duration = 0, type = "message")
     
     
@@ -607,7 +619,7 @@ server <- function(input, output, session) {
       return(ld)
     })
     
-    save(ld_results, file = "objects/ld_results.rda")
+    save(ld_results, file = paste0(appDir, "temp/objects/ld_results.rda"))
     values$ld <- ld_results
     
     if (!is.null(id))
@@ -616,7 +628,7 @@ server <- function(input, output, session) {
     notfound <- do.call("c", values$ld[1,])
     print(notfound)
     
-    #### update LD edges ####
+    #### map LD edges ####
     snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
     values$all_edges <- snv_edges
     values$current_edges <- snv_edges
@@ -646,6 +658,29 @@ server <- function(input, output, session) {
     } 
   })
   
+  #### remove LD infos ####
+  observeEvent(input$removeLD, {
+    
+    shinyBS::updateButton(session = session, inputId = "update_ld", 
+                          disabled = TRUE)
+    
+    max_ld <- as.numeric(input$ld_range[2])
+    min_ld <- as.numeric(input$ld_range[1])
+    
+    # update edges
+    ld_edges <- values$all_edges #set all color on
+    ld_edges$color <- "rgba(0, 0, 0, 0)" # set every edges at 
+    ld_edges$xvalue <- 0
+    ld_edges$title <- NA
+    
+    values$current_edges <- ld_edges
+    # update network
+    visNetworkProxy("my_network") %>%
+      visUpdateEdges(edges = values$current_edges)
+    
+  })
+  
+  #### update LD infos ####
   observeEvent(input$update_ld, {
     max_ld <- as.numeric(input$ld_range[2])
     min_ld <- as.numeric(input$ld_range[1])
@@ -668,11 +703,12 @@ server <- function(input, output, session) {
   observeEvent(input$buildNetwork, {
     js$collapse("input_box")
     js$collapse("selection_box")
+    updateSelectInput(session = session, inputId = "snv_nodes_type", selected = 'pie_scores')
     shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
   })
   
   observeEvent(input$raw_data_rows_selected,{
-   
+    
     #setdiff(input$tbl_rows_selected, input$tbl_row_last_clicked)
     # shinyBS::updateButton(session = session, inputId = "buildNetwork", 
     #                       disabled = FALSE, style = "warning", label = "Update Network")
@@ -751,9 +787,9 @@ server <- function(input, output, session) {
     values$my_res <- my_res
     
     snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
-    save(snv_edges, file = "objects/snv_edges.rda")
+    save(snv_edges, file = paste0(appDir, "temp/objects/snv_edges.rda"))
     snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type)
-    save(snv_nodes, file = "objects/snv_nodes.rda")
+    save(snv_nodes, file = paste0(appDir, "temp/objects/snv_nodes.rda"))
     
     non_null_raw_scores <- values$raw_scores
     non_null_adj_scores <- values$adjusted_scores
@@ -795,7 +831,6 @@ server <- function(input, output, session) {
     
     if (!is.null(id))
       removeNotification(id)
-    # saveRDS(object = vn, file = "objects/init_vn.rds")
     
     
     shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
@@ -803,8 +838,12 @@ server <- function(input, output, session) {
     if(!is.null(values$current_edges) && nrow(values$current_edges) > 0){
       shinyBS::updateButton(session = session, inputId = "runLD", 
                             disabled = FALSE)
+      shinyBS::updateButton(session = session, inputId = "removeLD", 
+                            disabled = FALSE)
     } else {
       shinyBS::updateButton(session = session, inputId = "runLD",
+                            disabled = TRUE)
+      shinyBS::updateButton(session = session, inputId = "removeLD", 
                             disabled = TRUE)
     } 
     
@@ -825,7 +864,7 @@ server <- function(input, output, session) {
     if(is.null(vn_components))
       return(NULL)
     
-    save(vn_components, file = "objects/vn_components.rda")
+    save(vn_components, file = paste0(appDir, "temp/objects/vn_components.rda"))
     visNetwork(vn_components$nodes, 
                vn_components$edges) %>%
       visEvents(doubleClick = "function(nodes) {
@@ -991,7 +1030,7 @@ server <- function(input, output, session) {
                                      selected_adj_scores = input$selected_scores, 
                                      selected_raw_scores = input$selected_scores, 
                                      inc = input$update_metascore, network_type = input$network_type)
-    save(scores_data, file = "objects/scores_data.rda")
+    save(scores_data, file = paste0(appDir, "temp/objects/scores_data.rda"))
     values$scores_data <- scores_data
     
     basic_ranking(inc = input$update_metascore)
@@ -1037,7 +1076,7 @@ server <- function(input, output, session) {
       colnames(snv_score_details) <- c("predictors", "value")
       rownames(snv_score_details) <- NULL
       snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),digits = 4)
-      #save(snv_score_details, file = "objects/snv_score_details.rda")
+      
       tab <- tableHTML(snv_score_details, theme = 'scientific', rownames = FALSE)
       for (i in 1:nrow(snv_score_details)) { 
         tab <- tab %>% add_css_row(css = list(c('background-color','font-weight','color'), 

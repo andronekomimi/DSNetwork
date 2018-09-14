@@ -53,4 +53,5 @@ www/scores_figures/*
 #dev files
 scripts/study.R
 demo/*
+softs/*
 test*.R

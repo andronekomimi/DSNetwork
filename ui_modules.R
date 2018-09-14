@@ -81,11 +81,11 @@ input_data_module <- function(){
                        br(),
                        shinyBS::bsAlert(anchorId = "alert_res"),
                        downloadButton('downloadRawTable', 'Download results (TSV)'))
-      ,
-      selectInput(inputId = 'preload',
-                  label = '0) Load preset query',
-                  choices = preload_loci),
-      actionButton("preload_loci", "Load preset query", icon = icon("caret-right"))
+      # ,
+      # selectInput(inputId = 'preload',
+      #             label = '0) Load preset query',
+      #             choices = preload_loci),
+      # actionButton("preload_loci", "Load preset query", icon = icon("caret-right"))
   )
 }
 
@@ -176,8 +176,13 @@ ld_mapping_module <- function(){
     selectInput(inputId = 'population',
                 label = 'Choose the population to use',
                 choices = populations),
-    shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
-                      icon = icon("gear"), disabled = TRUE),
+    fluidRow(column(width = 6, 
+                    shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
+                                      icon = icon("gear"), disabled = TRUE)),
+             column(width = 6, 
+                    shinyBS::bsButton(inputId = 'removeLD', label = 'Remove LD Information',  
+                                      icon = icon("gear"), disabled = TRUE))
+    ),
     br(),
     shinyBS::bsAlert(anchorId = "alert_ld"),
     sliderInput("ld_range", "LD range",
@@ -195,7 +200,12 @@ presentation_module <- function(){
   fluidRow(box(id = "intro_box", title = "DSNetwork", solidHeader = FALSE, background = NULL, width = 12,
                collapsible = TRUE, collapsed = TRUE,
                column(width = 12, 
-                      helpText("Text de presentation")
+                      helpText("DSNetwork provides a user-friendly interface integrating predictors for both coding and non-coding variants in an easy-to-interpret visualization to assist prioritization process. The usage of DSNetwork greatly facilitate the selection process by aggregating the results from nearly sixty prediction approaches and easily highlights the best candidate variants for further functional analysis."),
+                      helpText("Each node corresponds to an annotated variant and edges between the nodes can be used to materialize LD levels between two variants.
+Nodes filling are dedicated to prediction scores display. The default display is a pie chart where each slice represents the variant score for a particular predictor.
+                               The slice color gradient from green to red within each predictor reflects the ranking of this variant compared to the other variants in the selected list, a red slice indicating a variant more likely to be damaging with regard to a particular predictor.
+                               LD levels are mapped upon request and based on a user-chosen 1000 genomes population after building the network. LD (squared correlation R2) is represented by an absolute color gradient from yellow to red. Red indicating a high disequilibrium. We did not use the usual white-to-red gradient to preserve the contrast with the white background.
+                               ")
                )
   ))
 }

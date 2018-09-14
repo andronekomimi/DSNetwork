@@ -7,10 +7,8 @@ require(grid)
 require(yaml)
 require(c3)
 
-#devtools::install_github("mrjoh3/c3")
-#devtools::install_github("viking/r-yaml")
-
-path_to_images <- "~/Workspace/DSNetwork/www/scores_figures/"
+appDir <- "/Users/nekomimi/Workspace/DSNetwork/"
+path_to_images <- paste0(appDir,"www/scores_figures/")
 MAX_VAR <- 30
 
 ld_breaks <- seq(0,1, by = 0.01)
@@ -24,6 +22,10 @@ cor_color_breaks <- cor_colfunc(length(cor_breaks))
 names(cor_color_breaks) <- sort(cor_breaks, decreasing = F)
 
 invert_scores <- c("")
+
+is.local <- function(){ 
+  return(grepl(x = system('uname -n',intern=T), pattern = "local"))
+}
 
 hgvsToGRange <- function(hgvs_id, query_id){
   
@@ -923,7 +925,6 @@ build_snv_nodes <- function(session_values, network_type){
 
 build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores, network_type, inc = NULL){
   
-  load('data/scores_correlation_matrice.rda')
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
   invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
@@ -957,7 +958,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
                                   FUN = function(x) sum(is.na(x))) < ncol(nodes_data) - 1), ]
   nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
   
-  save(nodes_data, file = "objects/nodes_data.rda") # keep this one #
+  save(nodes_data, file = paste0(appDir, "temp/objects/nodes_data.rda")) # keep this one #
   
   if(ncol(nodes_data) >= 1){
     score_nodes <- NULL
@@ -978,8 +979,8 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       
       values_mapped <- d
       
-      save(values_mapped, file = "objects/values_mapped.rda")
-      save(colpalette, file = "objects/colpalette.rda")
+      save(values_mapped, file = paste0(appDir, "temp/objects/values_mapped.rda"))
+      save(colpalette, file = paste0(appDir, "temp/objects/colpalette.rda"))
       
       for(i in unique(d)){
         if(i == "NA"){
@@ -1111,7 +1112,7 @@ basic_ranking <- function(inc = NULL){
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
-  load("objects/nodes_data.rda")
+  load(paste0(appDir, "temp/objects/nodes_data.rda"))
   nodes <- as.character(nodes_data$nodes)
   
   if(length(nodes) < 2){
@@ -1461,7 +1462,7 @@ extract_LINSIGHT_range <- function(){
   min_range <- +Inf
   max_range <- -Inf
   for(chr in c(1:22,"X")){
-    load(paste0('data/LINSIGHT/LINSIGHT_chr',chr,'.rda'))
+    load(paste0(appDir,'data/LINSIGHT/LINSIGHT_chr',chr,'.rda'))
     local_min <- min(gr$score, na.rm = TRUE)
     local_max <- max(gr$score, na.rm = TRUE)
     print(paste0("chr",chr, " : ", local_min, " <-> ", local_max))
@@ -1476,14 +1477,13 @@ extract_LINSIGHT_range <- function(){
   return(list(min = min_range, max = max_range))
 }
 
+### FUNCTION LOCAL DO NOT COPY IN PUBLIC REPO ####
 extract_BAYESDEL_range <- function(){
   min_range <- +Inf
   max_range <- -Inf
-  #cadd_data_dir <- "/Users/nekomimi/Workspace/vexor/vexor/data/cadd_scores/"
-  #path_to_victor <- "/Users/nekomimi/Workspace/Exomes/softs/VICTOR/vAnnBase"
   cadd_data_dir <- "~/Transit/data/cadd_scores/"
   path_to_victor <- "/home/lemaud01/thesis/workspace/exomes/softs/VICTOR/vAnnBase"
-  
+
   RES <- mclapply(X = c(1:22,"X","Y","MT"), mc.cores = 8, FUN = function(chr) {
     filename <- tempfile(tmpdir = "~/Transit/data/bayesdel", fileext = ".vcf")
     gr <- readRDS(file = paste0(cadd_data_dir,"cadd",chr,".RDS"))
