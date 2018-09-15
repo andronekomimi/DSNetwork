@@ -19,7 +19,7 @@ if(is.local()){
 } else {
   #### CONF ####
   appDir <- "/srv/shiny-server/dsnetwork/"
-  dataDir <- "/is3/projects/AD_AL_THESIS/apps_data/dsnetwork/"
+  dataDir <- "/mnt/apps_data/dsnetwork/"
 }
 
 appDir <- "/Users/nekomimi/Workspace/DSNetwork/"

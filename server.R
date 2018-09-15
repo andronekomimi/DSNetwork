@@ -39,7 +39,7 @@ server <- function(input, output, session) {
     
     #### CONF ####
     appDir <- "/srv/shiny-server/dsnetwork/"
-    dataDir <- "/is3/projects/AD_AL_THESIS/apps_data/dsnetwork/"
+    dataDir <- "/mnt/apps_data/dsnetwork/"
   }
   
   app.conf <- list(TABIX = '/usr/local/bin/tabix',
