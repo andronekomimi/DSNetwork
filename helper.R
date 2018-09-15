@@ -480,7 +480,7 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
     ldheatmap <- LDheatmapCustom(gdat = my_data, 
                                  genetic.distances = variants_pos$V2,
                                  updateProgress = updateProgress, SNP.name = variants,
-                                 results_file = paste0(results_dir,"/ld_figures/LD_plot_", region, ".png"))
+                                 results_file = paste0(results_dir,"/LD_plot_", region, ".png"))
     
     ### add lost variants in LDheatmap
     lost_variants <- variants[!variants %in% colnames(ldheatmap$LDmatrix)]
@@ -969,7 +969,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
                                   FUN = function(x) sum(is.na(x))) < ncol(nodes_data) - 1), ]
   nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
   
-  save(nodes_data, file = paste0(appDir, "temp/objects/nodes_data.rda")) # keep this one #
+  save(nodes_data, file = paste0(tmpDir,"/nodes_data.rda")) # keep this one #
   
   if(ncol(nodes_data) >= 1){
     score_nodes <- NULL
@@ -990,8 +990,8 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       
       values_mapped <- d
       
-      save(values_mapped, file = paste0(appDir, "temp/objects/values_mapped.rda"))
-      save(colpalette, file = paste0(appDir, "temp/objects/colpalette.rda"))
+      save(values_mapped, file = paste0(tmpDir,"/values_mapped.rda"))
+      save(colpalette, file = paste0(tmpDir,"/colpalette.rda"))
       
       for(i in unique(d)){
         if(i == "NA"){
@@ -1123,7 +1123,7 @@ basic_ranking <- function(inc = NULL){
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
-  load(paste0(appDir, "temp/objects/nodes_data.rda"))
+  load(paste0(tmpDir,"/nodes_data.rda"))
   nodes <- as.character(nodes_data$nodes)
   
   if(length(nodes) < 2){

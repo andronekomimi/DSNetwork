@@ -13,6 +13,10 @@ options(shiny.trace = FALSE)
 
 server <- function(input, output, session) {
   
+  tmpDir <- tempdir() 
+  #dir.create(path = paste0(tmpDir, "ld_figures"), showWarnings = F)
+  #dir.create(path = paste0(tmpDir, "objects"), showWarnings = F)
+  
   source('helper.R', local = TRUE)
   
   if(is.local()){
@@ -37,11 +41,6 @@ server <- function(input, output, session) {
     appDir <- "/srv/shiny-server/dsnetwork/"
     dataDir <- "/is3/projects/AD_AL_THESIS/apps_data/dsnetwork/"
   }
-  
-  
-  tmpDir <- paste0(appDir, 'temp/')
-  resultDir <-  paste0(appDir, 'temp/')
-  dir.create(path = paste0(resultDir, "ld_figures"), showWarnings = F)
   
   app.conf <- list(TABIX = '/usr/local/bin/tabix',
                    VCF =  paste0(dataDir, '1000Genomes/')) #changer ça!
@@ -155,7 +154,8 @@ server <- function(input, output, session) {
         modstring <- c(modstring, transform_query(input$query))
       
       valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
-      save(modstring, file = paste0(appDir, 'temp/objects/modstring.rda'))
+      print(valid_transfo)
+      save(modstring, file = paste0(tmpDir, 'modstring.rda'))
       
       fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
       if(length(modstring) > 0){
@@ -207,7 +207,7 @@ server <- function(input, output, session) {
           global_ranges <- do.call("c", global_ranges) 
           global_ranges <- sort(global_ranges)
           
-          save(global_ranges, file = paste0(appDir, "temp/objects/global_ranges.rda"))
+          save(global_ranges, file = paste0(tmpDir, "/global_ranges.rda"))
           values$global_ranges <- global_ranges
           
           ### remove nonfound variant lines 
@@ -285,11 +285,11 @@ server <- function(input, output, session) {
                                  filename = filename, 
                                  waiting_time = input$waiting)
             
-            save(value, file = paste0(appDir, "temp/objects/value.rda"))
+            save(value, file = paste0(tmpDir, "/value.rda"))
             
             if(!is.null(value)){
               pre_res <- values$res
-              save(pre_res, file = paste0(appDir, "temp/objects/pre_res.rda"))
+              save(pre_res, file = paste0(tmpDir, "/pre_res.rda"))
               #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,gwava_region,gwava_tss,gwava_unmatched,remm,iwscorek11,pvalk11,iwscorek10,pvalk10`
               x1 <- value[[1]] 
               #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,remm,iwscoren8,pvaln8,iwscoren6,pvaln6`
@@ -330,7 +330,7 @@ server <- function(input, output, session) {
           }
           
           res <- values$res
-          save(res, file = paste0(appDir, 'temp/objects/res.rda'))
+          save(res, file = paste0(tmpDir, '/res.rda'))
           
           incProgress(2/n, detail = "Aggregating data...")
           #### create metascore pies ####
@@ -426,7 +426,7 @@ server <- function(input, output, session) {
           }
           
           
-          save(raw_scores, adjusted_scores, file = paste0(appDir, "temp/objects/scores.rda"))
+          save(raw_scores, adjusted_scores, file = paste0(tmpDir, "/scores.rda"))
           values$raw_scores <- names(raw_scores)
           values$adjusted_scores <- names(adjusted_scores)
           
@@ -457,7 +457,7 @@ server <- function(input, output, session) {
         #                                      'button_', label = "Fire", 
         #                                      onclick = 'Shiny.onInputChange(\"select_button\",  this.id)')
         values$annotations <- annotations_infos
-        save(annotations_infos, file = paste0(appDir, "temp/objects/annotations.rda"))
+        save(annotations_infos, file = paste0(tmpDir, "/annotations.rda"))
         
         output$raw_data <- DT::renderDataTable({
           if(input$network_type == "regul"){
@@ -542,7 +542,7 @@ server <- function(input, output, session) {
       my_data$color[my_data$selected] <- "red"
       
       values$my_data <- my_data
-      save(my_data, file = paste0(appDir, "temp/objects/my_data.rda"))
+      save(my_data, file = paste0(tmpDir, "/my_data.rda"))
       
       
     })
@@ -609,7 +609,7 @@ server <- function(input, output, session) {
         tryCatch({
           ld <- computeLDHeatmap(region = region,
                                  requested_variants = current_range$query, 
-                                 results_dir = resultDir, 
+                                 results_dir = tmpDir, 
                                  vcf_dir = app.conf$VCF, 
                                  tabix_path = app.conf$TABIX, 
                                  population = input$population, 
@@ -621,7 +621,7 @@ server <- function(input, output, session) {
       return(ld)
     })
     
-    save(ld_results, file = paste0(appDir, "temp/objects/ld_results.rda"))
+    save(ld_results, file = paste0(tmpDir, "/ld_results.rda"))
     values$ld <- ld_results
     
     if (!is.null(id))
@@ -789,9 +789,9 @@ server <- function(input, output, session) {
     values$my_res <- my_res
     
     snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
-    save(snv_edges, file = paste0(appDir, "temp/objects/snv_edges.rda"))
+    save(snv_edges, file = paste0(tmpDir, "/snv_edges.rda"))
     snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type)
-    save(snv_nodes, file = paste0(appDir, "temp/objects/snv_nodes.rda"))
+    save(snv_nodes, file = paste0(tmpDir, "/snv_nodes.rda"))
     
     non_null_raw_scores <- values$raw_scores
     non_null_adj_scores <- values$adjusted_scores
@@ -866,7 +866,7 @@ server <- function(input, output, session) {
     if(is.null(vn_components))
       return(NULL)
     
-    save(vn_components, file = paste0(appDir, "temp/objects/vn_components.rda"))
+    save(vn_components, file = paste0(tmpDir, "/vn_components.rda"))
     visNetwork(vn_components$nodes, 
                vn_components$edges) %>%
       visEvents(doubleClick = "function(nodes) {
@@ -1032,7 +1032,7 @@ server <- function(input, output, session) {
                                      selected_adj_scores = input$selected_scores, 
                                      selected_raw_scores = input$selected_scores, 
                                      inc = input$update_metascore, network_type = input$network_type)
-    save(scores_data, file = paste0(appDir, "temp/objects/scores_data.rda"))
+    save(scores_data, file = paste0(tmpDir, "/scores_data.rda"))
     values$scores_data <- scores_data
     
     basic_ranking(inc = input$update_metascore)
@@ -1166,7 +1166,7 @@ server <- function(input, output, session) {
 #     removeNotification(id)
 #   id <<- NULL
 #   if(!is.null(values$ld)){
-#     filename <- paste0(resultDir,"/ld_figures/LD_plot_",input$ld_regions,".png")
+#     filename <- paste0(tmpDir,"/ld_figures/LD_plot_",input$ld_regions,".png")
 #   }
 #   
 #   list(src = filename,
