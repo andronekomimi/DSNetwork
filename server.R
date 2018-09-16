@@ -912,6 +912,8 @@ server <- function(input, output, session) {
   buildPlot_d <- buildPlot %>% debounce(2000)
   
   output$my_plot <- renderPlotly({
+    pdf(NULL) # to avoid the production of Rplots.pdf
+    
     my_data <- buildPlot_d()
     if(is.null(my_data) || nrow(my_data) == 0)
       return(NULL)
