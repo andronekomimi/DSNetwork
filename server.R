@@ -928,7 +928,7 @@ server <- function(input, output, session) {
                showline = TRUE,
                showticklabels = TRUE,
                showgrid = TRUE)
-    
+    pdf(NULL) # to avoid the production of Rplots.pdf
     plot_ly(data = my_data,
             type = "scatter",
             mode = "markers",
