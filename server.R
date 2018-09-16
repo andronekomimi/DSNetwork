@@ -33,6 +33,9 @@ server <- function(input, output, session) {
     #### CONF ####
     appDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/"
     dataDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/data/"
+    path_to_victor <- paste0(appDir, "softs/VICTOR/")
+    python_path <- "/Users/nekomimi/anaconda/bin/python"
+    tabix_path <- '/usr/local/bin/tabix'
   } else {
     preload <- list(
       locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
@@ -40,10 +43,13 @@ server <- function(input, output, session) {
     #### CONF ####
     appDir <- "/srv/shiny-server/dsnetwork/"
     dataDir <- "/mnt/apps_data/dsnetwork/"
+    path_to_victor <- "/mnt/apps_softs/dsnetwork/VICTOR/"
+    python_path <- "/Users/nekomimi/anaconda/bin/python" ###
+    tabix_path <- '/mnt/apps_softs/dsnetwork/TABIX/tabix' ###
   }
   
-  app.conf <- list(TABIX = '/usr/local/bin/tabix',
-                   VCF =  paste0(dataDir, '1000Genomes/')) #changer ça!
+  app.conf <- list(TABIX = tabix_path,
+                   VCF =  paste0(dataDir, '1000Genomes/')) 
   path_to_images <- paste0(appDir, 'www/scores_figures/')
   
   values <- reactiveValues()
@@ -260,7 +266,6 @@ server <- function(input, output, session) {
           
           #### fetch bayesdel
           incProgress(1/n, detail = "Extracting BayesDel scores...")
-          path_to_victor <- paste0(appDir, "softs/VICTOR/")
           filename <- tempfile(tmpdir = tmpDir, fileext = ".vcf")
           print(filename)
           createVCF(session_values = values, filename = filename)
@@ -274,7 +279,6 @@ server <- function(input, output, session) {
           if(input$fetch_snpnexus){
             incProgress(4/n, detail = "Interrogating SNPNexus platform...")
             path_to_snpnexus <- paste0(appDir, "scripts/")
-            python_path <- "/Users/nekomimi/anaconda/bin/python" #### changer ça
             
             # create temp snps file
             filename <- tempfile(tmpdir = tmpDir, fileext = ".txt")
