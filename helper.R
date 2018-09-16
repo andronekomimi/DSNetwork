@@ -1459,7 +1459,7 @@ createVCF <- function(session_values, filename){
 
 extractBayesDel <- function(path_to_victor, filename){
   cmd <- paste0(path_to_victor,"vAnnBase ",filename," --genome ",path_to_victor,"data/hg19/ --ann ",path_to_victor,"data/hg19/BayesDel_nsfp33a_noAF -x 3 --min -1.5 --step 0.01 --indel max --padding 1 -o ", filename,".gz")
-  print(cmd)
+  warning(cmd)
   system(command = cmd, intern = F)
   if(file.exists(paste0(filename,".gz"))){
     vcf <- vcfR::read.vcfR(paste0(filename,".gz"), verbose = F)
