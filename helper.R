@@ -423,7 +423,7 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
   region <- gsub(x = region, pattern = 'chr', replacement = '')
   chromosome <- strsplit(x = region, split = ":")[[1]][1]
   
-  command_line <- paste0("perl scripts/vcf_to_ped_converter.pl -vcf ", vcf_dir,"ALL.chr",
+  command_line <- paste0("perl ",path_to_vcf_converter," -vcf ", vcf_dir,"ALL.chr",
                          chromosome, ".phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz",
                          " -sample_panel_file ",vcf_dir,"integrated_call_samples_v3.20130502.ALL.panel",
                          " -region ", region,
