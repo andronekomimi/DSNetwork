@@ -45,7 +45,7 @@ server <- function(input, output, session) {
     appDir <- "/srv/shiny-server/dsnetwork/"
     dataDir <- "/mnt/apps_data/dsnetwork/"
     path_to_victor <- "/mnt/apps_softs/dsnetwork/VICTOR/"
-    python_path <- "/Users/nekomimi/anaconda/bin/python" ###
+    python_path <- "/bin/python" ###
     tabix_path <- '/mnt/apps_softs/dsnetwork/TABIX/tabix' ###
     path_to_vcf_converter <- paste0(appDir, "scripts/vcf_to_ped_converter.pl")
   }
