@@ -48,7 +48,7 @@ preload_loci <- c("FGFR2" = "locus_0",
 
 sidebar_content <- function(){
   sidebarMenu(
-    menuItem("How to get a network", tabName = "main", icon = icon("hand-o-up")),
+    menuItem("Get your network", tabName = "main", icon = icon("hand-o-up")),
     menuItem("Scores description", tabName = "description", icon = icon("info-circle")),
     menuItem("Read Me", tabName = "readme", icon = icon("mortar-board")),
     menuItem("About", tabName = "about", icon = icon("question"))
@@ -125,7 +125,7 @@ nodes_modifiers_box <- function(){
                 label = "5) Predictors selection",
                 multiple = FALSE,
                 choices = c(
-                  "Scores Pie" = 'pie_scores',
+                  "Score pie charts" = 'pie_scores',
                   list(
                     `Relative metascores` = c("Rank (NA last)" = 'pie_rank_na_last',
                                               "Rank (NA mean)" = 'pie_rank_na_mean'),
