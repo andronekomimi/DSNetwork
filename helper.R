@@ -22,7 +22,6 @@ if(is.local()){
   dataDir <- "/mnt/apps_data/dsnetwork/"
 }
 
-appDir <- "/Users/nekomimi/Workspace/DSNetwork/"
 path_to_images <- paste0(appDir,"www/scores_figures/")
 MAX_VAR <- 30
 
@@ -36,7 +35,7 @@ cor_colfunc <- colorRampPalette(c("blue","white","red"))
 cor_color_breaks <- cor_colfunc(length(cor_breaks))
 names(cor_color_breaks) <- sort(cor_breaks, decreasing = F)
 
-invert_scores <- c("")
+invert_scores <- c("cdts_percentile")
 
 hgvsToGRange <- function(hgvs_id, query_id){
   
@@ -478,7 +477,7 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
     
     
     ldheatmap <- LDheatmapCustom(gdat = my_data, 
-                                 genetic.distances = variants_pos$V2,
+                                 genetic.distances = variants_pos$V2, add.map = FALSE,
                                  updateProgress = updateProgress, SNP.name = variants,
                                  results_file = paste0(results_dir,"/LD_plot_", region, ".png"))
     
@@ -1232,8 +1231,8 @@ compute_absolute_metascore <- function(session_values){
   )
   
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
-  colpalette_lenght <- 10
-  colpalette <- colfunc(n = colpalette_lenght)
+  colpalette_length <- 100
+  colpalette <- colfunc(n = colpalette_length)
   
   absolute_metascore_colpalette <- list(
     linsight = colpalette,
@@ -1245,7 +1244,7 @@ compute_absolute_metascore <- function(session_values){
     neg_direction <- absolute_metascore[[n]]$min > absolute_metascore[[n]]$max
     names(absolute_metascore_colpalette[[n]]) <- sort(round(x = seq(from = absolute_metascore[[n]]$min, 
                                                                     to = absolute_metascore[[n]]$max, 
-                                                                    length.out = colpalette_lenght), digits = 2), 
+                                                                    length.out = colpalette_length), digits = 2), 
                                                       decreasing = neg_direction) # plus petit ranking = meilleur = plus rouge
   }
   
@@ -1255,7 +1254,7 @@ compute_absolute_metascore <- function(session_values){
     neg_direction <- absolute_metascore[[n]]$min > absolute_metascore[[n]]$max
     xrange <- sort(round(x = seq(from = absolute_metascore[[n]]$min, 
                                  to = absolute_metascore[[n]]$max, 
-                                 length.out = colpalette_lenght), digits = 2), 
+                                 length.out = colpalette_length), digits = 2), 
                    decreasing = neg_direction)
     if(!neg_direction){
       if(sum(x >= xrange))
@@ -1559,7 +1558,7 @@ runSNPnexus <- function(python_path, path_to_snpnexus, filename, waiting_time){
 snpnexusIDconversion <- function(snpnexusID){
   #snpnexusID = chr5:44546628:A/G:1
   snpnexusID <- unlist(strsplit(x = unlist(strsplit(x = snpnexusID, split = ":")), split = "/"))
-  formatSingleHgvs(snpnexusID[1], as.numeric(snpnexusID[2]), snpnexusID[3], snpnexusID[4])
+  formatSingleHgvs(snpnexusID[1], as.numeric(snpnexusID[2]), snpnexusID[3], snpnexusID[4], mutant_type = T)
 }
 
 #### source : https://stackoverflow.com/a/45739826

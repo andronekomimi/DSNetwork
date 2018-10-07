@@ -20,16 +20,6 @@ server <- function(input, output, session) {
   source('helper.R', local = TRUE)
   
   if(is.local()){
-    preload <- list(
-      locus_80 = "rs2660776\nrs2660774\nrs2575792\nrs2660773\nrs2660772\nrs1370042\nrs1160076\nrs2018075\nrs62259569\nrs2575799\nrs2253915\nrs2253916\nrs2253921\nrs2575802\nrs138876277\nrs1370044\nrs2575805\nrs144055118\nrs35711034\nrs35733956\nrs74520234\nrs147080240\nrs4859022\nrs2262594\nrs2254904\nrs729942\nrs1370045\nrs35870472\nrs34339032\nrs2660785\nrs2575815\nrs2575817\nrs2660787\nrs2575818\nrs2660788\nrs2118082\nrs2244125\nrs2660790\nrs2660791\nrs2660792\nrs2660794\nrs61340205\nrs1821751\nrs2660796\nrs2196523\nrs1370040\nrs2660797\nrs2575783\nrs2660798\nrs2575780\n3:87044690:A:AAT\nrs2575775\nrs2660799\nrs2575774\nrs2575772\nrs2043663\nrs13066793\nrs1960268\nrs1025631\nrs4859107\nrs201414876",
-      locus_78 = "rs73167030\nrs12159970\nrs73167031\nrs56150793\nrs6001911\nrs74767555\nrs111843590\nrs6001912\nrs10483203\nrs56283550\nrs12158872\nrs17001907\n22:40836155:CAAAA:C\nrs56215843\nrs61675795\nrs73167042\nrs6001915\nrs17001915\nrs73167045\nrs73167052\nrs5995856\nrs17001920\nrs6001920\nrs73167053\nrs5995860\nrs28419341\nrs28552449\nrs112375848\nrs55864500\nrs183438976\nrs73167058\nrs5995862\nrs17001943\nrs58778028\nrs73167063\nrs5995864\nrs75523053\nrs74486969\nrs61211547\nrs12159787\nrs10483204\nrs145014115\nrs4299422\nrs2899337\nrs201540223\nrs73167066\nrs71777635\nrs73167067\nrs6001930\nrs17001974\nrs6001931\nrs6001932\nrs73167069\nrs73167072\nrs73167073\nrs73167076\nrs17001977\nrs3827381\nrs3827382\nrs73167079\nrs10483205\nrs112880707\nrs73167080\nrs73167082\nrs113409089\nrs74278065\nrs6001935\nrs56135013\nrs6001937\nrs73167089\nrs113798157\nrs5995867\nrs73167090\nrs77426923\nrs56182212\nrs73167092\nrs199614224\nrs6001939\nrs73167093\nrs6001942\nrs138175438\nrs73167096\nrs73167097\nrs73167098\nrs373996442\nrs113966362\nrs73167101\nrs17001993\nrs17001994\nrs73169003\nrs10483206\nrs6001946\nrs6001949\nrs66987842\nrs17001997\nrs6001950\nrs56124626\nrs141580207\nrs112034576\nrs55993771\nrs142270009\nrs6001954\nrs5995870\nrs57693796\nrs5995871\nrs139903991\nrs55849114\nrs55722862\nrs55960299\nrs56334449\nrs55662398\nrs6001962\nrs150091203\nrs932379\nrs73169026\nrs73169028\nrs73169032\nrs55674424\nrs5995875\nrs6001965\nrs56092708\nrs16985899\nrs17002019\nrs17002020\nrs201432472\nrs73169036\nrs12160047\nrs56047425\nrs56411183\nrs73169040\nrs117423948\nrs5995876\nrs138476044\nrs146829921\nrs73169043\nrs116973859\nrs28444678\nrs375665020\nrs17002024\nrs57705902\nrs79799751\nrs6001973\nrs6001974\nrs73169051\nrs143586053\nrs17002026\nrs17002027\nrs28567076\nrs73169056\nrs55853923\nrs17002030\nrs73169057\nrs73169058\nrs73169060\nrs141597790\nrs142127948\nrs17002034\nrs17002036\nrs6001979\nrs17002038\nrs6001980\nrs55719110\nrs55997921\nrs55775031\nrs139645469\nrs73169065\nrs59047419\nrs55669535\nrs192603101\nrs73169071\nrs5995881\nrs73169072\nrs6001981\nrs145351698\nrs73169077\nrs73169078\nrs6001982\nrs73169083\nrs73169084\nrs112497956\nrs6001983\nrs718193\nrs56108505\nrs73169087\nrs73169089\nrs6001984\nrs71785733\nrs73169091\nrs117669949\nrs78694459\nrs73169096\nrs73169097\nrs145005064\nrs73169098\nrs145624734\nrs56051217",
-      locus_70 = "rs4889891\nrs9905914\nrs9896202\nrs745571\nrs745570\nrs2587505\nrs139427260\nrs71161686\nrs2587507",
-      locus_60 = "13:32866927:CAATAAATAAATA:CAATAAATA\nrs56084662\nrs11571815\nrs11571818\nrs11571833",
-      locus_38 = "rs62485509\nrs720475",
-      locus_6 = "rs181595184\nrs12129763\nrs6686987\nrs55899544\nrs6427943\nrs6678914\nrs6703244\nrs12028423\nrs12131882\nrs12132085\nrs12129456\nrs12129536\nrs10920365\nrs2167588\nrs4950774\nrs12032424\nrs4950775\nrs4950836\nrs6143572\nrs896548\nrs4245706\nrs12032080\nrs3795598\nrs12143329\nrs4950837\nrs12021815\nrs60573451\nrs140473199",
-      locus_2 = "rs11102694\nrs2358994\nrs2358995\nrs7547478\nrs7513707\nrs12022378\nrs3761936\nrs11102701\nrs11102702\nrs12046289\nrs112974454",
-      locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
-    
     #### CONF ####
     appDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/"
     dataDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/data/"
@@ -37,10 +27,8 @@ server <- function(input, output, session) {
     python_path <- "/Users/nekomimi/anaconda/bin/python"
     tabix_path <- '/usr/local/bin/tabix'
     path_to_vcf_converter <- paste0(appDir, "scripts/vcf_to_ped_converter.pl")
+    load(paste0(appDir, "demo/dev_preload.rda"))
   } else {
-    preload <- list(
-      locus_0 = "rs6864776\n5:44527739:A:ATACT\nrs4634356\nrs1905192\nrs4866905\nrs1482663\n5:44496660:A:AG\nrs7710996\nrs6451763\n5:44527050:C:A\nrs1351633\nrs1384453\nrs1482665\nrs983940\nrs6897963\nrs1384454\nrs10079222\nrs7736427\nrs10512860\nrs4866776\nrs1482690\nrs12516346\nrs1482684\n5:44496659:T:TA\nrs1482691\nrs7724859\nrs2128430\nrs7707044\nrs1905191\nrs1120718\nrs4866899\nrs7712213\nrs6451762\nrs7703171\nrs6879342")
-    
     #### CONF ####
     appDir <- "/srv/shiny-server/dsnetwork/"
     dataDir <- "/mnt/apps_data/dsnetwork/"
@@ -48,6 +36,7 @@ server <- function(input, output, session) {
     python_path <- "/bin/python" ###
     tabix_path <- '/mnt/apps_softs/dsnetwork/TABIX/tabix' ###
     path_to_vcf_converter <- paste0(appDir, "scripts/vcf_to_ped_converter.pl")
+    load(paste0(appDir, "demo/preload.rda"))
   }
   
   app.conf <- list(TABIX = tabix_path,
@@ -92,8 +81,20 @@ server <- function(input, output, session) {
   })
   
   #### LOAD DEMO QUERY ####
-  observeEvent(input$load_demo, {
-    updateTextAreaInput(session = session, inputId = "query", value = preload[["locus_0"]])
+  observeEvent(input$load_demo1, {
+    updateTextAreaInput(session = session, inputId = "query", value = preload[["locus_1p36"]])
+  })
+  
+  observeEvent(input$load_demo2, {
+    updateTextAreaInput(session = session, inputId = "query", value = preload[["locus_1p34"]])
+  })
+  
+  observeEvent(input$load_demo3, {
+    updateTextAreaInput(session = session, inputId = "query", value = preload[["locus_7q22"]])
+  })
+  
+  observeEvent(input$load_demo4, {
+    updateTextAreaInput(session = session, inputId = "query", value = preload[["locus_11p15"]])
   })
   
   #### INPUT DATA MANAGEMENT ####
@@ -292,10 +293,11 @@ server <- function(input, output, session) {
                                  waiting_time = input$waiting)
             
             save(value, file = paste0(tmpDir, "/value.rda"))
-            
+            save(value, file = "~/Desktop/value.rda")
             if(!is.null(value)){
               pre_res <- values$res
               save(pre_res, file = paste0(tmpDir, "/pre_res.rda"))
+              save(pre_res, file = "~/Desktop/pre_res.rda")
               #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,gwava_region,gwava_tss,gwava_unmatched,remm,iwscorek11,pvalk11,iwscorek10,pvalk10`
               x1 <- value[[1]] 
               #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,remm,iwscoren8,pvaln8,iwscoren6,pvaln6`
@@ -303,7 +305,21 @@ server <- function(input, output, session) {
               snpnexus_res <- merge(x = x1, y = x2, by.x = "id", by.y = "id", all = T)
               
               #convert id to submit to myvariant info to get a common id between snpnexus and res
-              converted_id <- sapply(X = snpnexus_res$id, FUN = function(x) snpnexusIDconversion(x))
+              x3 <- sapply(X = snpnexus_res$id, FUN = function(x) snpnexusIDconversion(x))
+              # deletion mal convertie
+              for(j in which(x3[2,] == "deletion")){
+                #chr9:g.110893722_110893725del => #chr9:g.110893721_110893724del to fit with myvariant.info format
+                chrom_part <- gsub(x = x3[1,j], pattern = "(chr.*:g.).*", replacement = "\\1")
+                start_part <- as.numeric(gsub(x = x3[1,j], pattern = "chr.*:g.(\\d+)_.*", replacement = "\\1")) - 1
+                stop_part <- as.numeric(gsub(x = x3[1,j], pattern = ".*_(\\d+)del", replacement = "\\1")) - 1
+                if(start_part == stop_part){
+                  x3[1,j] <- paste0(chrom_part, start_part,"del")
+                } else {
+                  x3[1,j] <- paste0(chrom_part, start_part, "_", stop_part,"del")
+                }
+              }
+              converted_id <- as.character(x3[1,])
+              
               snpnexus_res$converted_id <- converted_id
               # merge results based on common id
               pre_res <- merge(y = snpnexus_res, x = pre_res, by.y = "converted_id", by.x = "X_id", all = T)
@@ -343,12 +359,13 @@ server <- function(input, output, session) {
           compute_absolute_metascore(values)
           
           
-          common_fields <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "query|X_id|cadd.ref|cadd.alt")]
+          common_fields <-c("query","X_id","cadd.ref",
+                            "cadd.alt",
+                            "cdts_score",
+                            "cdts_percentile")
           
           common_scores <- c("linsight", 
-                             "bayesdel",
-                             "cdts_score",
-                             "cdts_percentile")
+                             "bayesdel")
           
           snpnexus_scores <- c("gwava_region","gwava_tss","gwava_unmatched",
                                "eigen_nc","eigen_pc_nc",
@@ -456,7 +473,8 @@ server <- function(input, output, session) {
       
       local({
         #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
-        annotations_fields <- c("query","X_id", "dbsnp.chrom", "dbsnp.hg19.start", "cadd.consequence", common_scores)
+        annotations_fields <- c("query","X_id", "dbsnp.chrom", "dbsnp.hg19.start", "cadd.consequence", "cdts_score",
+                                "cdts_percentile", common_scores)
         annotations_infos <- values$res[,annotations_fields]
         annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
         # annotations_infos$more <- shinyInput(actionButton, nrow(annotations_infos), 
@@ -466,6 +484,7 @@ server <- function(input, output, session) {
         save(annotations_infos, file = paste0(tmpDir, "/annotations.rda"))
         
         output$raw_data <- DT::renderDataTable({
+          
           if(input$network_type == "regul"){
             n <- seq(min(sum(!non_syn_res), MAX_VAR))
             dt = values$annotations[!non_syn_res,]
@@ -802,13 +821,21 @@ server <- function(input, output, session) {
     non_null_raw_scores <- values$raw_scores
     non_null_adj_scores <- values$adjusted_scores
     
+    if(input$buildNetwork == 1){
+      inc = NULL
+    } else {
+      inc = input$update_metascore + input$buildNetwork
+    }
+    
     scores_data <- build_score_nodes(session_values = values, 
                                      selected_adj_scores = non_null_adj_scores, 
                                      selected_raw_scores = non_null_raw_scores, 
-                                     network_type = input$network_type)
+                                     network_type = input$network_type,
+                                     inc = inc
+    )
     
     snv_nodes$infos <- scores_data$nodes_titles
-    basic_ranking()
+    basic_ranking(inc = inc)
     
     values$scores_data <- scores_data
     values$current_edges <- snv_edges
@@ -911,7 +938,7 @@ server <- function(input, output, session) {
     return(my_data)
   })
   
-  buildPlot_d <- buildPlot %>% debounce(2000)
+  buildPlot_d <- buildPlot %>% debounce(5000)
   
   output$my_plot <- renderPlotly({
     pdf(NULL) # to avoid the production of Rplots.pdf
@@ -1039,11 +1066,13 @@ server <- function(input, output, session) {
     scores_data <- build_score_nodes(values,
                                      selected_adj_scores = input$selected_scores, 
                                      selected_raw_scores = input$selected_scores, 
-                                     inc = input$update_metascore, network_type = input$network_type)
+                                     inc = (input$update_metascore + input$buildNetwork), 
+                                     network_type = input$network_type)
+    
     save(scores_data, file = paste0(tmpDir, "/scores_data.rda"))
     values$scores_data <- scores_data
     
-    basic_ranking(inc = input$update_metascore)
+    basic_ranking(inc = (input$update_metascore + input$buildNetwork))
     
     svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
     svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", 
@@ -1155,6 +1184,7 @@ server <- function(input, output, session) {
     file.remove(old_figures)
     temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
     file.remove(temp_files)
+    graphics.off()
     cat("Session stopped\n")
   })
 }
