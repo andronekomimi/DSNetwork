@@ -163,7 +163,7 @@ server <- function(input, output, session) {
         modstring <- c(modstring, transform_query(input$query))
       
       valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
-      print(valid_transfo)
+      
       save(modstring, file = paste0(tmpDir, 'modstring.rda'))
       
       fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
@@ -208,6 +208,7 @@ server <- function(input, output, session) {
           #### order ####
           values$res <- values$res[order(values$res$dbsnp.chrom, values$res$dbsnp.hg19.start),]
           
+          
           #### global range ####
           global_ranges <- apply(X = values$res, MARGIN = 1, 
                                  FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"]$X_id, 
@@ -225,10 +226,11 @@ server <- function(input, output, session) {
             values$res <- values$res[-which(values$res$notfound == TRUE), ]
           }
           
-          #### fetch linsight ####
-          incProgress(1/n, detail = "Extracting LINSIGHT scores...")
+          
           requested_chromosomes <- seqlevelsInUse(global_ranges)
           
+          #### fetch linsight ####
+          incProgress(1/n, detail = "Extracting LINSIGHT scores...")
           for(requested_chr in requested_chromosomes){
             if(file.exists(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
               load(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
@@ -240,9 +242,11 @@ server <- function(input, output, session) {
                 values$res[values$res$query == query,"linsight"] <- value
               }
             }
-            
-            #### fetch cdts ####
-            incProgress(1/n, detail = "Extracting CDTS data...")
+          }
+          
+          #### fetch cdts ####
+          incProgress(1/n, detail = "Extracting CDTS data...")
+          for(requested_chr in requested_chromosomes){
             if(file.exists(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
               load(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
               hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
@@ -265,7 +269,6 @@ server <- function(input, output, session) {
           } else {
             values$cdts_region <- NULL
           }
-          
           
           #### fetch bayesdel
           incProgress(1/n, detail = "Extracting BayesDel scores...")
@@ -326,7 +329,7 @@ server <- function(input, output, session) {
               pre_res$iwscoring_novel <- pre_res$iwscoren6
               pre_res$iwscoring_known <- pre_res$iwscorek10
               # non-coding scores
-              colnames(pre_res)[colnames(pre_res) == "deepsea.x"] <- "deepseq_sig_log2@" #deppsea : Lower score indicates higher likelihood of functional significance of the variant. But log2 is in the "good" direction
+              colnames(pre_res)[colnames(pre_res) == "deepsea.x"] <- "deepseq_sig_log2" #deppsea : Lower score indicates higher likelihood of functional significance of the variant. But log2 is in the "good" direction
               colnames(pre_res)[colnames(pre_res) == "eigen.x"] <- "eigen_nc"
               colnames(pre_res)[colnames(pre_res) == "eigen_pc.x"] <- "eigen_pc_nc" #higher score more likelihood of the variant to be functional. 
               colnames(pre_res)[colnames(pre_res) == "fathmm.x"] <- "fathmm_nc" #Scores above 0.5 are predicted to be deleterious
@@ -383,7 +386,9 @@ server <- function(input, output, session) {
           values$all_regul_res <- values$res[!non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, snpnexus_scores, cadd_raw_scores)) ]
           
           if(nrow(values$all_nonsyn_res) > 0){
+            
             adjusted_scores <- sapply(X = c(dbnsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$all_nonsyn_res, score_name = x))
+            
             switch (class(adjusted_scores),
                     matrix = {
                       rownames(adjusted_scores) <- NULL
@@ -535,9 +540,6 @@ server <- function(input, output, session) {
       my_data$no_cdts <- is.na(my_data$cdts_score)
       my_data$selected <- TRUE
       
-      
-      print(input$network_type)
-      
       if(input$network_type == "regul"){
         if(sum(my_data$non_synonymous) > 0){
           my_data[my_data$non_synonymous,]$selected <- FALSE
@@ -648,9 +650,6 @@ server <- function(input, output, session) {
     save(ld_results, file = paste0(tmpDir, "/ld_results.rda"))
     values$ld <- ld_results
     
-    if (!is.null(id))
-      removeNotification(id)
-    
     notfound <- do.call("c", values$ld[1,])
     print(notfound)
     
@@ -682,6 +681,10 @@ server <- function(input, output, session) {
       shinyBS::updateButton(session = session, inputId = "update_ld", 
                             disabled = TRUE)
     } 
+    
+    if (!is.null(id))
+      removeNotification(id)
+    
   })
   
   #### remove LD infos ####
@@ -835,30 +838,7 @@ server <- function(input, output, session) {
     meta_values_mapped <- "blue"
     
     print(paste0("network_type : ",input$network_type, " ; current_nodes : ", nrow(values$current_nodes), " ; current_edges : ", nrow(values$current_edges)))
-    
-    # vn <- visNetwork(values$current_nodes, 
-    #                  values$current_edges) %>%
-    #   visEvents(doubleClick = "function(nodes) {
-    #             Shiny.onInputChange('current_node_id', nodes.nodes);
-    #             ;}") %>%
-    #   visInteraction(tooltipDelay = 0, hideEdgesOnDrag = T, navigationButtons = F) %>%
-    #   visOptions(highlightNearest = F, clickToUse = T, manipulation = F, nodesIdSelection = TRUE) %>%
-    #   #visClusteringByGroup(groups = paste0("Scores_",values$annotations$query), label = "", color = meta_values_mapped, force = T) %>%
-    #   #visPhysics(solver = "forceAtlas2Based", maxVelocity = 20, forceAtlas2Based = list(gravitationalConstant = -300)) %>%
-    #   visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
-    #   visLayout(randomSeed = 2018) %>% 
-    #   visPhysics(solver = "forceAtlas2Based", forceAtlas2Based = list(gravitationalConstant = -500))
-    #visPhysics(solver = "forceAtlas2Based", maxVelocity = 10, forceAtlas2Based = list(gravitationalConstant = -300))
-    
-    # for (g in values$annotations$query){
-    #   vn <- vn %>% visGroups(groupname = paste0("Scores_",g), background = "#97C2FC",
-    #                          color = "#2B7CE9", shape = "square")
-    # }
-    
-    if (!is.null(id))
-      removeNotification(id)
-    
-    
+
     shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
     
     if(!is.null(values$current_edges) && nrow(values$current_edges) > 0){
@@ -880,6 +860,9 @@ server <- function(input, output, session) {
       shinyBS::updateButton(session = session, inputId = "update_metascore",
                             disabled = TRUE)
     }
+    
+    if (!is.null(id))
+      removeNotification(id)
     
     return(list(nodes = values$current_nodes, edges = values$current_edges))
   })
@@ -1053,7 +1036,7 @@ server <- function(input, output, session) {
   
   #### METASCORES ####
   observeEvent(input$update_metascore, {
-    
+    id <<- showNotification(paste("Updating your wonderful network..."), duration = 0, type = "message")
     scores_data <- build_score_nodes(values,
                                      selected_adj_scores = input$selected_scores, 
                                      selected_raw_scores = input$selected_scores, 
@@ -1071,6 +1054,9 @@ server <- function(input, output, session) {
     
     visNetworkProxy("my_network") %>% 
       visUpdateNodes(nodes = svn_nodes)
+    
+    if (!is.null(id))
+      removeNotification(id)
   })
   
   
