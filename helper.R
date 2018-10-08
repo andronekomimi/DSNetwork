@@ -907,7 +907,7 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
   return(edges)
 } 
 
-build_snv_nodes <- function(session_values, network_type){
+build_snv_nodes <- function(session_values, network_type, net){
   
   nodes <- NULL
   my_res <- session_values$my_res
@@ -922,7 +922,7 @@ build_snv_nodes <- function(session_values, network_type){
                       color = "blue",
                       label = node_names,
                       shape = "circularImage",
-                      image = paste0("scores_figures/pie_scores_",node_names,".png"),
+                      image = paste0("scores_figures/pie_scores_",node_names,net,".png"),
                       #title = NA,
                       font.size = 30,
                       size = 50,
@@ -933,7 +933,7 @@ build_snv_nodes <- function(session_values, network_type){
   return(nodes)
 }
 
-build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores, network_type, inc = NULL){
+build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores, network_type, net, inc = NULL){
   
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
   invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
@@ -1047,7 +1047,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       names(custom_colors) <- new_n_rows$label
       
       ## pies
-      png(paste0(path_to_images,"pie_scores_",n,inc,".png"), width = 2000, height = 2000,
+      png(paste0(path_to_images,"pie_scores_", n, net, inc,".png"), width = 2000, height = 2000,
           units = "px")
       par(lwd = 0.001)
       pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
@@ -1118,7 +1118,7 @@ extract_score_and_convert.old <- function(my_res_infos, score_name, sub_score_na
 }
 
 #### Basic Ranking ####
-basic_ranking <- function(inc = NULL){
+basic_ranking <- function(inc = NULL, net){
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
@@ -1195,7 +1195,7 @@ basic_ranking <- function(inc = NULL){
   
   apply(X = df, MARGIN = 1, FUN = function(n){
     ## pies
-    png(paste0(path_to_images,"pie_rank_na_last_",n[names(n) == "id"],inc,".png"),
+    png(paste0(path_to_images,"pie_rank_na_last_",n[names(n) == "id"],net,inc,".png"),
         width = 2000, height = 2000,
         units = "px")
     par(lwd = 0.001)
@@ -1205,7 +1205,7 @@ basic_ranking <- function(inc = NULL){
     dev.off()
     
     
-    png(paste0(path_to_images,"pie_rank_na_mean_",n[names(n) == "id"],inc,".png"),
+    png(paste0(path_to_images,"pie_rank_na_mean_",n[names(n) == "id"],net,inc,".png"),
         width = 2000, height = 2000,
         units = "px")
     par(lwd = 0.001)

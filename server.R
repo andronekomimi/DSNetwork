@@ -293,11 +293,10 @@ server <- function(input, output, session) {
                                  waiting_time = input$waiting)
             
             save(value, file = paste0(tmpDir, "/value.rda"))
-            save(value, file = "~/Desktop/value.rda")
+            
             if(!is.null(value)){
               pre_res <- values$res
               save(pre_res, file = paste0(tmpDir, "/pre_res.rda"))
-              save(pre_res, file = "~/Desktop/pre_res.rda")
               #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,gwava_region,gwava_tss,gwava_unmatched,remm,iwscorek11,pvalk11,iwscorek10,pvalk10`
               x1 <- value[[1]] 
               #`id,cadd_phred,deepsea,eigen,eigen_pc,fathmm,fitcons,funseq2,remm,iwscoren8,pvaln8,iwscoren6,pvaln6`
@@ -756,7 +755,7 @@ server <- function(input, output, session) {
   })
   
   buildNetwork <- eventReactive(input$buildNetwork,{
-    print("buildNetwork")
+    print(paste0("buildNetwork:", input$buildNetwork))
     
     if(is.null(values$my_data))
       return(NULL)
@@ -792,8 +791,6 @@ server <- function(input, output, session) {
     
     id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
     
-    
-    
     #     event.data <- event_data("plotly_selected", source = "subset")
     # 
     #     if(is.null(event.data) == T){
@@ -815,27 +812,21 @@ server <- function(input, output, session) {
     
     snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
     save(snv_edges, file = paste0(tmpDir, "/snv_edges.rda"))
-    snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type)
+    snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type, net = input$buildNetwork)
     save(snv_nodes, file = paste0(tmpDir, "/snv_nodes.rda"))
     
     non_null_raw_scores <- values$raw_scores
     non_null_adj_scores <- values$adjusted_scores
     
-    if(input$buildNetwork == 1){
-      inc = NULL
-    } else {
-      inc = input$update_metascore + input$buildNetwork
-    }
-    
     scores_data <- build_score_nodes(session_values = values, 
                                      selected_adj_scores = non_null_adj_scores, 
                                      selected_raw_scores = non_null_raw_scores, 
                                      network_type = input$network_type,
-                                     inc = inc
-    )
+                                     net = input$buildNetwork,
+                                     inc = NULL)
     
     snv_nodes$infos <- scores_data$nodes_titles
-    basic_ranking(inc = inc)
+    basic_ranking(inc = NULL, net = input$buildNetwork)
     
     values$scores_data <- scores_data
     values$current_edges <- snv_edges
@@ -913,7 +904,7 @@ server <- function(input, output, session) {
   })
   
   #### UPDATE PLOT ####
-  buildPlot <- eventReactive(c(input$fetch_annotations, input$raw_data_rows_selected), {
+  buildPlot <- eventReactive(c(input$fetch_annotations, input$raw_data_rows_selected, input$network_type), {
     if(is.null(values$my_data))
       return(NULL)
     
@@ -1003,9 +994,9 @@ server <- function(input, output, session) {
       
       if(!input$snv_nodes_type %in% absolute_scores){
         if(input$update_metascore > 0)
-          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$update_metascore,".png")
+          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$buildNetwork,input$update_metascore,".png")
         else 
-          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
+          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$buildNetwork,".png")
       } else {
         svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
       }
@@ -1066,17 +1057,17 @@ server <- function(input, output, session) {
     scores_data <- build_score_nodes(values,
                                      selected_adj_scores = input$selected_scores, 
                                      selected_raw_scores = input$selected_scores, 
-                                     inc = (input$update_metascore + input$buildNetwork), 
+                                     inc = input$update_metascore, net = input$buildNetwork,
                                      network_type = input$network_type)
     
     save(scores_data, file = paste0(tmpDir, "/scores_data.rda"))
     values$scores_data <- scores_data
     
-    basic_ranking(inc = (input$update_metascore + input$buildNetwork))
+    basic_ranking(inc = input$update_metascore, net = input$buildNetwork)
     
     svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
     svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", 
-                              svn_nodes$id,input$update_metascore,".png")
+                              svn_nodes$id,input$buildNetwork, input$update_metascore,".png")
     
     visNetworkProxy("my_network") %>% 
       visUpdateNodes(nodes = svn_nodes)
