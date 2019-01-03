@@ -21,13 +21,13 @@ server <- function(input, output, session) {
   
   if(is.local()){
     #### CONF ####
-    appDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/"
-    dataDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/data/"
+    appDir <- "/home/nekomimi/Workspace/DSNetwork/"
+    dataDir <- "/home/nekomimi/Workspace/DSNetwork/data/"
     path_to_victor <- paste0(appDir, "softs/VICTOR/")
-    python_path <- "/Users/nekomimi/anaconda/bin/python"
+    python_path <- "/home/nekomimi/anaconda/bin/python"
     tabix_path <- '/usr/local/bin/tabix'
     path_to_vcf_converter <- paste0(appDir, "scripts/vcf_to_ped_converter.pl")
-    load(paste0(appDir, "demo/dev_preload.rda"))
+    load(paste0(appDir, "demo/preload.rda"))
   } else {
     #### CONF ####
     appDir <- "/srv/shiny-server/dsnetwork/"

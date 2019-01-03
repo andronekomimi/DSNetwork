@@ -9,7 +9,7 @@ require(c3)
 require(myvariant)
 
 is.local <- function(){ 
-  return(grepl(x = system('uname -n',intern=T), pattern = "local"))
+  return(!grepl(x = system('uname -n',intern=T), pattern = "ulaval"))
 }
 
 if(is.local()){
