@@ -1,0 +1,22 @@
+dbsnp   rs2228060
+dbsnp   rs4133590
+dbsnp   rs184435191
+dbsnp   rs75353838
+dbsnp   rs58738835
+dbsnp   rs143800098
+dbsnp   rs781140476
+dbsnp   rs587776523
+dbsnp   rs139929147
+dbsnp   rs377524763
+dbsnp   rs910647386
+dbsnp   rs148903320
+dbsnp   rs763302356
+dbsnp   rs961818413
+chromosome      3       55279372        A       C       1
+chromosome      12      1163378911      -       TTTTG   1
+chromosome      17      41786242        G       A       1
+chromosome      7       28221120        G       A       1
+chromosome      14      22973757        C       G       1
+chromosome      16      72054532        G       T       1
+chromosome      1       25708871        C       G       1
+chromosome      11      133098938       A       C       1

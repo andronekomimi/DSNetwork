@@ -1,0 +1,7 @@
+
+
+# sudo pip install -r requirements.txt
+
+requests
+bf4
+lxml
