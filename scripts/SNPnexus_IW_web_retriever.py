@@ -7,6 +7,9 @@ import requests
 from time import sleep
 from bs4 import BeautifulSoup
 
+v_info = sys.version_info
+if v_info < (3, 5):
+	raise Exception('Python version must be 3.5 at least. Your version: {}.{}'.format(v_info.major, v_info.minor))
 
 def write_csv(filepath, headers, data):
 	with open(filepath, 'w') as f:
@@ -25,27 +28,44 @@ def parse_table(table_name, table):
 
 if __name__ == "__main__":
 
+	# regular expression to match with result addresses
+	result_regexp = re.compile(r'https://snp-nexus\.org/test/snpnexus_[0-9]+/results\.html')
+
 	# args
 	args = sys.argv
 	assert len(args) == 5
 	snp_file = args[1]
 	output_integrative_score_known = args[2]
 	output_integrative_score_novel = args[3]
-	max_retry = int(args[4]) # minutes
+	max_retry = int(args[4]) # nb of minutes
 
 	# file
 	files = {'region_file': open(snp_file, 'rb')}
 
-	# map
+	# output file map
 	outputs = {
 		'novel': output_integrative_score_novel,
 		'known': output_integrative_score_known
 	}
 
-	# html payload
+	# form payload
 	payload = {
-	    # 'email': 'regis.ongaro-carcy.1@ulaval.ca',
 	    'ensembl': 'ensembl',
+		'assembly': 'hg19',
+	    'email': '',
+		'dataset':'',
+		'query': 'batch',
+		'Type': 'Chromosome',
+		'Clone':'',
+		'Position_clone':'',
+		'a1':'',
+		'a2':'',
+		'strand': '1',
+		'chrom': '1',
+		'region_start':'',
+		'region_end':'',
+		'dbsnp_id':'',
+		'batch_text':'',
 	    'ncsnp': 'ncsnp',
 	    'eigen': 'eigen',
 	    'fathmm': 'fathmm',
@@ -53,19 +73,19 @@ if __name__ == "__main__":
 	    'deepsea': 'deepsea',
 	    'funseq2': 'funseq2',
 	    'remm': 'remm',
-	    'pipeline': 'all_var'
+	    'pipeline': 'all_var',
+		'vcf': 'txt'
 	}
 
-	# For hg19 non-coding annotation
-	url = 'http://snp-nexus.org/cgi-bin/snp/s6_nc.cgi'
+	# For hg19 non-coding annotation, send payload and file
+	url = 'https://snp-nexus.org/cgi-bin/snp/s6_nc.cgi'
 	r = requests.post(url=url, data=payload, files=files)
 	result = r.text
 
-	# get link
+	# get link with regex
 	link = None
 	if result:
-	    r = re.compile(r'http://snp-nexus\.org/test/snpnexus_[0-9]+/results\.html')
-	    m = r.search(result)
+	    m = result_regexp.search(result)
 	    if m:
 	        link = m.group(0)
 
