@@ -7,9 +7,9 @@ import requests
 from time import sleep
 from bs4 import BeautifulSoup
 
-v_info = sys.version_info
-if v_info < (3, 5):
-	raise Exception('Python version must be 3.5 at least. Your version: {}.{}'.format(v_info.major, v_info.minor))
+#v_info = sys.version_info
+#if v_info < (3, 5):
+#	raise Exception('Python version must be 3.5 at least. Your version: {}.{}'.format(v_info.major, v_info.minor))
 
 def write_csv(filepath, headers, data):
 	with open(filepath, 'w') as f:
