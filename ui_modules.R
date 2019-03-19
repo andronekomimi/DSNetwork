@@ -1,10 +1,10 @@
-library(shinydashboard)
-library(visNetwork)
-library(shinyBS)
-library(d3heatmap)
+require(shinydashboard)
+require(visNetwork)
+require(shinyBS)
+require(d3heatmap)
 require(plotly)
 require(ggrepel)
-library(shinyjqui)
+require(shinyjqui)
 require(shinyjs)
 
 source('helper.R', local = TRUE)
@@ -77,12 +77,12 @@ input_data_module <- function(){
                        sliderInput(inputId = "waiting", 
                                    label = "How long are you willing to wait ? (default: 5 min)", 
                                    min = 1, max = 10, value = 5, step = 1)),
-      shinyBS::bsButton(inputId = "fetch_annotations", 
+      bsButton(inputId = "fetch_annotations", 
                         label = "Fetch Annotations", 
                         icon = icon("search"), disabled = FALSE),
-      conditionalPanel(condition = "input.fetch_annotations == 1",
+      conditionalPanel(condition = "input.fetch_annotations",
                        br(),
-                       shinyBS::bsAlert(anchorId = "alert_res"),
+                       bsAlert("alert_res"),
                        downloadButton('downloadRawTable', 'Download results (TSV)'))
       # ,
       # selectInput(inputId = 'preload',
@@ -98,7 +98,7 @@ output_plot_row <- function(){
         HTML(paste0("This plot represents the requested variants along the map of sequence constraint "),
              "- <b>C</b>ontect-<b>D</b>ependent <b>T</b>olerence <b>S</b>core (CDTS) - ",
              "determined throught alignment of thousands of human genomes.")),
-    jqui_resizable(plotlyOutput(outputId = "my_plot",
+    shinyjqui::jqui_resizable(plotly::plotlyOutput(outputId = "my_plot",
                                 height = "400px", width = "auto"))
   )
 }
@@ -107,7 +107,7 @@ raw_results_row <- function(){
   list(
     DT::dataTableOutput("raw_data"),
     div(style = "text-align:-webkit-right", 
-        shinyBS::bsButton(inputId = 'buildNetwork', label = 'Build Network',
+        bsButton(inputId = 'buildNetwork', label = 'Build Network',
                           disabled = TRUE, icon = icon("gear")))
   )
 }
@@ -148,7 +148,7 @@ nodes_modifiers_box <- function(){
                                           choices = c(),
                                           selectize = TRUE, multiple = TRUE))
                      ),
-                     shinyBS::bsButton(inputId = 'update_metascore', label = 'Update',  
+                     bsButton(inputId = 'update_metascore', label = 'Update',  
                                        icon = icon("gear"), disabled = TRUE),
                      p(
                        class = "text-muted", br(),
@@ -170,7 +170,7 @@ nodes_modifiers_box <- function(){
 
 network_results_modules <- function(){
   list(
-    jqui_resizable(visNetworkOutput("my_network", height = "600px"))
+    shinyjqui::jqui_resizable(visNetworkOutput("my_network", height = "600px"))
   )
 }
 
@@ -180,17 +180,17 @@ ld_mapping_module <- function(){
                 label = 'Choose the population to use',
                 choices = populations),
     fluidRow(column(width = 6, 
-                    shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
+                    bsButton(inputId = 'runLD', label = 'Add LD Information',  
                                       icon = icon("gear"), disabled = TRUE)),
              column(width = 6, 
-                    shinyBS::bsButton(inputId = 'removeLD', label = 'Remove LD Information',  
+                    bsButton(inputId = 'removeLD', label = 'Remove LD Information',  
                                       icon = icon("gear"), disabled = TRUE))
     ),
     br(),
-    shinyBS::bsAlert(anchorId = "alert_ld"),
+    #bsAlert(anchorId = "alert_ld"),
     sliderInput("ld_range", "LD range",
                 min = 0, max = 1, value = c(0, 1), step = 0.1), 
-    shinyBS::bsButton(inputId = 'update_ld', label = 'Update',  
+    bsButton(inputId = 'update_ld', label = 'Update',  
                       icon = icon("gear"), disabled = TRUE),
     p(class = "text-muted",
       br(),
@@ -300,7 +300,7 @@ about_module <- function(){
 #                        selectInput(inputId = 'population',
 #                                    label = 'Choose the population to use',
 #                                    choices = populations),
-#                        shinyBS::bsButton(inputId = 'runLD', label = 'Add LD Information',  
+#                        bsButton(inputId = 'runLD', label = 'Add LD Information',  
 #                                          icon = icon("gear"), disabled = FALSE),
 #                        br(),
 #                        br(),
@@ -359,7 +359,7 @@ about_module <- function(){
 #   fluidRow(
 #     column(width = 12,
 #            br(),
-#            jqui_resizable(plotlyOutput(outputId = "my_plot",
+#            shinyjqui::jqui_resizable(plotlyOutput(outputId = "my_plot",
 #                                        height = "400px", width = "auto")),
 #            box(title = "Variant selection",
 #                width = 12,

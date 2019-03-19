@@ -1,5 +1,4 @@
 #DSNETWORK
-
 require(GenomicRanges)
 require(ggplot2)
 require(grDevices) 
@@ -14,8 +13,8 @@ is.local <- function(){
 
 if(is.local()){
   #### CONF ####
-  appDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/"
-  dataDir <- "/Users/nekomimi/Workspace/dsnetwork/DSNetwork/data/"
+  appDir <- "/home/nekomimi/Workspace/DSNetwork/"
+  dataDir <- "/home/nekomimi/Workspace/DSNetwork/data/"
 } else {
   #### CONF ####
   appDir <- "/srv/shiny-server/dsnetwork/"
@@ -35,6 +34,26 @@ cor_colfunc <- colorRampPalette(c("blue","white","red"))
 cor_color_breaks <- cor_colfunc(length(cor_breaks))
 names(cor_color_breaks) <- sort(cor_breaks, decreasing = F)
 
+absolute_metascore <- list(
+  linsight = list(min = 0.03,
+                  max = 1),
+  iwscoring_known = list(min = -5,
+                         max = 6),
+  iwscoring_novel = list(min = -5,
+                         max = 6),
+  bayesdel = list(min = -1.30,
+                  max = 0.76)
+)
+
+negative_oriented_scores <- function(score){
+    cadd_raw_scores <- read.csv(file = paste0(dataDir, 'CADD_scores_from_myvariant.info.tsv'),
+                                header = T, sep = "\t", stringsAsFactors = F)
+    cadd_raw_scores_infos <- cadd_raw_scores[cadd_raw_scores$is_included == "x",]
+    negative_oriented_scores <- cadd_raw_scores_infos[cadd_raw_scores_infos$direction == "negative",]$field
+    return(negative_oriented_scores)
+}
+
+
 invert_scores <- c("cdts_percentile")
 
 hgvsToGRange <- function(hgvs_id, query_id){
@@ -49,7 +68,7 @@ hgvsToGRange <- function(hgvs_id, query_id){
     svn_type <- "snp"
     hgvs_id <- unlist(strsplit(x = hgvs_id, split = ">"))
     end_pos <- start_pos
-    return(GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
+    return(GRanges(seqnames = chr, ranges = IRanges::IRanges(start = start_pos, end = end_pos), 
                    query= query_id, type = svn_type))
   }
   
@@ -61,7 +80,7 @@ hgvsToGRange <- function(hgvs_id, query_id){
     } else {
       end_pos <- start_pos
     }
-    return(GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
+    return(GRanges(seqnames = chr, ranges = IRanges::IRanges(start = start_pos, end = end_pos), 
                    query= query_id, type = svn_type))
   }
   
@@ -69,13 +88,13 @@ hgvsToGRange <- function(hgvs_id, query_id){
     svn_type <- "ins"
     hgvs_id <- unlist(strsplit(x = hgvs_id, split = "ins"))
     end_pos <- start_pos+1
-    return(GRanges(seqnames = chr, ranges = IRanges(start = start_pos, end = end_pos), 
+    return(GRanges(seqnames = chr, ranges = IRanges::IRanges(start = start_pos, end = end_pos), 
                    query= query_id, type = svn_type))
   }
 }
 
 setStudyRange <- function(my_ranges, selection){
-  my_ranges[unlist(strsplitAsListOfIntegerVectors(x = selection, sep = "_"))]
+  my_ranges[unlist(toListOfIntegerVectors(x = selection, sep = "_"))]
 }
 
 setStudyRegion <- function(studyrange){
@@ -638,7 +657,7 @@ build_snv_edges.old <- function(session_values, edges_type, edges_range, network
       ilets <- c(ilets, paste(subjectHits(hits[queryHits(hits) == i]), collapse = "_"))
     }
     
-    ilets <- strsplitAsListOfIntegerVectors(x = unique(ilets), sep = "_")
+    ilets <- toListOfIntegerVectors(x = unique(ilets), sep = "_")
     
     if(sum(lengths(ilets) > 1) > 0){ # presence de cluster
       for(i in seq_along(ilets)){
@@ -803,7 +822,7 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
       ilets <- c(ilets, paste(subjectHits(hits[queryHits(hits) == i]), collapse = "_"))
     }
     
-    ilets <- strsplitAsListOfIntegerVectors(x = unique(ilets), sep = "_")
+    ilets <- toListOfIntegerVectors(x = unique(ilets), sep = "_")
     
     if(sum(lengths(ilets) > 1) > 0){ # presence de cluster
       for(i in seq_along(ilets)){
@@ -936,7 +955,7 @@ build_snv_nodes <- function(session_values, network_type, net){
 build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores, network_type, net, inc = NULL){
   
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
-  invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+  #invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
   my_res <- session_values$my_res
   
@@ -978,11 +997,12 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
     for(selected_score in selected_scores){
       d <-  nodes_data[[selected_score]]
       
-      if(selected_score %in% invert_scores){
-        colpalette <- invert_colfunc(n = length(unique(d)))
-      } else {
-        colpalette <- colfunc(n = length(unique(d)))
-      }
+      colpalette <- colfunc(n = length(unique(d)))
+      # if(selected_score %in% invert_scores){
+      #   colpalette <- invert_colfunc(n = length(unique(d)))
+      # } else {
+      #   colpalette <- colfunc(n = length(unique(d)))
+      # }
       
       names(colpalette) <- sort(unique(d), decreasing = T, na.last = T)
       d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
@@ -1120,7 +1140,7 @@ extract_score_and_convert.old <- function(my_res_infos, score_name, sub_score_na
 #### Basic Ranking ####
 basic_ranking <- function(inc = NULL, net){
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
-  invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+  #invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
   load(paste0(tmpDir,"/nodes_data.rda"))
   nodes <- as.character(nodes_data$nodes)
@@ -1129,19 +1149,47 @@ basic_ranking <- function(inc = NULL, net){
     return(NULL)
   }
   
-  # compute RANK for each classifier 
+  # compute RANK for each classifier
   if(ncol(nodes_data) > 2){ # nodes + at least 2 scores
-    ranked_nodes_data_na_last <- apply(X = nodes_data[,-1], MARGIN = 2, 
-                                       FUN = function(x) data.table::frankv(x, na.last = T, order = -1))
+    ranked_nodes_data_na_last <- NULL
+    for(j in 2:ncol(nodes_data)){
+      score_name <- colnames(nodes_data)[j]
+      x <- nodes_data[,j]
+      ranked_x <- data.table::frankv(x = x, na.last = T, 
+                                     order = ifelse(test = score_name %in% negative_oriented_scores(), 
+                                                    yes = 1, no = -1))
+      if(is.null(ranked_nodes_data_na_last)){
+        ranked_nodes_data_na_last <- ranked_x
+      } else {
+        ranked_nodes_data_na_last <- cbind(ranked_nodes_data_na_last, ranked_x)
+      }
+    }
+    
+    colnames(ranked_nodes_data_na_last) <- colnames(nodes_data)[-1]
+
     # replace NA by mean and re rank
     nodes_data_na_mean <- apply(X = nodes_data[,-1], MARGIN = 2, 
                                 FUN = function(x) {
                                   x[is.na(x)] <- mean(x = x, na.rm =T)
                                   return(x)
                                 }) 
+
+    ranked_nodes_data_na_mean <- NULL
+    for(j in 2:ncol(nodes_data)){
+      score_name <- colnames(nodes_data)[j]
+      x <- nodes_data[,j]
+      ranked_x <- data.table::frankv(x = x, na.last = F, 
+                                     order = ifelse(test = score_name %in% negative_oriented_scores(), 
+                                                    yes = 1, no = -1))
+      if(is.null(ranked_nodes_data_na_mean)){
+        ranked_nodes_data_na_mean <- ranked_x
+      } else {
+        ranked_nodes_data_na_mean <- cbind(ranked_nodes_data_na_mean, ranked_x)
+      }
+    }
     
-    ranked_nodes_data_na_mean <- apply(X = nodes_data_na_mean, MARGIN = 2, 
-                                       FUN = function(x) data.table::frankv(x, na.last = F, order = -1))
+    colnames(ranked_nodes_data_na_mean) <- colnames(nodes_data)[-1]
+    
     rownames(ranked_nodes_data_na_last) <- rownames(ranked_nodes_data_na_mean) <- nodes
     
     # compute MEAN RANK accross all the classifier 
@@ -1150,17 +1198,23 @@ basic_ranking <- function(inc = NULL, net){
     
   } else { # only on predictor
     x <- nodes_data[,-1]
-    ranked_nodes_data_na_last <- data.table::frankv(x, na.last = T, order = -1)
+    ranked_nodes_data_na_last <- data.table::frankv(x, na.last = T, 
+                                                    order = ifelse(test = score_name %in% negative_oriented_scores(), 
+                                                                                           yes = 1, no = -1))
     # replace NA by mean and re rank
     nodes_data_na_mean <- mean(x = x, na.rm =T)
     x[is.na(x)] <- nodes_data_na_mean
-    ranked_nodes_data_na_mean <- data.table::frankv(x, na.last = T, order = -1)
+    ranked_nodes_data_na_mean <- data.table::frankv(x, na.last = T,
+                                                    order = ifelse(test = score_name %in% negative_oriented_scores(), 
+                                                                                           yes = 1, no = -1))
     names(ranked_nodes_data_na_last) <- names(ranked_nodes_data_na_mean) <- nodes
     
     # compute MEAN RANK accross all the classifier 
     mean.rank_na_last = ranked_nodes_data_na_last
     mean.rank_na_mean = ranked_nodes_data_na_mean
   }
+  
+  save(ranked_nodes_data_na_last, file = paste0(tmpDir,"/ranked_nodes_data_na_last.rda"))
   
   # compute FINAL RANK
   rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
@@ -1219,16 +1273,6 @@ basic_ranking <- function(inc = NULL, net){
 
 #### Absolute metascores ####
 compute_absolute_metascore <- function(session_values){
-  absolute_metascore <- list(
-    linsight = list(min = 0.03,
-                    max = 1),
-    iwscoring_known = list(min = -5,
-                           max = 6),
-    iwscoring_novel = list(min = -5,
-                           max = 6),
-    bayesdel = list(min = -1.4,
-                    max = 0.9)
-  )
   
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   colpalette_length <- 100

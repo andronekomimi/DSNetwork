@@ -14,6 +14,7 @@ options(shiny.trace = FALSE)
 server <- function(input, output, session) {
   
   tmpDir <- tempdir() 
+  print(tmpDir)
   #dir.create(path = paste0(tmpDir, "ld_figures"), showWarnings = F)
   #dir.create(path = paste0(tmpDir, "objects"), showWarnings = F)
   
@@ -24,8 +25,8 @@ server <- function(input, output, session) {
     appDir <- "/home/nekomimi/Workspace/DSNetwork/"
     dataDir <- "/home/nekomimi/Workspace/DSNetwork/data/"
     path_to_victor <- paste0(appDir, "softs/VICTOR/")
-    python_path <- "/home/nekomimi/anaconda/bin/python"
-    tabix_path <- '/usr/local/bin/tabix'
+    python_path <- "/usr/bin/python"
+    tabix_path <- '/usr/bin/tabix'
     path_to_vcf_converter <- paste0(appDir, "scripts/vcf_to_ped_converter.pl")
     load(paste0(appDir, "demo/preload.rda"))
   } else {
@@ -62,15 +63,15 @@ server <- function(input, output, session) {
   observeEvent(c(input$query_file, input$query), ({
     
     if(!is.null(input$query_file) && input$query_file$size > 0){
-      shinyBS::updateButton(session = session, inputId = "fetch_annotations",
-                            disabled = FALSE)
+      updateButton(session = session, inputId = "fetch_annotations",
+                   disabled = FALSE)
     } else {
       if(nchar(input$query) > 0){
-        shinyBS::updateButton(session = session, inputId = "fetch_annotations",
-                              disabled = FALSE)
+        updateButton(session = session, inputId = "fetch_annotations",
+                     disabled = FALSE)
       } else {
-        shinyBS::updateButton(session = session, inputId = "fetch_annotations",
-                              disabled = TRUE)
+        updateButton(session = session, inputId = "fetch_annotations",
+                     disabled = TRUE)
       }
     }
   }))
@@ -111,7 +112,7 @@ server <- function(input, output, session) {
           if(length(x) != 4){
             return('FAIL')
           } else {
-            formatSingleHgvs(x[1], as.numeric(x[2]), x[3], x[4])
+            myvariant::formatSingleHgvs(x[1], as.numeric(x[2]), x[3], x[4])
           }
         }
       })
@@ -122,7 +123,7 @@ server <- function(input, output, session) {
   transform_query_file <- function(filepath){
     if(file.exists(filepath)){
       string <- read.csv(file = filepath, header = F, stringsAsFactors = F)$V1
-      string <- gsub(x = string, pattern = " +$", replacement = "")
+      string <- tolower(gsub(x = string, pattern = " +$", replacement = ""))
       
       modstring <- sapply(X = string,  FUN = function(x) {
         if(base::startsWith(x = x, prefix = "rs")){
@@ -132,7 +133,7 @@ server <- function(input, output, session) {
           if(length(x) != 4){
             return('FAIL')
           } else {
-            formatSingleHgvs(x[1], as.numeric(x[2]), x[3], x[4])
+            myvariant::formatSingleHgvs(x[1], as.numeric(x[2]), x[3], x[4])
           }
         }
       })
@@ -149,9 +150,8 @@ server <- function(input, output, session) {
   # })
   
   observeEvent(input$fetch_annotations, {
-    
-    shinyBS::updateButton(session = session, inputId = "fetch_annotations", 
-                          disabled = TRUE)
+    updateButton(session = session, inputId = "fetch_annotations", 
+                 disabled = TRUE)
     
     withProgress(message = 'Fetching annotations', value = 0, {
       n <- 10
@@ -160,28 +160,29 @@ server <- function(input, output, session) {
         modstring <- c(modstring, transform_query_file(input$query_file$datapath))
       
       if(nchar(input$query) > 0)
-        modstring <- c(modstring, transform_query(input$query))
+        modstring <- c(modstring, transform_query(tolower(input$query)))
       
       valid_transfo <- unique(modstring[!grepl(x = modstring, pattern = 'FAIL')])
       
-      save(modstring, file = paste0(tmpDir, 'modstring.rda'))
+      save(modstring, file = paste0(tmpDir, '/modstring.rda'))
       
       fail_transfo <- names(modstring[grep(x = modstring, pattern = 'FAIL')])
       if(length(modstring) > 0){
         if(length(fail_transfo) > 0){
-          res <- paste0('Id recognition fails for: ', paste(fail_transfo, collapse = ","), '.')
-          shinyBS::createAlert(session = session, anchorId = "alert_res",
-                               alertId = "alert1", title = "Id recognition",
-                               content = res , append = TRUE, style = "warning")
+          res0 <- paste0('Id recognition fails for: ', paste(fail_transfo, collapse = ","), '.')
+          print(res0)
+          createAlert(session = session, "alert_res", "alert1", 
+                      title = "Id recognition",
+                      content = res0, append = TRUE)
         }
       }
       
       if(length(valid_transfo) > 0){
         #### run myvariant ####
         incProgress(1/n, detail = "Interrogating MyVariant.info...")
-        res <- as.data.frame(getVariants(hgvsids = valid_transfo,
-                                         verbose = F, return.as = "DataFrame",
-                                         fields = c("dbsnp","cadd","dbnsfp")))
+        res <- as.data.frame(myvariant::getVariants(hgvsids = valid_transfo,
+                                                    verbose = F, return.as = "DataFrame",
+                                                    fields = c("dbsnp","cadd","dbnsfp")))
         
         
         
@@ -227,7 +228,7 @@ server <- function(input, output, session) {
           }
           
           
-          requested_chromosomes <- seqlevelsInUse(global_ranges)
+          requested_chromosomes <- GenomeInfoDb::seqlevelsInUse(global_ranges)
           
           #### fetch linsight ####
           incProgress(1/n, detail = "Extracting LINSIGHT scores...")
@@ -289,6 +290,7 @@ server <- function(input, output, session) {
             # create temp snps file
             filename <- tempfile(tmpdir = tmpDir, fileext = ".txt")
             print(filename)
+            save(values, file = paste0(tmpDir, "/res.rda"))
             createSNPnexusInput(session_values = values, filename = filename)
             value <- runSNPnexus(python_path = python_path,
                                  path_to_snpnexus = path_to_snpnexus, 
@@ -344,10 +346,11 @@ server <- function(input, output, session) {
               # re-insert res table
               values$res <- pre_res
             } else {
-              shinyBS::createAlert(session = session, anchorId = "alert_res",
-                                   alertId = "alert4", title = "Data retrieval",
-                                   content = "SNPnexus taking too long to answer, sorry..." , 
-                                   append = TRUE, style = "warning")
+              print("SNPnexus taking too long to answer, sorry...")
+              createAlert(session = session, anchorId = "alert_res",
+                          alertId = "alert4", title = "Data retrieval",
+                          content = "SNPnexus taking too long to answer, sorry..." ,
+                          append = TRUE, style = "warning")
             }
           } else {
             incProgress(4/n, detail = "Skipping SNPNexus...")
@@ -458,20 +461,23 @@ server <- function(input, output, session) {
           values$adjusted_scores <- names(adjusted_scores)
           
           if(is.null(values$notfound_id)){
-            shinyBS::createAlert(session = session, anchorId = "alert_res",
-                                 alertId = "alert2", title = "Data retrieval",
-                                 content = "Annotations found for all variants" , append = TRUE, style = "success")
+            print("Annotations found for all variants")
+            createAlert(session = session, anchorId = "alert_res",
+                        alertId = "alert2", title = "Data retrieval",
+                        content = "Annotations found for all variants" , append = TRUE, style = "success")
           } else {
-            shinyBS::createAlert(session = session, anchorId = "alert_res",
-                                 alertId = "alert2", title = "Data retrieval",
-                                 content = paste0("No Annotations for the following variants: ", 
-                                                  values$notfound_id,".") , append = TRUE, style = "warning")
+            print( paste0("No Annotations for the following variants: ",values$notfound_id,"."))
+            createAlert(session = session, anchorId = "alert_res",
+                        alertId = "alert2", title = "Data retrieval",
+                        content = paste0("No Annotations for the following variants: ",
+                                         values$notfound_id,".") , append = TRUE, style = "warning")
           }
         } else {
-          shinyBS::createAlert(session = session, anchorId = "alert_res",
-                               alertId = "alert3", title = "Data retrieval",
-                               content = "ERROR : No Annotations found !", 
-                               append = TRUE, style = "danger")
+          print("ERROR : No Annotations found !")
+          createAlert(session = session, anchorId = "alert_res",
+                      alertId = "alert3", title = "Data retrieval",
+                      content = "ERROR : No Annotations found !",
+                      append = TRUE, style = "danger")
         }
       }
       
@@ -497,17 +503,43 @@ server <- function(input, output, session) {
             dt = values$annotations[non_syn_res,]
           }
           
+          # round 
+          for (i in 1:ncol(dt)) { if(is.numeric(dt[,i])) {dt[,i] <- round(x = dt[,i], 3)} }
+          
           DT::datatable(dt, 
                         escape = FALSE,
                         rownames = FALSE,
                         extensions = c('Scroller','Buttons'),
                         selection = list(mode = 'multiple', selected = n),
                         options = list(dom = 'Bfrtip',
-                                       buttons = list('copy', 'print', list(
-                                         extend = 'collection',
-                                         buttons = c('csv', 'excel', 'pdf'),
-                                         text = 'Download'
-                                       )),
+                                       buttons = list(
+                                         list(
+                                           extend = 'copy',
+                                           text = 'Copy',
+                                           title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S"))
+                                         ), 
+                                         list(
+                                           extend = 'print',
+                                           text = 'Print',
+                                           title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S"))
+                                         ),
+                                         list(
+                                           extend = 'csv',
+                                           filename = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
+                                           text = 'Download CSV'
+                                         ),
+                                         list(
+                                           extend = 'excel',
+                                           filename = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
+                                           text = 'Download XLSX'
+                                         ),
+                                         list(
+                                           extend = 'pdf',
+                                           title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
+                                           text = 'Download PDF',
+                                           orientation = 'landscape'
+                                         )
+                                       ),
                                        scrollX = TRUE,
                                        ordering = TRUE,
                                        deferRender = TRUE,
@@ -569,17 +601,14 @@ server <- function(input, output, session) {
       
       values$my_data <- my_data
       save(my_data, file = paste0(tmpDir, "/my_data.rda"))
-      
-      
     })
     
-    
     if(!is.null(values$res) && nrow(values$res) > 0){
-      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
-                            disabled = FALSE, style = "success")
+      updateButton(session = session, inputId = "buildNetwork", 
+                   disabled = FALSE, style = "success")
     } else {
-      shinyBS::updateButton(session = session, inputId = "buildNetwork",
-                            disabled = TRUE, style = "primary")
+      updateButton(session = session, inputId = "buildNetwork",
+                   disabled = TRUE, style = "primary")
     }
   })
   
@@ -651,7 +680,6 @@ server <- function(input, output, session) {
     values$ld <- ld_results
     
     notfound <- do.call("c", values$ld[1,])
-    print(notfound)
     
     #### map LD edges ####
     snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
@@ -662,24 +690,26 @@ server <- function(input, output, session) {
       visUpdateEdges(edges = snv_edges)
     
     if(length(notfound) > 0){
-      shinyBS::createAlert(session = session, anchorId = "alert_ld",
-                           alertId = "alert5", title = "Data retrieval",
-                           content = paste0('No LD data for the following variants: ', 
-                                            paste(notfound, collapse = ', ')) , 
-                           append = TRUE, style = "warning")
+      print(paste0('No LD data for the following variants: ', paste(notfound, collapse = ', ')))
+      createAlert(session = session, anchorId = "alert_ld",
+                  alertId = "alert5", title = "Data retrieval",
+                  content = paste0('No LD data for the following variants: ',
+                                   paste(notfound, collapse = ', ')) ,
+                  append = TRUE, style = "warning")
     } else {
-      shinyBS::createAlert(session = session, anchorId = "alert_ld",
-                           alertId = "alert5", title = "Data retrieval",
-                           content = "LD computation succeed for all variants", 
-                           append = TRUE, style = "success")
+      print("LD computation succeed for all variants")
+      createAlert(session = session, anchorId = "alert_ld",
+                  alertId = "alert5", title = "Data retrieval",
+                  content = "LD computation succeed for all variants",
+                  append = TRUE, style = "success")
     }
     
     if(!is.null(ld_results)){
-      shinyBS::updateButton(session = session, inputId = "update_ld", 
-                            disabled = FALSE)
+      updateButton(session = session, inputId = "update_ld", 
+                   disabled = FALSE)
     } else {
-      shinyBS::updateButton(session = session, inputId = "update_ld", 
-                            disabled = TRUE)
+      updateButton(session = session, inputId = "update_ld", 
+                   disabled = TRUE)
     } 
     
     if (!is.null(id))
@@ -690,8 +720,8 @@ server <- function(input, output, session) {
   #### remove LD infos ####
   observeEvent(input$removeLD, {
     
-    shinyBS::updateButton(session = session, inputId = "update_ld", 
-                          disabled = TRUE)
+    updateButton(session = session, inputId = "update_ld", 
+                 disabled = TRUE)
     
     max_ld <- as.numeric(input$ld_range[2])
     min_ld <- as.numeric(input$ld_range[1])
@@ -733,27 +763,27 @@ server <- function(input, output, session) {
     js$collapse("input_box")
     js$collapse("selection_box")
     updateSelectInput(session = session, inputId = "snv_nodes_type", selected = 'pie_scores')
-    shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
+    updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
   })
   
   observeEvent(input$raw_data_rows_selected,{
     
     #setdiff(input$tbl_rows_selected, input$tbl_row_last_clicked)
-    # shinyBS::updateButton(session = session, inputId = "buildNetwork", 
+    # updateButton(session = session, inputId = "buildNetwork", 
     #                       disabled = FALSE, style = "warning", label = "Update Network")
     
     if(length(input$raw_data_rows_selected) > MAX_VAR){
-      shinyalert(title = "Selection limit", html = TRUE, type = "warning",
-                 text = as.character(tags$div(style = "text-align:-webkit-center",
-                                              paste0("Variants selection from ",
-                                                     (length(input$raw_data_rows_selected) - MAX_VAR),
-                                                     " the Network visualisation is limit (",MAX_VAR, ")")
-                 )))
-      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
-                            disabled = TRUE, style = "danger")
+      shinyalert::shinyalert(title = "Selection limit", html = TRUE, type = "warning",
+                             text = as.character(tags$div(style = "text-align:-webkit-center",
+                                                          paste0("Variants selection from ",
+                                                                 (length(input$raw_data_rows_selected) - MAX_VAR),
+                                                                 " the Network visualisation is limit (",MAX_VAR, ")")
+                             )))
+      updateButton(session = session, inputId = "buildNetwork", 
+                   disabled = TRUE, style = "danger")
     } else {
-      shinyBS::updateButton(session = session, inputId = "buildNetwork", 
-                            disabled = FALSE, style = "success")
+      updateButton(session = session, inputId = "buildNetwork", 
+                   disabled = FALSE, style = "success")
     }
   })
   
@@ -838,27 +868,27 @@ server <- function(input, output, session) {
     meta_values_mapped <- "blue"
     
     print(paste0("network_type : ",input$network_type, " ; current_nodes : ", nrow(values$current_nodes), " ; current_edges : ", nrow(values$current_edges)))
-
-    shinyBS::updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
+    
+    updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
     
     if(!is.null(values$current_edges) && nrow(values$current_edges) > 0){
-      shinyBS::updateButton(session = session, inputId = "runLD", 
-                            disabled = FALSE)
-      shinyBS::updateButton(session = session, inputId = "removeLD", 
-                            disabled = FALSE)
+      updateButton(session = session, inputId = "runLD", 
+                   disabled = FALSE)
+      updateButton(session = session, inputId = "removeLD", 
+                   disabled = FALSE)
     } else {
-      shinyBS::updateButton(session = session, inputId = "runLD",
-                            disabled = TRUE)
-      shinyBS::updateButton(session = session, inputId = "removeLD", 
-                            disabled = TRUE)
+      updateButton(session = session, inputId = "runLD",
+                   disabled = TRUE)
+      updateButton(session = session, inputId = "removeLD", 
+                   disabled = TRUE)
     } 
     
     if(!is.null(values$current_nodes) && nrow(values$current_nodes) > 0){
-      shinyBS::updateButton(session = session, inputId = "update_metascore", 
-                            disabled = FALSE)
+      updateButton(session = session, inputId = "update_metascore", 
+                   disabled = FALSE)
     } else {
-      shinyBS::updateButton(session = session, inputId = "update_metascore",
-                            disabled = TRUE)
+      updateButton(session = session, inputId = "update_metascore",
+                   disabled = TRUE)
     }
     
     if (!is.null(id))
@@ -914,7 +944,7 @@ server <- function(input, output, session) {
   
   buildPlot_d <- buildPlot %>% debounce(5000)
   
-  output$my_plot <- renderPlotly({
+  output$my_plot <- plotly::renderPlotly({
     pdf(NULL) # to avoid the production of Rplots.pdf
     
     my_data <- buildPlot_d()
@@ -934,37 +964,37 @@ server <- function(input, output, session) {
                showticklabels = TRUE,
                showgrid = TRUE)
     pdf(NULL) # to avoid the production of Rplots.pdf
-    plot_ly(data = my_data,
-            type = "scatter",
-            mode = "markers",
-            x = ~start,
-            y = ~cdts_score,
-            symbol = ~I(shape), color = ~I(color), size = ~I(size),
-            marker = list(
-              opacity = 0.5
-            ),
-            showlegend = F, source = "subset") %>%
-      add_trace(data = cdts_region_line,
-                type = 'scatter',
-                mode = 'lines',
-                x = ~start,
-                y = ~CDTS,
-                hoverinfo = "none",
-                line = list(color = 'gray'), 
-                opacity = 0.3,
-                showlegend = F) %>%
-      add_trace(data = my_data,
-                x = ~start,
-                y = ~cdts_score,
-                text =  text_snp,
-                type = "scatter", 
-                mode = "markers",
-                #split = ~non_synonymous,
-                hoverinfo = 'text',
-                # legendgroup = 'In network',
-                # name = 'In network',
-                showlegend = T) %>%
-      layout(xaxis = xa, dragmode =  "select")
+    plotly::plot_ly(data = my_data,
+                    type = "scatter",
+                    mode = "markers",
+                    x = ~start,
+                    y = ~cdts_score,
+                    symbol = ~I(shape), color = ~I(color), size = ~I(size),
+                    marker = list(
+                      opacity = 0.5
+                    ),
+                    showlegend = F, source = "subset") %>%
+      plotly::add_trace(data = cdts_region_line,
+                        type = 'scatter',
+                        mode = 'lines',
+                        x = ~start,
+                        y = ~CDTS,
+                        hoverinfo = "none",
+                        line = list(color = 'gray'), 
+                        opacity = 0.3,
+                        showlegend = F) %>%
+      plotly::add_trace(data = my_data,
+                        x = ~start,
+                        y = ~cdts_score,
+                        text =  text_snp,
+                        type = "scatter", 
+                        mode = "markers",
+                        #split = ~non_synonymous,
+                        hoverinfo = 'text',
+                        # legendgroup = 'In network',
+                        # name = 'In network',
+                        showlegend = T) %>%
+      plotly::layout(xaxis = xa, dragmode =  "select")
   })
   
   #### NODES FIGURES ####
@@ -1093,19 +1123,19 @@ server <- function(input, output, session) {
       rownames(snv_score_details) <- NULL
       snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),digits = 4)
       
-      tab <- tableHTML(snv_score_details, theme = 'scientific', rownames = FALSE)
+      tab <- tableHTML::tableHTML(snv_score_details, theme = 'scientific', rownames = FALSE)
       for (i in 1:nrow(snv_score_details)) { 
-        tab <- tab %>% add_css_row(css = list(c('background-color','font-weight','color'), 
-                                              c(color_code[i],'bold', text_color_code[i])), rows = i+1) # first column is header
+        tab <- tab %>% tableHTML::add_css_row(css = list(c('background-color','font-weight','color'), 
+                                                         c(color_code[i],'bold', text_color_code[i])), rows = i+1) # first column is header
       }
-      tab <- tab %>% add_css_column(css = list(c('background-color','text-align','font-weight','color'),
-                                               c('white','left','normal','gray')), columns = 1)
+      tab <- tab %>% tableHTML::add_css_column(css = list(c('background-color','text-align','font-weight','color'),
+                                                          c('white','left','normal','gray')), columns = 1)
     } else {
       tab <- "No data for the selected predictors"
     }
-    shinyalert(title = input$current_node_id, html = TRUE,
-               text = as.character(tags$div(style = "text-align:-webkit-center",
-                                            tab)))
+    shinyalert::shinyalert(title = input$current_node_id, html = TRUE,
+                           text = as.character(tags$div(style = "text-align:-webkit-center",
+                                                        tab)))
   })
   
   
@@ -1150,8 +1180,6 @@ server <- function(input, output, session) {
     tagList(
       
       table_content
-      
-      
     )
   })
   
@@ -1159,8 +1187,8 @@ server <- function(input, output, session) {
   onStop(function() { 
     old_figures <- dir(path = "www/scores_figures/", full.names = T)
     file.remove(old_figures)
-    temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
-    file.remove(temp_files)
+    # temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
+    # file.remove(temp_files)
     graphics.off()
     cat("Session stopped\n")
   })
