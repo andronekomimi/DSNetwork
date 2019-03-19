@@ -106,14 +106,22 @@ server <- function(input, output, session) {
       string <- gsub(x = string, pattern = " +$", replacement = "")
       
       modstring <- sapply(X = string,  FUN = function(x) {
-        if(base::startsWith(x = x, prefix = "rs")){
+        #rsids
+        if(grepl(pattern = "^rs\\d+$", x = x)){
           return(x)
         }  else { 
           x <- unlist(strsplit(x = x, split = ":"))
           if(length(x) != 4){
             return('FAIL')
           } else {
-            myvariant::formatSingleHgvs(x[1], as.numeric(x[2]), x[3], x[4])
+            if(suppressWarnings(!is.na(as.numeric(x[2])))){
+              myvariant::formatSingleHgvs(x[1], 
+                                          as.numeric(x[2]), 
+                                          toupper(x[3]), 
+                                          toupper(x[4]))
+            } else {
+              return('FAIL')
+            }
           }
         }
       })
@@ -127,14 +135,22 @@ server <- function(input, output, session) {
       string <- tolower(gsub(x = string, pattern = " +$", replacement = ""))
       
       modstring <- sapply(X = string,  FUN = function(x) {
-        if(base::startsWith(x = x, prefix = "rs")){
+        # rsids
+        if(grepl(pattern = "^rs\\d+$", x = x)){
           return(x)
         }  else { 
           x <- unlist(strsplit(x = x, split = ":"))
           if(length(x) != 4){
             return('FAIL')
           } else {
-            myvariant::formatSingleHgvs(x[1], as.numeric(x[2]), x[3], x[4])
+            if(suppressWarnings(!is.na(as.numeric(x[2])))){
+              myvariant::formatSingleHgvs(x[1], 
+                                          as.numeric(x[2]), 
+                                          toupper(x[3]), 
+                                          toupper(x[4]))
+            } else {
+              return('FAIL')
+            }
           }
         }
       })
@@ -172,7 +188,7 @@ server <- function(input, output, session) {
         if(length(fail_transfo) > 0){
           res0 <- paste0('Id recognition fails for: ', paste(fail_transfo, collapse = ","), '.')
           print(res0)
-          createAlert(session = session, "alert_res", "alert1", 
+          createAlert(session = session, "alert_conv", "alert1", 
                       title = "Id recognition",
                       content = res0, append = TRUE)
         }
@@ -484,7 +500,7 @@ server <- function(input, output, session) {
       } else {
         values$can_run <- FALSE
         print("ERROR : No valid entry!")
-        createAlert(session = session, anchorId = "alert_res",
+        createAlert(session = session, anchorId = "alert_conv",
                     alertId = "alert1", title = "Id recognition",
                     content = "ERROR : No valid entry!",
                     append = TRUE, style = "danger")

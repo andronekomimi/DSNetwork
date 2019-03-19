@@ -82,6 +82,7 @@ input_data_module <- function(){
                         icon = icon("search"), disabled = FALSE),
       conditionalPanel(condition = "input.fetch_annotations",
                        br(),
+                       bsAlert("alert_conv"),
                        bsAlert("alert_res"),
                        downloadButton('downloadRawTable', 'Download results (TSV)'))
       # ,
@@ -187,7 +188,7 @@ ld_mapping_module <- function(){
                                       icon = icon("gear"), disabled = TRUE))
     ),
     br(),
-    #bsAlert(anchorId = "alert_ld"),
+    bsAlert(anchorId = "alert_ld"),
     sliderInput("ld_range", "LD range",
                 min = 0, max = 1, value = c(0, 1), step = 0.1), 
     bsButton(inputId = 'update_ld', label = 'Update',  
