@@ -1,12 +1,12 @@
 require(shiny)
-require(d3heatmap)
+#require(d3heatmap)
 require(visNetwork)
 require(myvariant)
 require(shinyBS)
 require(plotly) # do not update to 4.8.0, keep 4.7.1
 require(shinyjs)
-require(tableHTML)
-require(magrittr)
+#require(tableHTML)
+#require(magrittr)
 require(shinyalert)
 
 options(shiny.trace = FALSE)

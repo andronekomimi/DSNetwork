@@ -1,10 +1,10 @@
 require(shinydashboard)
 require(visNetwork)
 require(shinyBS)
-require(d3heatmap)
+#require(d3heatmap)
 require(shinyjs)
 require(shinyalert)
-require(markdown)
+#require(markdown)
 
 source('ui_modules.R')
 

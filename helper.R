@@ -1,10 +1,10 @@
 #DSNETWORK
 require(GenomicRanges)
-require(ggplot2)
+#require(ggplot2)
 require(grDevices) 
 require(grid)
-require(yaml)
-require(c3)
+#require(yaml)
+#require(c3)
 require(myvariant)
 
 is.local <- function(){ 

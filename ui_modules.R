@@ -1,9 +1,9 @@
 require(shinydashboard)
 require(visNetwork)
 require(shinyBS)
-require(d3heatmap)
+#require(d3heatmap)
 require(plotly)
-require(ggrepel)
+#require(ggrepel)
 require(shinyjqui)
 require(shinyjs)
 
