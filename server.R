@@ -54,6 +54,7 @@ server <- function(input, output, session) {
   values$selected_node <- ''
   values$ld_regions <- NULL
   values$notfound_id <- NULL
+  values$can_run <- FALSE
   
   # A notification ID
   id <- NULL
@@ -193,7 +194,7 @@ server <- function(input, output, session) {
         values$res <- res
         remove(res)
         if(!is.null(values$res) && nrow(values$res) > 0){
-          
+          values$can_run <- TRUE
           #### renommage des doublons ####
           duplicated_entries <- unique(values$res$query[duplicated(values$res$query)])
           row_2_delete <- c() 
@@ -473,134 +474,144 @@ server <- function(input, output, session) {
                                          values$notfound_id,".") , append = TRUE, style = "warning")
           }
         } else {
-          print("ERROR : No Annotations found !")
+          values$can_run <- FALSE
+          print("ERROR : No Annotations found!")
           createAlert(session = session, anchorId = "alert_res",
                       alertId = "alert3", title = "Data retrieval",
-                      content = "ERROR : No Annotations found !",
+                      content = "ERROR : No Annotations found!",
                       append = TRUE, style = "danger")
         }
+      } else {
+        values$can_run <- FALSE
+        print("ERROR : No valid entry!")
+        createAlert(session = session, anchorId = "alert_res",
+                    alertId = "alert1", title = "Id recognition",
+                    content = "ERROR : No valid entry!",
+                    append = TRUE, style = "danger")
       }
       
-      local({
-        #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
-        annotations_fields <- c("query","X_id", "dbsnp.chrom", "dbsnp.hg19.start", "cadd.consequence", "cdts_score",
-                                "cdts_percentile", common_scores)
-        annotations_infos <- values$res[,annotations_fields]
-        annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
-        # annotations_infos$more <- shinyInput(actionButton, nrow(annotations_infos), 
-        #                                      'button_', label = "Fire", 
-        #                                      onclick = 'Shiny.onInputChange(\"select_button\",  this.id)')
-        values$annotations <- annotations_infos
-        save(annotations_infos, file = paste0(tmpDir, "/annotations.rda"))
-        
-        output$raw_data <- DT::renderDataTable({
+      if(values$can_run){
+        local({
+          #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
+          annotations_fields <- c("query","X_id", "dbsnp.chrom", "dbsnp.hg19.start", "cadd.consequence", "cdts_score",
+                                  "cdts_percentile", common_scores)
+          annotations_infos <- values$res[,annotations_fields]
+          annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+          # annotations_infos$more <- shinyInput(actionButton, nrow(annotations_infos), 
+          #                                      'button_', label = "Fire", 
+          #                                      onclick = 'Shiny.onInputChange(\"select_button\",  this.id)')
+          values$annotations <- annotations_infos
+          save(annotations_infos, file = paste0(tmpDir, "/annotations.rda"))
           
-          if(input$network_type == "regul"){
-            n <- seq(min(sum(!non_syn_res), MAX_VAR))
-            dt = values$annotations[!non_syn_res,]
-          } else {
-            n <- min(sum(non_syn_res), MAX_VAR)
-            dt = values$annotations[non_syn_res,]
-          }
+          output$raw_data <- DT::renderDataTable({
+            
+            if(input$network_type == "regul"){
+              n <- seq(min(sum(!non_syn_res), MAX_VAR))
+              dt = values$annotations[!non_syn_res,]
+            } else {
+              n <- min(sum(non_syn_res), MAX_VAR)
+              dt = values$annotations[non_syn_res,]
+            }
+            
+            # round 
+            for (i in 1:ncol(dt)) { if(is.numeric(dt[,i])) {dt[,i] <- round(x = dt[,i], 3)} }
+            
+            DT::datatable(dt, 
+                          escape = FALSE,
+                          rownames = FALSE,
+                          extensions = c('Scroller','Buttons'),
+                          selection = list(mode = 'multiple', selected = n),
+                          options = list(dom = 'Bfrtip',
+                                         buttons = list(
+                                           list(
+                                             extend = 'copy',
+                                             text = 'Copy',
+                                             title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S"))
+                                           ), 
+                                           list(
+                                             extend = 'print',
+                                             text = 'Print',
+                                             title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S"))
+                                           ),
+                                           list(
+                                             extend = 'csv',
+                                             filename = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
+                                             text = 'Download CSV'
+                                           ),
+                                           list(
+                                             extend = 'excel',
+                                             filename = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
+                                             text = 'Download XLSX'
+                                           ),
+                                           list(
+                                             extend = 'pdf',
+                                             title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
+                                             text = 'Download PDF',
+                                             orientation = 'landscape'
+                                           )
+                                         ),
+                                         scrollX = TRUE,
+                                         ordering = TRUE,
+                                         deferRender = TRUE,
+                                         scrollY = 400,
+                                         scroller = TRUE)
+            )
+          })
           
-          # round 
-          for (i in 1:ncol(dt)) { if(is.numeric(dt[,i])) {dt[,i] <- round(x = dt[,i], 3)} }
-          
-          DT::datatable(dt, 
-                        escape = FALSE,
-                        rownames = FALSE,
-                        extensions = c('Scroller','Buttons'),
-                        selection = list(mode = 'multiple', selected = n),
-                        options = list(dom = 'Bfrtip',
-                                       buttons = list(
-                                         list(
-                                           extend = 'copy',
-                                           text = 'Copy',
-                                           title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S"))
-                                         ), 
-                                         list(
-                                           extend = 'print',
-                                           text = 'Print',
-                                           title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S"))
-                                         ),
-                                         list(
-                                           extend = 'csv',
-                                           filename = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
-                                           text = 'Download CSV'
-                                         ),
-                                         list(
-                                           extend = 'excel',
-                                           filename = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
-                                           text = 'Download XLSX'
-                                         ),
-                                         list(
-                                           extend = 'pdf',
-                                           title = paste0('DSNetwork_',format(Sys.time(), "%m%d%y%H%M%S")),
-                                           text = 'Download PDF',
-                                           orientation = 'landscape'
-                                         )
-                                       ),
-                                       scrollX = TRUE,
-                                       ordering = TRUE,
-                                       deferRender = TRUE,
-                                       scrollY = 400,
-                                       scroller = TRUE)
+          output$downloadRawTable <- downloadHandler(
+            filename = "annotations_table.tsv",
+            content = function(file) {
+              readr::write_delim(x = values$res, path = file, delim = "\t")
+            }
           )
+          
+          
         })
         
-        output$downloadRawTable <- downloadHandler(
-          filename = "annotations_table.tsv",
-          content = function(file) {
-            readr::write_delim(x = values$res, path = file, delim = "\t")
+        available_network_types <- c()
+        if(sum(!non_syn_res) > 0) available_network_types <- c(available_network_types, "synonymous and non-coding variants" = "regul")
+        if(sum(non_syn_res) > 0) available_network_types <- c(available_network_types, "non synonymous variants" = "non_syn")
+        
+        updateSelectInput(session = session, inputId = "network_type", choices = available_network_types)
+        
+        #### BUILDING DATA FOR FIRST DEFAULT PLOT ####
+        my_data <- data.frame(values$global_ranges, stringsAsFactors = F)
+        my_data$cdts_score <- values$res$cdts_score
+        my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
+        my_data$consequences <- sapply(values$res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+        my_data$no_cdts <- is.na(my_data$cdts_score)
+        my_data$selected <- TRUE
+        
+        if(input$network_type == "regul"){
+          if(sum(my_data$non_synonymous) > 0){
+            my_data[my_data$non_synonymous,]$selected <- FALSE
           }
-        )
-        
-        
-      })
-      
-      available_network_types <- c()
-      if(sum(!non_syn_res) > 0) available_network_types <- c(available_network_types, "synonymous and non-coding variants" = "regul")
-      if(sum(non_syn_res) > 0) available_network_types <- c(available_network_types, "non synonymous variants" = "non_syn")
-      
-      updateSelectInput(session = session, inputId = "network_type", choices = available_network_types)
-      
-      #### BUILDING DATA FOR FIRST DEFAULT PLOT ####
-      my_data <- data.frame(values$global_ranges, stringsAsFactors = F)
-      my_data$cdts_score <- values$res$cdts_score
-      my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-      my_data$consequences <- sapply(values$res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
-      my_data$no_cdts <- is.na(my_data$cdts_score)
-      my_data$selected <- TRUE
-      
-      if(input$network_type == "regul"){
-        if(sum(my_data$non_synonymous) > 0){
-          my_data[my_data$non_synonymous,]$selected <- FALSE
+        } else {
+          if(sum(!my_data$non_synonymous) > 0){
+            my_data[!my_data$non_synonymous,]$selected <- FALSE
+          }
         }
-      } else {
-        if(sum(!my_data$non_synonymous) > 0){
-          my_data[!my_data$non_synonymous,]$selected <- FALSE
+        
+        if(nrow(my_data) > MAX_VAR){
+          my_data[(MAX_VAR+1):nrow(my_data),]$selected <- FALSE
         }
+        
+        if(sum(is.na(my_data$cdts_score)) > 0){
+          my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
+        }
+        
+        # reste inchangé
+        my_data$shape <- "x"
+        my_data$shape[my_data$non_synonymous] <- "o"
+        my_data$size <- 10
+        
+        # sera MAJ
+        my_data$color <- "blue"
+        my_data$color[my_data$selected] <- "red"
+        
+        values$my_data <- my_data
+        save(my_data, file = paste0(tmpDir, "/my_data.rda"))
       }
-      
-      if(nrow(my_data) > MAX_VAR){
-        my_data[(MAX_VAR+1):nrow(my_data),]$selected <- FALSE
-      }
-      
-      if(sum(is.na(my_data$cdts_score)) > 0){
-        my_data[is.na(my_data$cdts_score),]$cdts_score <- 0
-      }
-      
-      # reste inchangé
-      my_data$shape <- "x"
-      my_data$shape[my_data$non_synonymous] <- "o"
-      my_data$size <- 10
-      
-      # sera MAJ
-      my_data$color <- "blue"
-      my_data$color[my_data$selected] <- "red"
-      
-      values$my_data <- my_data
-      save(my_data, file = paste0(tmpDir, "/my_data.rda"))
     })
     
     if(!is.null(values$res) && nrow(values$res) > 0){
