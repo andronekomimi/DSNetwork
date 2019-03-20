@@ -952,7 +952,8 @@ build_snv_nodes <- function(session_values, network_type, net){
   return(nodes)
 }
 
-build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores, network_type, net, inc = NULL){
+build_score_nodes <- function(session_values, selected_adj_scores, 
+                              selected_raw_scores, network_type, net, inc = NULL, group_by = F){
   
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
   invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
@@ -991,6 +992,7 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
   
   if(ncol(nodes_data) >= 1){
     score_nodes <- NULL
+    ordered_score_nodes <- NULL
     scores_values_mapped <- list()
     
     # créer les echelles coloriques pour chaque scores
@@ -1049,15 +1051,17 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
                                group = paste0("Scores_",n))
       
       # tri des couleur pour des blocks colorés dans les pie charts
-      new_n_rows <- new_n_rows[order(new_n_rows$color),]
+      ordered_new_n_rows <- new_n_rows[order(new_n_rows$color),]
       
       if(is.null(score_nodes)){
         score_nodes <- new_n_rows
+        ordered_score_nodes <- ordered_new_n_rows
       } else {
         score_nodes <- rbind(score_nodes, new_n_rows)
+        ordered_score_nodes <- rbind(ordered_score_nodes, ordered_new_n_rows)
       }
       
-      ## creation des figures
+      ## creation des figures pour les pie charts triees par predictors
       new_n_rows$h <- 1
       new_n_rows$id <- gsub(x = new_n_rows$id, pattern = paste0("_",n), replacement = "")
       new_n_rows$id <- as.character(new_n_rows$id)
@@ -1066,11 +1070,27 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       custom_colors <- new_n_rows$color
       names(custom_colors) <- new_n_rows$label
       
+      ## creation des figures pour les pie charts triees par couleur
+      ordered_new_n_rows$h <- 1
+      ordered_new_n_rows$id <- gsub(x = ordered_new_n_rows$id, pattern = paste0("_",n), replacement = "")
+      ordered_new_n_rows$id <- as.character(ordered_new_n_rows$id)
+      ordered_new_n_rows$label <- as.character(ordered_new_n_rows$label)
+      ordered_new_n_rows$color <- as.character(ordered_new_n_rows$color)
+      custom_colors <- ordered_new_n_rows$color
+      names(custom_colors) <- ordered_new_n_rows$label
+      
       ## pies
       png(paste0(path_to_images,"pie_scores_", n, net, inc,".png"), width = 2000, height = 2000,
           units = "px")
       par(lwd = 0.001)
       pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
+      dev.off()
+      par(lwd = 1)
+      
+      png(paste0(path_to_images,"pie_scores_group_", n, net, inc,".png"), width = 2000, height = 2000,
+          units = "px")
+      par(lwd = 0.001)
+      pie(x = ordered_new_n_rows$h, col = ordered_new_n_rows$color, labels = "")
       dev.off()
       par(lwd = 1)
       

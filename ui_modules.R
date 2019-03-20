@@ -130,6 +130,7 @@ nodes_modifiers_box <- function(){
                 multiple = FALSE,
                 choices = c(
                   "Score pie charts" = 'pie_scores',
+                  "Score pie charts (group by color)" = 'pie_scores_group',
                   list(
                     `Relative metascores` = c("Rank (NA last)" = 'pie_rank_na_last',
                                               "Rank (NA mean)" = 'pie_rank_na_mean'),
@@ -142,7 +143,7 @@ nodes_modifiers_box <- function(){
                 ),
                 selected = 'pie_scores'
     ),
-    conditionalPanel(condition="input.snv_nodes_type=='pie_scores' | input.snv_nodes_type=='pie_rank_na_last' | input.snv_nodes_type=='pie_rank_na_mean'",
+    conditionalPanel(condition="input.snv_nodes_type=='pie_scores' | input.snv_nodes_type=='pie_rank_na_last' | input.snv_nodes_type=='pie_rank_na_mean' | input.snv_nodes_type=='pie_scores_group'",
                      fluidRow(
                        column(width = 12,
                               selectInput("selected_scores", 'Predictors',

@@ -933,7 +933,7 @@ server <- function(input, output, session) {
     save(vn_components, file = paste0(tmpDir, "/vn_components.rda"))
     visNetwork(vn_components$nodes, 
                vn_components$edges) %>%
-      visEvents(doubleClick = "function(nodes) {
+      visEvents(click = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = TRUE, navigationButtons = FALSE) %>%
@@ -969,12 +969,13 @@ server <- function(input, output, session) {
     return(my_data)
   })
   
-  buildPlot_d <- buildPlot %>% debounce(5000)
+  buildPlot_d <- buildPlot %>% debounce(2000)
   
   output$my_plot <- plotly::renderPlotly({
     pdf(NULL) # to avoid the production of Rplots.pdf
     
-    my_data <- buildPlot_d()
+    #my_data <- buildPlot_d()
+    my_data <- buildPlot()
     if(is.null(my_data) || nrow(my_data) == 0)
       return(NULL)
     
@@ -1136,9 +1137,8 @@ server <- function(input, output, session) {
       visRemoveNodes(id = nodes_id_2_remove)
   })
   
-  #### SCORES SUBGRAPH ####
+  #### SCORES POPUP ####
   observeEvent(input$current_node_id, {
-    cat("1",input$current_node_id,"\n")
     values$selected_node <- input$current_node_id
     snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
     if(nrow(snv_score_details) > 0){
