@@ -54,7 +54,7 @@ negative_oriented_scores <- function(score){
 }
 
 
-invert_scores <- c("cdts_percentile")
+invert_scores <- c("cdts_percentile","cadd.phred")
 
 hgvsToGRange <- function(hgvs_id, query_id){
   
@@ -955,7 +955,7 @@ build_snv_nodes <- function(session_values, network_type, net){
 build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_scores, network_type, net, inc = NULL){
   
   colfunc <- colorRampPalette(c("red","yellow","springgreen"))
-  #invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+  invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
   my_res <- session_values$my_res
   
@@ -998,11 +998,11 @@ build_score_nodes <- function(session_values, selected_adj_scores, selected_raw_
       d <-  nodes_data[[selected_score]]
       
       colpalette <- colfunc(n = length(unique(d)))
-      # if(selected_score %in% invert_scores){
-      #   colpalette <- invert_colfunc(n = length(unique(d)))
-      # } else {
-      #   colpalette <- colfunc(n = length(unique(d)))
-      # }
+      if(selected_score %in% invert_scores){
+        colpalette <- invert_colfunc(n = length(unique(d)))
+      } else {
+        colpalette <- colfunc(n = length(unique(d)))
+      }
       
       names(colpalette) <- sort(unique(d), decreasing = T, na.last = T)
       d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
