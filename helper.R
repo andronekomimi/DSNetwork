@@ -46,7 +46,7 @@ absolute_metascore <- list(
 )
 
 negative_oriented_scores <- function(score){
-  included_scores <- read.csv(file = paste0(dataDir, 'scores_description.tsv'), 
+  included_scores <- read.csv(file = paste0(appDir, 'scores_description.tsv'), 
                               header = T, sep = "\t", stringsAsFactors = F)
   negative_oriented_scores <- included_scores[included_scores$orientation == "negative",]$id
   return(negative_oriented_scores)

@@ -394,7 +394,7 @@ server <- function(input, output, session) {
                                "fathmm_nc","fitcons_nc","funseq","remm",
                                "iwscoring_known","iwscoring_novel")
           
-          included_scores <- read.csv(file = paste0(dataDir, 'scores_description.tsv'), header = T, sep = "\t", stringsAsFactors = F)
+          included_scores <- read.csv(file = paste0(appDir, 'scores_description.tsv'), header = T, sep = "\t", stringsAsFactors = F)
           
           nsfp_rankscores <- colnames(values$res)[colnames(values$res) %in% included_scores[included_scores$source == "myvariant",]$id]
           other_raw_scores <- colnames(values$res)[colnames(values$res) %in% included_scores[included_scores$source == "myvariant",]$id & !grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
@@ -1178,7 +1178,7 @@ server <- function(input, output, session) {
   })
   
   output$scores_description <- renderUI({
-    X <- readr::read_tsv(file = paste0(dataDir, 'scores_description.tsv'))
+    X <- readr::read_tsv(file = paste0(appDir, 'scores_description.tsv'))
     X <- split(X, X$group_name)
     
     table_content <- list()
