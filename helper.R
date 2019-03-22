@@ -46,15 +46,13 @@ absolute_metascore <- list(
 )
 
 negative_oriented_scores <- function(score){
-    cadd_raw_scores <- read.csv(file = paste0(dataDir, 'CADD_scores_from_myvariant.info.tsv'),
-                                header = T, sep = "\t", stringsAsFactors = F)
-    cadd_raw_scores_infos <- cadd_raw_scores[cadd_raw_scores$is_included == "x",]
-    negative_oriented_scores <- cadd_raw_scores_infos[cadd_raw_scores_infos$direction == "negative",]$field
-    return(negative_oriented_scores)
+  included_scores <- read.csv(file = paste0(dataDir, 'scores_description.tsv'), 
+                              header = T, sep = "\t", stringsAsFactors = F)
+  negative_oriented_scores <- included_scores[included_scores$orientation == "negative",]$id
+  return(negative_oriented_scores)
 }
 
-
-invert_scores <- c("cdts_percentile","cadd.phred")
+invert_scores <- negative_oriented_scores()
 
 hgvsToGRange <- function(hgvs_id, query_id){
   
@@ -938,7 +936,7 @@ build_snv_nodes <- function(session_values, network_type, net){
   node_names <- unique(my_res$query)
   
   nodes <- data.frame(id = node_names, 
-                      color = "blue",
+                      color = "gray",
                       label = node_names,
                       shape = "circularImage",
                       image = paste0("scores_figures/pie_scores_",node_names,net,".png"),
@@ -1176,7 +1174,7 @@ basic_ranking <- function(inc = NULL, net){
       score_name <- colnames(nodes_data)[j]
       x <- nodes_data[,j]
       ranked_x <- data.table::frankv(x = x, na.last = T, 
-                                     order = ifelse(test = score_name %in% negative_oriented_scores(), 
+                                     order = ifelse(test = score_name %in% invert_scores, 
                                                     yes = 1, no = -1))
       if(is.null(ranked_nodes_data_na_last)){
         ranked_nodes_data_na_last <- ranked_x
@@ -1186,20 +1184,20 @@ basic_ranking <- function(inc = NULL, net){
     }
     
     colnames(ranked_nodes_data_na_last) <- colnames(nodes_data)[-1]
-
+    
     # replace NA by mean and re rank
     nodes_data_na_mean <- apply(X = nodes_data[,-1], MARGIN = 2, 
                                 FUN = function(x) {
                                   x[is.na(x)] <- mean(x = x, na.rm =T)
                                   return(x)
                                 }) 
-
+    
     ranked_nodes_data_na_mean <- NULL
     for(j in 2:ncol(nodes_data)){
       score_name <- colnames(nodes_data)[j]
       x <- nodes_data[,j]
       ranked_x <- data.table::frankv(x = x, na.last = F, 
-                                     order = ifelse(test = score_name %in% negative_oriented_scores(), 
+                                     order = ifelse(test = score_name %in% invert_scores, 
                                                     yes = 1, no = -1))
       if(is.null(ranked_nodes_data_na_mean)){
         ranked_nodes_data_na_mean <- ranked_x
@@ -1219,14 +1217,14 @@ basic_ranking <- function(inc = NULL, net){
   } else { # only on predictor
     x <- nodes_data[,-1]
     ranked_nodes_data_na_last <- data.table::frankv(x, na.last = T, 
-                                                    order = ifelse(test = score_name %in% negative_oriented_scores(), 
-                                                                                           yes = 1, no = -1))
+                                                    order = ifelse(test = score_name %in% invert_scores, 
+                                                                   yes = 1, no = -1))
     # replace NA by mean and re rank
     nodes_data_na_mean <- mean(x = x, na.rm =T)
     x[is.na(x)] <- nodes_data_na_mean
     ranked_nodes_data_na_mean <- data.table::frankv(x, na.last = T,
-                                                    order = ifelse(test = score_name %in% negative_oriented_scores(), 
-                                                                                           yes = 1, no = -1))
+                                                    order = ifelse(test = score_name %in% invert_scores, 
+                                                                   yes = 1, no = -1))
     names(ranked_nodes_data_na_last) <- names(ranked_nodes_data_na_mean) <- nodes
     
     # compute MEAN RANK accross all the classifier 
@@ -1294,8 +1292,8 @@ basic_ranking <- function(inc = NULL, net){
 #### Absolute metascores ####
 compute_absolute_metascore <- function(session_values){
   
-  colfunc <- colorRampPalette(c("springgreen","yellow","red"))
-  colpalette_length <- 100
+  colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
+  colpalette_length <- 10
   colpalette <- colfunc(n = colpalette_length)
   
   absolute_metascore_colpalette <- list(
@@ -1645,3 +1643,34 @@ contrasting_text_color <- function(hex_str){
   b <- as.numeric(converted_rgb[3])
   return(ifelse(test = ( 1 - ((r * 0.299) + (g * 0.587) + (b * 0.114)) / 255 < 0.5), no = "white", yes = "black"))
 }
+
+draw_rank_palette <- function(nbr_variants, is_absolute = F){
+  #99ccff
+  #image(1:nbr_variants, 1, as.matrix(1:nbr_variants), col = rev(colpalette))
+  if(!is_absolute){
+    colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+    copal1 <- colfunc(n = nbr_variants)
+    d <- data.frame(xmin = 1:nbr_variants)
+    g <- ggplot(d) + geom_bar(aes(x=xmin, fill = as.factor(xmin)), 
+                              color="white", size=0.1) + guides(fill = F) + 
+      theme_minimal() + xlab(label = "Rank color code") + ylab(NULL) +  
+      theme(axis.text.y = element_blank(), axis.ticks = element_blank()) + 
+      scale_y_continuous(breaks = NULL) + scale_x_discrete(limits = 1:nbr_variants) + 
+      scale_fill_manual(breaks = 1:nbr_variants, values= rev(copal1))
+  } else {
+    nbr_variants <- 10
+    colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
+    copal1 <- colfunc(n = nbr_variants)
+    d <- data.frame(xmin = 1:nbr_variants)
+    g <- ggplot(d) + geom_bar(aes(x=xmin, fill = as.factor(xmin)), 
+                              color="white", size=0.1) + guides(fill = F) + 
+      theme_minimal() + xlab(label = "Percentile color code") + ylab(NULL) +
+      theme(axis.text.y = element_blank(), axis.ticks = element_blank()) + 
+      scale_y_continuous(breaks = NULL) + scale_x_discrete(labels = seq(10,100,10),
+                                                           limits = 1:nbr_variants) + 
+      scale_fill_manual(breaks = 1:nbr_variants, values= rev(copal1))
+  }
+  
+  return(g)
+}
+

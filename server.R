@@ -198,8 +198,7 @@ server <- function(input, output, session) {
         #### run myvariant ####
         incProgress(1/n, detail = "Interrogating MyVariant.info...")
         res <- as.data.frame(myvariant::getVariants(hgvsids = valid_transfo,
-                                                    verbose = F, return.as = "DataFrame",
-                                                    fields = c("dbsnp","cadd","dbnsfp")))
+                                                    verbose = F, return.as = "DataFrame"))
         
         
         
@@ -395,19 +394,19 @@ server <- function(input, output, session) {
                                "fathmm_nc","fitcons_nc","funseq","remm",
                                "iwscoring_known","iwscoring_novel")
           
-          dbnsfp_rankscores <- colnames(values$res)[grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
+          included_scores <- read.csv(file = paste0(dataDir, 'scores_description.tsv'), header = T, sep = "\t", stringsAsFactors = F)
           
-          cadd_raw_scores <- read.csv(file = paste0(dataDir, 'CADD_scores_from_myvariant.info.tsv'), header = T, sep = "\t", stringsAsFactors = F)
-          cadd_raw_scores <- cadd_raw_scores[cadd_raw_scores$is_included == "x",]$field
+          nsfp_rankscores <- colnames(values$res)[colnames(values$res) %in% included_scores[included_scores$source == "myvariant",]$id]
+          other_raw_scores <- colnames(values$res)[colnames(values$res) %in% included_scores[included_scores$source == "myvariant",]$id & !grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
           
           #### split res in 2 -> non-syn vs other
           non_syn_res <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-          values$all_nonsyn_res <- values$res[non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, dbnsfp_rankscores)) ]
-          values$all_regul_res <- values$res[!non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, snpnexus_scores, cadd_raw_scores)) ]
+          values$all_nonsyn_res <- values$res[non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, nsfp_rankscores))]
+          values$all_regul_res <- values$res[!non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, snpnexus_scores, other_raw_scores))]
           
           if(nrow(values$all_nonsyn_res) > 0){
             
-            adjusted_scores <- sapply(X = c(dbnsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$all_nonsyn_res, score_name = x))
+            adjusted_scores <- sapply(X = c(nsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$all_nonsyn_res, score_name = x))
             
             switch (class(adjusted_scores),
                     matrix = {
@@ -432,7 +431,7 @@ server <- function(input, output, session) {
           
           
           if(nrow(values$all_regul_res) > 0){
-            raw_scores <- sapply(X = c(cadd_raw_scores, snpnexus_scores, common_scores), FUN = function(x) extract_score_and_convert(values$all_regul_res, score_name = x))
+            raw_scores <- sapply(X = c(other_raw_scores, snpnexus_scores, common_scores), FUN = function(x) extract_score_and_convert(values$all_regul_res, score_name = x))
             switch (class(raw_scores),
                     matrix = {
                       rownames(raw_scores) <- NULL
@@ -892,7 +891,7 @@ server <- function(input, output, session) {
     values$current_edges <- snv_edges
     values$current_nodes <- snv_nodes
     
-    meta_values_mapped <- "blue"
+    meta_values_mapped <- "gray"
     
     print(paste0("network_type : ",input$network_type, " ; current_nodes : ", nrow(values$current_nodes), " ; current_edges : ", nrow(values$current_edges)))
     
@@ -930,6 +929,13 @@ server <- function(input, output, session) {
     if(is.null(vn_components))
       return(NULL)
     
+    local({
+      output$scale <- renderPlot({
+        draw_rank_palette(nbr_variants = nrow(vn_components$nodes), 
+                          is_absolute = input$snv_nodes_type %in% metascores$`Absolute metascores`)
+      })
+    })
+    
     save(vn_components, file = paste0(tmpDir, "/vn_components.rda"))
     visNetwork(vn_components$nodes, 
                vn_components$edges) %>%
@@ -937,7 +943,7 @@ server <- function(input, output, session) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = TRUE, navigationButtons = FALSE) %>%
-      visOptions(highlightNearest = TRUE, clickToUse = FALSE, manipulation = FALSE, nodesIdSelection = TRUE) %>%
+      visOptions(highlightNearest = TRUE, clickToUse = FALSE, manipulation = FALSE, nodesIdSelection = FALSE) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
       visLayout(randomSeed = 2018) %>% 
       visPhysics("repulsion", repulsion = list(nodeDistance = 1000))
@@ -969,7 +975,7 @@ server <- function(input, output, session) {
     return(my_data)
   })
   
-  buildPlot_d <- buildPlot %>% debounce(2000)
+  buildPlot_d <- buildPlot %>% debounce(5000)
   
   output$my_plot <- plotly::renderPlotly({
     pdf(NULL) # to avoid the production of Rplots.pdf
@@ -980,7 +986,7 @@ server <- function(input, output, session) {
       return(NULL)
     
     cdts_region_line <- values$cdts_region
-    cdts_region_line$color = "gray"
+    cdts_region_line$color = "blue"
     cdts_region_line$size = 1
     cdts_region_line$shape = "line-ew"
     

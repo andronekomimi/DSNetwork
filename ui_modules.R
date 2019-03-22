@@ -36,14 +36,14 @@ populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
                  "Toscani in Italy (TSI)" = 'TSI',
                  "Yoruba in Ibadan, Nigeria (YRI)" = 'YRI')
 
-preload_loci <- c("FGFR2" = "locus_0",
-                  "Locus 2 [chr1:113948389-14948389]" = "locus_2",
-                  "Locus 6 [chr1:201687176-202687176]" = "locus_6",
-                  "Locus 38 [chr7:143574929-144574929]" = "locus_38",
-                  "Locus 60 [chr13:32468810-33472626]" = "locus_60",
-                  "Locus 70 [chr17:77281387-78281725]" = "locus_70",
-                  "Locus 78 [chr22:40376234-41527870]" = "locus_78",
-                  "Locus 80 [chr3:86537543-8753754]" = "locus_80"
+metascores <- list(
+  `Relative metascores` = c("Rank (NA last)" = 'pie_rank_na_last',
+                            "Rank (NA mean)" = 'pie_rank_na_mean'),
+  `Absolute metascores` = c("BayesDel" = 'pie_bayesdel', 
+                            "LINSIGHT" = 'pie_linsight', 
+                            "IW-Scoring Known (K10)" = 'pie_iwscoring_known',
+                            "IW-Scoring Novel (K6)" = 'pie_iwscoring_novel',
+                            "All absolute metascores" = 'pie_all')
 )
 
 sidebar_content <- function(){
@@ -85,11 +85,6 @@ input_data_module <- function(){
                        bsAlert("alert_conv"),
                        bsAlert("alert_res"),
                        downloadButton('downloadRawTable', 'Download results (TSV)'))
-      # ,
-      # selectInput(inputId = 'preload',
-      #             label = '0) Load preset query',
-      #             choices = preload_loci),
-      # actionButton("preload_loci", "Load preset query", icon = icon("caret-right"))
   )
 }
 
@@ -131,15 +126,7 @@ nodes_modifiers_box <- function(){
                 choices = c(
                   "Score pie charts" = 'pie_scores',
                   "Score pie charts (group by color)" = 'pie_scores_group',
-                  list(
-                    `Relative metascores` = c("Rank (NA last)" = 'pie_rank_na_last',
-                                              "Rank (NA mean)" = 'pie_rank_na_mean'),
-                    `Absolute metascores` = c("BayesDel" = 'pie_bayesdel', 
-                                              "LINSIGHT" = 'pie_linsight', 
-                                              "IW-Scoring Known (K10)" = 'pie_iwscoring_known',
-                                              "IW-Scoring Novel (K6)" = 'pie_iwscoring_novel',
-                                              "All absolute metascores" = 'pie_all')
-                  )
+                  metascores
                 ),
                 selected = 'pie_scores'
     ),
@@ -172,6 +159,7 @@ nodes_modifiers_box <- function(){
 
 network_results_modules <- function(){
   list(
+    plotOutput(outputId = "scale", height = "100px"),
     shinyjqui::jqui_resizable(visNetworkOutput("my_network", height = "600px"))
   )
 }
