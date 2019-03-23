@@ -23,6 +23,7 @@ if(is.local()){
 
 path_to_images <- paste0(appDir,"www/scores_figures/")
 MAX_VAR <- 30
+ABS_PERCENTILE <- 5
 
 ld_breaks <- seq(0,1, by = 0.01)
 colfunc <- colorRampPalette(c("yellow","red"))
@@ -1293,7 +1294,7 @@ basic_ranking <- function(inc = NULL, net){
 compute_absolute_metascore <- function(session_values){
   
   colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
-  colpalette_length <- 10
+  colpalette_length <- 100/ABS_PERCENTILE
   colpalette <- colfunc(n = colpalette_length)
   
   absolute_metascore_colpalette <- list(
@@ -1662,12 +1663,12 @@ draw_rank_palette <- function(nbr_variants, is_absolute = F){
     g <- g + annotate("segment", x = 1, y = 1.5, xend = nbr_variants, yend = (nbr_variants + 0.5),arrow=arrow(length = unit(0.2,"cm"))) +
       annotate("text", x=2, y=(nbr_variants - 1), label="Deleteriousness level")
   } else {
-    nbr_variants <- 10
+    nbr_variants <- 100/ABS_PERCENTILE
     colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
     copal1 <- colfunc(n = nbr_variants)
     
-    d <- data.frame(x = paste0(rev(seq(nbr_variants,100,nbr_variants)),"%"), y = 1:nbr_variants)
-    d$x <- ordered(d$x, levels = paste0(rev(seq(nbr_variants,100,nbr_variants)),"%"))
+    d <- data.frame(x = paste0(rev(seq(ABS_PERCENTILE,100,ABS_PERCENTILE)),"%"), y = 1:nbr_variants)
+    d$x <- ordered(d$x, levels = paste0(rev(seq(ABS_PERCENTILE,100,ABS_PERCENTILE)),"%"))
     
     g <- ggplot(d) + geom_col(mapping = aes(x, y, fill = x), color="white", size=0.05, width=1) + 
       scale_x_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = copal1) + 
