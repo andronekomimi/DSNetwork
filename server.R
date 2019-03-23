@@ -933,7 +933,7 @@ server <- function(input, output, session) {
       output$scale <- renderPlot({
         draw_rank_palette(nbr_variants = nrow(vn_components$nodes), 
                           is_absolute = input$snv_nodes_type %in% metascores$`Absolute metascores`)
-      }, height = 100)
+      }, height = 150)
     })
     
     save(vn_components, file = paste0(tmpDir, "/vn_components.rda"))
