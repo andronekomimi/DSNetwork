@@ -1646,29 +1646,38 @@ contrasting_text_color <- function(hex_str){
 
 draw_rank_palette <- function(nbr_variants, is_absolute = F){
   #99ccff
-  #image(1:nbr_variants, 1, as.matrix(1:nbr_variants), col = rev(colpalette))
+  #image(1:nbr_variants, 1, as.matrix(1:nbr_variants), col = rev(copal1))
   if(!is_absolute){
     colfunc <- colorRampPalette(c("springgreen","yellow","red"))
     copal1 <- colfunc(n = nbr_variants)
-    d <- data.frame(xmin = 1:nbr_variants)
-    g <- ggplot(d) + geom_bar(aes(x=xmin, fill = as.factor(xmin)), 
-                              color="white", size=0.1) + guides(fill = F) + 
-      theme_minimal() + xlab(label = "Rank color code") + ylab(NULL) +  
+    d <- data.frame(x = as.character(rev(seq(1,nbr_variants))), y = 1:nbr_variants)
+    d$x <- ordered(d$x, levels = as.character(rev(seq(1,nbr_variants))))
+    
+    g <- ggplot(d) + geom_col(mapping = aes(x, y, fill = x), color="white", size=0.05, width=1) + 
+      scale_x_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = copal1) + 
+      theme_minimal() + xlab(label = "Rank") + ylab(NULL) +
       theme(axis.text.y = element_blank(), axis.ticks = element_blank()) + 
-      scale_y_continuous(breaks = NULL) + scale_x_discrete(limits = 1:nbr_variants) + 
-      scale_fill_manual(breaks = 1:nbr_variants, values= rev(copal1))
+      scale_y_continuous(breaks = NULL)
+    
+    g <- g + annotate("segment", x = 1, y = 1.5, xend = nbr_variants, yend = (nbr_variants + 0.5),arrow=arrow(length = unit(0.2,"cm"))) +
+      annotate("text", x=2, y=(nbr_variants - 1), label="Deleteriousness level")
   } else {
     nbr_variants <- 10
     colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
     copal1 <- colfunc(n = nbr_variants)
-    d <- data.frame(xmin = 1:nbr_variants)
-    g <- ggplot(d) + geom_bar(aes(x=xmin, fill = as.factor(xmin)), 
-                              color="white", size=0.1) + guides(fill = F) + 
-      theme_minimal() + xlab(label = "Percentile color code") + ylab(NULL) +
+    
+    d <- data.frame(x = paste0(rev(seq(nbr_variants,100,nbr_variants)),"%"), y = 1:nbr_variants)
+    d$x <- ordered(d$x, levels = paste0(rev(seq(nbr_variants,100,nbr_variants)),"%"))
+    
+    g <- ggplot(d) + geom_col(mapping = aes(x, y, fill = x), color="white", size=0.05, width=1) + 
+      scale_x_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = copal1) + 
+      theme_minimal() + xlab(label = "Percentile") + ylab(NULL) +
       theme(axis.text.y = element_blank(), axis.ticks = element_blank()) + 
-      scale_y_continuous(breaks = NULL) + scale_x_discrete(labels = seq(10,100,10),
-                                                           limits = 1:nbr_variants) + 
-      scale_fill_manual(breaks = 1:nbr_variants, values= rev(copal1))
+      scale_y_continuous(breaks = NULL)
+    
+    g <- g + annotate("segment", x = 1, y = 1.5, xend = nbr_variants, yend = (nbr_variants + 0.5),arrow=arrow(length = unit(0.2,"cm"))) +
+      annotate("text", x=2, y=(nbr_variants - 1), label="Deleteriousness level")
+    
   }
   
   return(g)

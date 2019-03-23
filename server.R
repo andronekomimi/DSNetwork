@@ -933,13 +933,13 @@ server <- function(input, output, session) {
       output$scale <- renderPlot({
         draw_rank_palette(nbr_variants = nrow(vn_components$nodes), 
                           is_absolute = input$snv_nodes_type %in% metascores$`Absolute metascores`)
-      })
+      }, height = 100)
     })
     
     save(vn_components, file = paste0(tmpDir, "/vn_components.rda"))
     visNetwork(vn_components$nodes, 
                vn_components$edges) %>%
-      visEvents(click = "function(nodes) {
+      visEvents(doubleClick = "function(nodes) {
                 Shiny.onInputChange('current_node_id', nodes.nodes);
                 ;}") %>%
       visInteraction(tooltipDelay = 0, hideEdgesOnDrag = TRUE, navigationButtons = FALSE) %>%
