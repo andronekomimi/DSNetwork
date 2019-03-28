@@ -23,7 +23,7 @@ if(is.local()){
 
 path_to_images <- paste0(appDir,"www/scores_figures/")
 MAX_VAR <- 30
-ABS_PERCENTILE <- 5
+BIN_SIZE <- 5
 
 ld_breaks <- seq(0,1, by = 0.01)
 colfunc <- colorRampPalette(c("yellow","red"))
@@ -951,6 +951,39 @@ build_snv_nodes <- function(session_values, network_type, net){
   return(nodes)
 }
 
+build_score_pies <- function(session_values, selected_scores, net, inc = NULL){
+  
+  my_res <- session_values$my_res
+  
+  nodes <- as.character(my_res$query)
+  nodes_data <- data.frame(nodes = nodes)
+  a_scores <- my_res[,selected_scores]
+  
+  nodes_data <- cbind(nodes_data, as.data.frame(a_scores))
+  
+  if(length(selected_scores) == 1){
+    colnames(nodes_data) <- c("nodes", selected_scores)
+  } 
+  
+  ### supprimer les lignes vides
+  nodes_data <- nodes_data[(apply(X = nodes_data,
+                                  MARGIN = 1, 
+                                  FUN = function(x) sum(is.na(x))) < ncol(nodes_data) - 1), ]
+  nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
+  
+  save(nodes_data, file = paste0(tmpDir,"/nodes_data.rda")) # keep this one #
+  
+  scores_data_rel_intra <- intra_rel_ranking(inc = inc, net = net)
+  scores_data_abs_intra <- intra_abs_ranking(inc = inc, net = net)
+  scores_data_global <- global_ranking(inc = inc, net = net)
+  
+  
+  return(list(relative = scores_data_rel_intra,
+              absolute = scores_data_abs_intra,
+              global = scores_data_global))
+}
+
+
 build_score_nodes <- function(session_values, selected_adj_scores, 
                               selected_raw_scores, network_type, net, inc = NULL, group_by = F){
   
@@ -1156,10 +1189,274 @@ extract_score_and_convert.old <- function(my_res_infos, score_name, sub_score_na
   }
 }
 
-#### Basic Ranking ####
-basic_ranking <- function(inc = NULL, net){
-  colfunc <- colorRampPalette(c("springgreen","yellow","red"))
-  #invert_colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+
+#### RANKING ####
+intra_rel_ranking <- function(inc = NULL, net){
+  print("Creating pie for relative ranking")
+  
+  load(paste0(tmpDir,"/nodes_data.rda"))
+  nodes <- as.character(nodes_data$nodes)
+  selected_scores <- colnames(nodes_data)[-1]
+  
+  if(length(nodes) < 2){
+    return(NULL)
+  }
+  
+  #### relative score
+  colfunc = colorRampPalette(c("red","yellow","springgreen"))
+  invert_colfunc = colorRampPalette(c("springgreen","yellow","red"))
+  
+  if(ncol(nodes_data) >= 1){
+    score_nodes <- NULL
+    ordered_score_nodes <- NULL
+    scores_values_mapped <- list()
+    
+    for(selected_score in selected_scores){
+      d <-  nodes_data[[selected_score]]
+      
+      if(selected_score %in% invert_scores){
+        colpalette <- invert_colfunc(n = length(unique(d)))
+      } else {
+        colpalette <- colfunc(n = length(unique(d)))
+      }
+      
+      names(colpalette) <- sort(unique(d), decreasing = T, na.last = T)
+      d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
+      
+      values_mapped <- d
+      
+      #save(values_mapped, file = paste0(tmpDir,"/values_mapped.rda"))
+      #save(colpalette, file = paste0(tmpDir,"/colpalette.rda"))
+      
+      for(i in unique(d)){
+        if(i == "NA"){
+          values_mapped[values_mapped == i] <- "#CCCCCC"
+        } else {
+          values_mapped[values_mapped == i] <- colpalette[names(colpalette) == i]
+        }
+        
+      }
+      scores_values_mapped[[selected_score]] <- values_mapped
+    }
+    
+    scores_values_mapped <- data.frame(scores_values_mapped, 
+                                       row.names = nodes_data$nodes, 
+                                       stringsAsFactors = FALSE)
+    
+    
+    # les scores à proprement parler
+    nodes_titles <- c()
+    
+    for(n in as.character(nodes_data$nodes)){
+      
+      scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
+      scores_details <- paste0("\n\t- ",
+                               paste(paste0(selected_scores, " : ",scores_values), 
+                                     collapse = "\n\t- "))
+      nodes_titles <- c(nodes_titles, scores_details)
+      new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
+                               color = as.character(scores_values_mapped[row.names(scores_values_mapped) == n,]),
+                               label = as.character(scores_values),
+                               shape = "square",
+                               image = NA,
+                               #title = NA,
+                               font.size = 10,
+                               size = 30,
+                               group = paste0("Scores_",n))
+      
+      # tri des couleur pour des blocks colorés dans les pie charts
+      ordered_new_n_rows <- new_n_rows[order(new_n_rows$color),]
+      
+      if(is.null(score_nodes)){
+        score_nodes <- new_n_rows
+        ordered_score_nodes <- ordered_new_n_rows
+      } else {
+        score_nodes <- rbind(score_nodes, new_n_rows)
+        ordered_score_nodes <- rbind(ordered_score_nodes, ordered_new_n_rows)
+      }
+      
+      ## creation des figures pour les pie charts triees par predictors
+      new_n_rows$h <- 1
+      new_n_rows$id <- gsub(x = new_n_rows$id, pattern = paste0("_",n), replacement = "")
+      new_n_rows$id <- as.character(new_n_rows$id)
+      new_n_rows$label <- as.character(new_n_rows$label)
+      new_n_rows$color <- as.character(new_n_rows$color)
+      custom_colors <- new_n_rows$color
+      names(custom_colors) <- new_n_rows$label
+      
+      ## creation des figures pour les pie charts triees par couleur
+      ordered_new_n_rows$h <- 1
+      ordered_new_n_rows$id <- gsub(x = ordered_new_n_rows$id, pattern = paste0("_",n), replacement = "")
+      ordered_new_n_rows$id <- as.character(ordered_new_n_rows$id)
+      ordered_new_n_rows$label <- as.character(ordered_new_n_rows$label)
+      ordered_new_n_rows$color <- as.character(ordered_new_n_rows$color)
+      custom_colors <- ordered_new_n_rows$color
+      names(custom_colors) <- ordered_new_n_rows$label
+      
+      ## pies
+      png(paste0(path_to_images,"pie_scores_", n, net, inc,".png"), width = 2000, height = 2000,
+          units = "px")
+      par(lwd = 0.001)
+      pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
+      dev.off()
+      par(lwd = 1)
+      
+      png(paste0(path_to_images,"pie_scores_group_", n, net, inc,".png"), width = 2000, height = 2000,
+          units = "px")
+      par(lwd = 0.001)
+      pie(x = ordered_new_n_rows$h, col = ordered_new_n_rows$color, labels = "")
+      dev.off()
+      par(lwd = 1)
+      
+    }
+    
+    names(nodes_titles) <- as.character(nodes_data$nodes)
+  }
+  
+  return(list(nodes = score_nodes,
+              nodes_titles = nodes_titles))
+}
+
+intra_abs_ranking <- function(inc = NULL, net){
+  print("Creating pie for absolute ranking")
+  
+  where <- function(x, info, pal){
+    if(x == "NA")
+      return("#CCCCCC")
+    x <- as.numeric(x)
+    neg_direction <- info$tolerate > info$deleterious
+    xrange <- sort(round(x = seq(from = info$tolerate, 
+                                 to = info$deleterious, 
+                                 length.out = length(pal)), digits = 2), 
+                   decreasing = neg_direction)
+    if(!neg_direction){
+      if(sum(x >= xrange))
+        return(pal[max(which(x >= xrange))])
+      return(pal[1])
+    } else {
+      if(sum(x <= xrange))
+        return(pal[max(which(x <= xrange))])
+      return(pal[1])
+    }
+  }
+  
+  load(paste0(tmpDir,"/nodes_data.rda"))
+  nodes <- as.character(nodes_data$nodes)
+  selected_scores <- colnames(nodes_data)[-1]
+  
+  if(length(nodes) < 2){
+    return(NULL)
+  }
+  
+  # load score details file 
+  included_scores <- read.csv(file = paste0(appDir, '/scores_description.tsv'), 
+                              header = T, sep = "\t", stringsAsFactors = F)
+  
+  #### absolute score
+  colfunc = colorRampPalette(c("blue", "#99CCFF", "red"))
+  invert_colfunc = colorRampPalette(c("red", "#99CCFF", "blue"))
+  colpalette_length <- 100/BIN_SIZE
+  
+  if(ncol(nodes_data) >= 1){
+    score_nodes <- NULL
+    ordered_score_nodes <- NULL
+    scores_values_mapped <- list()
+    
+    for(selected_score in selected_scores){
+      #print(selected_score)
+      d <- nodes_data[[selected_score]]
+      score_info <- included_scores[included_scores$id == selected_score,]
+      colpalette <- colfunc(n = colpalette_length)
+      neg_direction <- score_info$tolerate > score_info$deleterious
+      names(colpalette) <- sort(round(x = seq(from = score_info$tolerate, 
+                                              to = score_info$deleterious, 
+                                              length.out = colpalette_length), digits = 2), 
+                                decreasing = neg_direction) # plus petit ranking = meilleur = plus rouge
+      
+      d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
+      
+      scores_values_mapped[[selected_score]] <- sapply(X = d, FUN = function(i) where(x = i, info = score_info, pal = colpalette))
+    }
+    
+    scores_values_mapped <- data.frame(scores_values_mapped, 
+                                       row.names = nodes_data$nodes, 
+                                       stringsAsFactors = FALSE)
+    
+    # les scores à proprement parler
+    nodes_titles <- c()
+    
+    for(n in as.character(nodes_data$nodes)){
+      
+      scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
+      scores_details <- paste0("\n\t- ",
+                               paste(paste0(selected_scores, " : ",scores_values), 
+                                     collapse = "\n\t- "))
+      nodes_titles <- c(nodes_titles, scores_details)
+      new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
+                               color = as.character(scores_values_mapped[row.names(scores_values_mapped) == n,]),
+                               label = as.character(scores_values),
+                               shape = "square",
+                               image = NA,
+                               #title = NA,
+                               font.size = 10,
+                               size = 30,
+                               group = paste0("Scores_",n))
+      
+      # tri des couleur pour des blocks colorés dans les pie charts
+      ordered_new_n_rows <- new_n_rows[order(new_n_rows$color),]
+      
+      if(is.null(score_nodes)){
+        score_nodes <- new_n_rows
+        ordered_score_nodes <- ordered_new_n_rows
+      } else {
+        score_nodes <- rbind(score_nodes, new_n_rows)
+        ordered_score_nodes <- rbind(ordered_score_nodes, ordered_new_n_rows)
+      }
+      
+      ## creation des figures pour les pie charts triees par predictors
+      new_n_rows$h <- 1
+      new_n_rows$id <- gsub(x = new_n_rows$id, pattern = paste0("_",n), replacement = "")
+      new_n_rows$id <- as.character(new_n_rows$id)
+      new_n_rows$label <- as.character(new_n_rows$label)
+      new_n_rows$color <- as.character(new_n_rows$color)
+      custom_colors <- new_n_rows$color
+      names(custom_colors) <- new_n_rows$label
+      
+      ## creation des figures pour les pie charts triees par couleur
+      ordered_new_n_rows$h <- 1
+      ordered_new_n_rows$id <- gsub(x = ordered_new_n_rows$id, pattern = paste0("_",n), replacement = "")
+      ordered_new_n_rows$id <- as.character(ordered_new_n_rows$id)
+      ordered_new_n_rows$label <- as.character(ordered_new_n_rows$label)
+      ordered_new_n_rows$color <- as.character(ordered_new_n_rows$color)
+      custom_colors <- ordered_new_n_rows$color
+      names(custom_colors) <- ordered_new_n_rows$label
+      
+      ## pies
+      png(paste0(path_to_images,"pie_scores_abs_", n, net, inc,".png"), width = 2000, height = 2000,
+          units = "px")
+      par(lwd = 0.001)
+      pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
+      dev.off()
+      par(lwd = 1)
+      
+      png(paste0(path_to_images,"pie_scores_abs_group_", n, net, inc,".png"), width = 2000, height = 2000,
+          units = "px")
+      par(lwd = 0.001)
+      pie(x = ordered_new_n_rows$h, col = ordered_new_n_rows$color, labels = "")
+      dev.off()
+      par(lwd = 1)
+      
+    }
+    
+    names(nodes_titles) <- as.character(nodes_data$nodes)
+  }
+  
+  return(list(nodes = score_nodes,
+              nodes_titles = nodes_titles))
+}
+
+global_ranking <- function(inc = NULL, net){
+  print("Creating pie for global ranking")
   
   load(paste0(tmpDir,"/nodes_data.rda"))
   nodes <- as.character(nodes_data$nodes)
@@ -1233,9 +1530,9 @@ basic_ranking <- function(inc = NULL, net){
     mean.rank_na_mean = ranked_nodes_data_na_mean
   }
   
-  save(ranked_nodes_data_na_last, file = paste0(tmpDir,"/ranked_nodes_data_na_last.rda"))
-  
   # compute FINAL RANK
+  colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+  
   rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
   rank_na_mean = as.numeric(rank(mean.rank_na_mean, ties.method = "average"))
   
@@ -1290,11 +1587,12 @@ basic_ranking <- function(inc = NULL, net){
   
 }
 
+
 #### Absolute metascores ####
 compute_absolute_metascore <- function(session_values){
   
   colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
-  colpalette_length <- 100/ABS_PERCENTILE
+  colpalette_length <- 100/BIN_SIZE
   colpalette <- colfunc(n = colpalette_length)
   
   absolute_metascore_colpalette <- list(
@@ -1663,16 +1961,16 @@ draw_rank_palette <- function(nbr_variants, is_absolute = F){
     g <- g + annotate("segment", x = 1, y = 1.5, xend = nbr_variants, yend = (nbr_variants + 0.5),arrow=arrow(length = unit(0.2,"cm"))) +
       annotate("text", x=2, y=(nbr_variants - 1), label="Deleteriousness level")
   } else {
-    nbr_variants <- 100/ABS_PERCENTILE
+    nbr_variants <- 100/BIN_SIZE
     colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
     copal1 <- colfunc(n = nbr_variants)
     
-    d <- data.frame(x = paste0(rev(seq(ABS_PERCENTILE,100,ABS_PERCENTILE)),"%"), y = 1:nbr_variants)
-    d$x <- ordered(d$x, levels = paste0(rev(seq(ABS_PERCENTILE,100,ABS_PERCENTILE)),"%"))
+    d <- data.frame(x = c(paste0(rev(4:nbr_variants),"th"), "3rd", "2nd", "1st"), y = 1:nbr_variants)
+    d$x <- ordered(d$x, levels = c(paste0(rev(4:nbr_variants),"th"), "3rd", "2nd", "1st"))
     
     g <- ggplot(d) + geom_col(mapping = aes(x, y, fill = x), color="white", size=0.05, width=1) + 
       scale_x_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = copal1) + 
-      theme_minimal() + xlab(label = "Percentile") + ylab(NULL) +
+      theme_minimal() + xlab(label = "Bins") + ylab(NULL) +
       theme(axis.text.y = element_blank(), axis.ticks = element_blank()) + 
       scale_y_continuous(breaks = NULL)
     
@@ -1684,3 +1982,6 @@ draw_rank_palette <- function(nbr_variants, is_absolute = F){
   return(g)
 }
 
+draw_colpalette <- function(colpalette){
+  image(seq_along(colpalette), 1, as.matrix(seq_along(colpalette)), col = colpalette)
+}

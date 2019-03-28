@@ -55,6 +55,7 @@ server <- function(input, output, session) {
   values$ld_regions <- NULL
   values$notfound_id <- NULL
   values$can_run <- FALSE
+  values$all_scores_data <- NULL
   
   # A notification ID
   id <- NULL
@@ -376,37 +377,21 @@ server <- function(input, output, session) {
           save(res, file = paste0(tmpDir, '/res.rda'))
           
           incProgress(2/n, detail = "Aggregating data...")
-          #### create metascore pies ####
-          compute_absolute_metascore(values)
           
-          
-          common_fields <-c("query","X_id","cadd.ref",
-                            "cadd.alt",
-                            "cdts_score",
+          common_fields <-c("query","X_id","cadd.ref","cadd.alt","cdts_score",
                             "cdts_percentile")
           
-          common_scores <- c("linsight", 
+          common_scores <- c("linsight",
                              "bayesdel")
-          
-          snpnexus_scores <- c("gwava_region","gwava_tss","gwava_unmatched",
-                               "eigen_nc","eigen_pc_nc",
-                               "deepseq_sig_log2",
-                               "fathmm_nc","fitcons_nc","funseq","remm",
-                               "iwscoring_known","iwscoring_novel")
           
           included_scores <- read.csv(file = paste0(appDir, 'scores_description.tsv'), header = T, sep = "\t", stringsAsFactors = F)
           
-          nsfp_rankscores <- colnames(values$res)[colnames(values$res) %in% included_scores[included_scores$source == "myvariant",]$id]
-          other_raw_scores <- colnames(values$res)[colnames(values$res) %in% included_scores[included_scores$source == "myvariant",]$id & !grepl(x = colnames(values$res), pattern = "dbnsfp.*.rankscore")]
-          
-          #### split res in 2 -> non-syn vs other
-          non_syn_res <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-          values$all_nonsyn_res <- values$res[non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, nsfp_rankscores))]
-          values$all_regul_res <- values$res[!non_syn_res, (colnames(values$res) %in% c(common_fields, common_scores, snpnexus_scores, other_raw_scores))]
-          
-          if(nrow(values$all_nonsyn_res) > 0){
+          #### convert scores (toNumeric and mean if needed)
+          values$all_res <- values$res[,(colnames(values$res) %in% c(common_fields, included_scores$id))]
+          if(nrow(values$all_res) > 0){
             
-            adjusted_scores <- sapply(X = c(nsfp_rankscores, common_scores), FUN = function(x) extract_score_and_convert(values$all_nonsyn_res, score_name = x))
+            adjusted_scores <- sapply(X = c(common_fields, included_scores$id), 
+                                      FUN = function(x) extract_score_and_convert(values$all_res, score_name = x))
             
             switch (class(adjusted_scores),
                     matrix = {
@@ -422,58 +407,31 @@ server <- function(input, output, session) {
             adjusted_scores <- adjusted_scores[sapply(X = adjusted_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
             
             for(s in names(adjusted_scores)){
-              values$all_nonsyn_res[[s]] <- adjusted_scores[[s]]
+              values$all_res[[s]] <- adjusted_scores[[s]]
             }
             
           } else {
             adjusted_scores <- NULL
-          }     
-          
-          
-          if(nrow(values$all_regul_res) > 0){
-            raw_scores <- sapply(X = c(other_raw_scores, snpnexus_scores, common_scores), FUN = function(x) extract_score_and_convert(values$all_regul_res, score_name = x))
-            switch (class(raw_scores),
-                    matrix = {
-                      rownames(raw_scores) <- NULL
-                      raw_scores <- as.list(data.frame(raw_scores))
-                    },
-                    numeric = {
-                      names(raw_scores) <- gsub(x = names(raw_scores), pattern = "(.*[a-z]).\\d+.?\\d+$", replacement = "\\1")
-                      raw_scores <- lapply(split(raw_scores, names(raw_scores)), unname)
-                    }
-            )
-            
-            raw_scores <- raw_scores[sapply(X = raw_scores, FUN = function(x) sum(is.na(x)) != length(x))] 
-            
-            for(s in names(raw_scores)){
-              #print(raw_scores[[s]])
-              values$all_regul_res[[s]] <- raw_scores[[s]]
-            }
-            
-          } else {
-            raw_scores <- NULL
           }
           
+          #### split res in 2 -> non-syn vs other
+          non_syn_res <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
+          values$all_nonsyn_res <- values$all_res[non_syn_res, ]
+          values$all_regul_res <- values$all_res[!non_syn_res, ]
           
           if(nrow(values$all_nonsyn_res) > MAX_VAR){
-            #print("faut trier all_nonsyn_res")
             values$nonsyn_res <- values$all_nonsyn_res[1:MAX_VAR,]
           } else {
-            #print("pas besoin de trier all_nonsyn_res")
             values$nonsyn_res <- values$all_nonsyn_res
           }
           
           if(nrow(values$all_regul_res) > MAX_VAR){
-            #print("faut trier all_regul_res")
             values$regul_res <- values$all_regul_res[1:MAX_VAR,]
           } else {
-            #print("pas besoin de trier all_regul_res")
             values$regul_res <- values$all_regul_res
           }
           
-          
-          save(raw_scores, adjusted_scores, file = paste0(tmpDir, "/scores.rda"))
-          values$raw_scores <- names(raw_scores)
+          save(adjusted_scores, file = paste0(tmpDir, "/scores.rda"))
           values$adjusted_scores <- names(adjusted_scores)
           
           if(is.null(values$notfound_id)){
@@ -850,42 +808,37 @@ server <- function(input, output, session) {
     
     id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
     
-    #     event.data <- event_data("plotly_selected", source = "subset")
-    # 
-    #     if(is.null(event.data) == T){
-    #       if(nrow(my_res) > MAX_VAR){
-    #         my_res <- my_res[1:MAX_VAR,]
-    #       } else {
-    #         my_res <- my_res
-    #       }
-    #     } else {
-    #       my_selection <- values$my_data[subset(event.data, curveNumber == 0)$pointNumber + 1,]
-    #       if(nrow(my_selection) > MAX_VAR){
-    #         my_res <- my_res[my_res$query %in% my_selection$query[1:MAX_VAR],]
-    #       } else {
-    #         my_res <- my_res[my_res$query %in% my_selection$query,]
-    #       }
-    #     }
-    
     values$my_res <- my_res
-    
+    save(my_res, file = paste0(tmpDir, "/my_res.rda"))
     snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type) #create edges without real ld info
     save(snv_edges, file = paste0(tmpDir, "/snv_edges.rda"))
     snv_nodes <- build_snv_nodes(session_values = values, network_type = input$network_type, net = input$buildNetwork)
     save(snv_nodes, file = paste0(tmpDir, "/snv_nodes.rda"))
     
-    non_null_raw_scores <- values$raw_scores
-    non_null_adj_scores <- values$adjusted_scores
+    all_scores_data <- build_score_pies(session_values = values,
+                                        selected_scores = input$selected_scores,
+                                        net = input$buildNetwork, inc = NULL)
     
-    scores_data <- build_score_nodes(session_values = values, 
-                                     selected_adj_scores = non_null_adj_scores, 
-                                     selected_raw_scores = non_null_raw_scores, 
-                                     network_type = input$network_type,
-                                     net = input$buildNetwork,
-                                     inc = NULL)
+    values$all_scores_data <- all_scores_data
+    save(all_scores_data, file = paste0(tmpDir, "/all_scores_data.rda"))
+    
+    scores_data <- switch (input$snv_nodes_type,
+                           # - pie_scores : relative score ordered by predictors
+                           pie_scores = all_scores_data$relative,
+                           # - pie_scores_group : relative score ordered by color
+                           pie_scores_group = all_scores_data$relative,
+                           # - pie_scores_abs : absolute score ordered by predictors
+                           pie_scores_abs = all_scores_data$absolute,
+                           # - pie_scores_abs_group : absolute score ordered by color
+                           pie_scores_abs_group = all_scores_data$absolute,
+                           # - pie_rank_na_last : global ranking NA last
+                           pie_rank_na_last = all_scores_data$global,
+                           # - pie_rank_na_mean : global ranking NA mean
+                           pie_rank_na_mean = all_scores_data$global
+    )
     
     snv_nodes$infos <- scores_data$nodes_titles
-    basic_ranking(inc = NULL, net = input$buildNetwork)
+    #basic_ranking(inc = NULL, net = input$buildNetwork)
     
     values$scores_data <- scores_data
     values$current_edges <- snv_edges
@@ -932,7 +885,7 @@ server <- function(input, output, session) {
     local({
       output$scale <- renderPlot({
         draw_rank_palette(nbr_variants = nrow(vn_components$nodes), 
-                          is_absolute = input$snv_nodes_type %in% metascores$`Absolute metascores`)
+                          is_absolute = grepl(x = input$snv_nodes_type, pattern = "abs"))
       }, height = 150)
     })
     
@@ -1031,69 +984,77 @@ server <- function(input, output, session) {
       plotly::layout(xaxis = xa, dragmode =  "select")
   })
   
-  #### NODES FIGURES ####
+  #### UPDATE NODES CONTENT ####
   observe({
     
     if(!is.null(values$current_nodes) && nrow(values$current_nodes) > 0){
       svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
       
-      absolute_scores <- c('pie_bayesdel', 'pie_linsight','pie_iwscoring_known','pie_iwscoring_novel','pie_all')
-      
-      if(!input$snv_nodes_type %in% absolute_scores){
-        if(input$update_metascore > 0)
-          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$buildNetwork,input$update_metascore,".png")
-        else 
-          svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$buildNetwork,".png")
-      } else {
-        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,".png")
-      }
+      if(input$update_metascore > 0)
+        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$buildNetwork,input$update_metascore,".png")
+      else 
+        svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", svn_nodes$id,input$buildNetwork,".png")
       
       values$current_nodes$image <- as.character(values$current_nodes$image)
       values$current_nodes[values$current_nodes$group == "Variants",] <- svn_nodes #update current_nodes
       
       visNetworkProxy("my_network") %>%
         visUpdateNodes(nodes = svn_nodes)
+
     }
     
+    if(!is.null(values$all_scores_data) && length(values$all_scores_data) > 0){
+      print("update")
+      all_scores_data <- values$all_scores_data
+      
+      scores_data <- switch (input$snv_nodes_type,
+                             # - pie_scores : relative score ordered by predictors
+                             pie_scores = all_scores_data$relative,
+                             # - pie_scores_group : relative score ordered by color
+                             pie_scores_group = all_scores_data$relative,
+                             # - pie_scores_abs : absolute score ordered by predictors
+                             pie_scores_abs = all_scores_data$absolute,
+                             # - pie_scores_abs_group : absolute score ordered by color
+                             pie_scores_abs_group = all_scores_data$absolute,
+                             # - pie_rank_na_last : global ranking NA last
+                             pie_rank_na_last = all_scores_data$global,
+                             # - pie_rank_na_mean : global ranking NA mean
+                             pie_rank_na_mean = all_scores_data$global
+      )
+      
+      values$scores_data <- scores_data
+    }
   })
   
-  #### SCORES ####
+  #### UPDATE SCORES UI ####
   observe({
-    # non_null_raw_scores <- names(values$raw_scores[!sapply(values$raw_scores, is.null)])
-    # non_null_adj_scores <- names(values$adjusted_scores[!sapply(values$adjusted_scores, is.null)])
-    non_null_raw_scores <- values$raw_scores
-    non_null_adj_scores <- values$adjusted_scores
-    non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores, 
-                                             pattern = "score|rawscore", replacement = "")
-    non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names,
-                                             replacement = "", pattern = "\\.$")
-    non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names, 
-                                             replacement = " ", pattern = "\\.")
-    non_null_raw_scores_pretty_names <- gsub(x = non_null_raw_scores_pretty_names, 
-                                             pattern = "_(.*)_", replacement = " (\\1)")
+    if(is.null(values$my_data) || is.null(input$raw_data_rows_selected))
+      return(NULL)
     
-    non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores, 
-                                             pattern = "score|rankscore", replacement = "")
-    non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names,
-                                             replacement = "", pattern = "\\.$")
-    non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names, 
-                                             replacement = " ", pattern = "\\.")
-    non_null_adj_scores_pretty_names <- gsub(x = non_null_adj_scores_pretty_names, 
-                                             pattern = "_(.*)_", replacement = " (\\1)")
+    # suppress cdts infos
+    unwanted_cols <- c("cdts_score", "cdts_percentile")
     
-    switch(input$network_type,
-           non_syn = {
-             predictors <- non_null_adj_scores
-           },
-           regul = {
-             predictors <- non_null_raw_scores
-           }
-    )
+    # suppress colnames with only NA values regarding the selected nodes
+    my_data <- values$my_data
     
-    if(length(non_null_raw_scores) > 0 || length(non_null_adj_scores) > 0){
-      updateSelectizeInput(session, "selected_scores",
-                           choice = predictors,
-                           selected = predictors)
+    if(input$network_type == "regul"){
+      absolute_idx <- which(!my_data$non_synonymous)
+      my_res <- values$all_regul_res
+    } else {
+      absolute_idx <- which(my_data$non_synonymous)
+      my_res <- values$all_nonsyn_res
+    }
+    
+    my_res <- my_res[sort(input$raw_data_rows_selected),]
+    x <- values$res[values$res$query %in% my_res$query, colnames(values$res) %in% values$adjusted_scores]
+    null_predictors <- names(which(apply(x, 2, function(i) sum(is.na(i))) == nrow(x)))
+    
+    predictors <- sort(values$adjusted_scores[!values$adjusted_scores %in% c(unwanted_cols, null_predictors)])
+    
+    if(length(values$adjusted_scores) > 0){
+        updateSelectizeInput(session, "selected_scores",
+                             choice = predictors,
+                             selected = predictors)
     }
   })
   
@@ -1101,17 +1062,31 @@ server <- function(input, output, session) {
   #### METASCORES ####
   observeEvent(input$update_metascore, {
     id <<- showNotification(paste("Updating your wonderful network..."), duration = 0, type = "message")
-    scores_data <- build_score_nodes(values,
-                                     selected_adj_scores = input$selected_scores, 
-                                     selected_raw_scores = input$selected_scores, 
-                                     inc = input$update_metascore, net = input$buildNetwork,
-                                     network_type = input$network_type)
+    all_scores_data <- build_score_pies(session_values = values,
+                                        selected_scores = input$selected_scores,
+                                        net = input$buildNetwork, 
+                                        inc = input$update_metascore)
+    values$all_scores_data <- all_scores_data
     
-    save(scores_data, file = paste0(tmpDir, "/scores_data.rda"))
+    save(all_scores_data, file = paste0(tmpDir, "/all_scores_data.rda"))
+    
+    scores_data <- switch (input$snv_nodes_type,
+                           # - pie_scores : relative score ordered by predictors
+                           pie_scores = all_scores_data$relative,
+                           # - pie_scores_group : relative score ordered by color
+                           pie_scores_group = all_scores_data$relative,
+                           # - pie_scores_abs : absolute score ordered by predictors
+                           pie_scores_abs = all_scores_data$absolute,
+                           # - pie_scores_abs_group : absolute score ordered by color
+                           pie_scores_abs_group = all_scores_data$absolute,
+                           # - pie_rank_na_last : global ranking NA last
+                           pie_rank_na_last = all_scores_data$global,
+                           # - pie_rank_na_mean : global ranking NA mean
+                           pie_rank_na_mean = all_scores_data$global
+    )
+    
+    #save(scores_data, file = paste0(tmpDir, "/scores_data.rda"))
     values$scores_data <- scores_data
-    
-    basic_ranking(inc = input$update_metascore, net = input$buildNetwork)
-    
     svn_nodes <- values$current_nodes[values$current_nodes$group == "Variants",]
     svn_nodes$image <- paste0("scores_figures/",input$snv_nodes_type, "_", 
                               svn_nodes$id,input$buildNetwork, input$update_metascore,".png")
@@ -1146,6 +1121,7 @@ server <- function(input, output, session) {
   #### SCORES POPUP ####
   observeEvent(input$current_node_id, {
     values$selected_node <- input$current_node_id
+    
     snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
     if(nrow(snv_score_details) > 0){
       color_code <- as.character(snv_score_details$color)
@@ -1166,7 +1142,8 @@ server <- function(input, output, session) {
     } else {
       tab <- "No data for the selected predictors"
     }
-    shinyalert::shinyalert(title = input$current_node_id, html = TRUE,
+    shinyalert::shinyalert(title = input$current_node_id, html = TRUE, 
+                           closeOnEsc = TRUE,closeOnClickOutside = TRUE,
                            text = as.character(tags$div(style = "text-align:-webkit-center",
                                                         tab)))
   })
@@ -1226,8 +1203,6 @@ server <- function(input, output, session) {
     cat("Session stopped\n")
   })
 }
-
-
 
 
 #### OBSOLETE ####
