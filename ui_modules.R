@@ -36,14 +36,13 @@ populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
                  "Toscani in Italy (TSI)" = 'TSI',
                  "Yoruba in Ibadan, Nigeria (YRI)" = 'YRI')
 
-metascores <- list(
-  `Relative metascores` = c("Rank (NA last)" = 'pie_rank_na_last',
-                            "Rank (NA mean)" = 'pie_rank_na_mean'),
-  `Absolute metascores` = c("BayesDel" = 'pie_bayesdel', 
-                            "LINSIGHT" = 'pie_linsight', 
-                            "IW-Scoring Known (K10)" = 'pie_iwscoring_known',
-                            "IW-Scoring Novel (K6)" = 'pie_iwscoring_novel',
-                            "All absolute metascores" = 'pie_all')
+pie_types <- list(
+  `Intra-predictor ranking` = c("Relative rank" = 'pie_scores',
+                                "Relative rank (group by color)" = 'pie_scores_group',
+                                "Absolute rank" = 'pie_scores_abs',
+                                "Absolute rank (group by color)" = 'pie_scores_abs_group'),
+  `Global ranking` = c("Mean relative rank (NA last)" = 'pie_rank_na_last',
+                       "Mean relative (NA mean)" = 'pie_rank_na_mean')
 )
 
 sidebar_content <- function(){
@@ -78,8 +77,8 @@ input_data_module <- function(){
                                    label = "How long are you willing to wait ? (default: 5 min)", 
                                    min = 1, max = 10, value = 5, step = 1)),
       bsButton(inputId = "fetch_annotations", 
-                        label = "Fetch Annotations", 
-                        icon = icon("search"), disabled = FALSE),
+               label = "Fetch Annotations", 
+               icon = icon("search"), disabled = FALSE),
       conditionalPanel(condition = "input.fetch_annotations",
                        br(),
                        bsAlert("alert_conv"),
@@ -95,7 +94,7 @@ output_plot_row <- function(){
              "- <b>C</b>ontect-<b>D</b>ependent <b>T</b>olerence <b>S</b>core (CDTS) - ",
              "determined throught alignment of thousands of human genomes.")),
     shinyjqui::jqui_resizable(plotly::plotlyOutput(outputId = "my_plot",
-                                height = "400px", width = "auto"))
+                                                   height = "400px", width = "auto"))
   )
 }
 
@@ -104,7 +103,7 @@ raw_results_row <- function(){
     DT::dataTableOutput("raw_data"),
     div(style = "text-align:-webkit-right", 
         bsButton(inputId = 'buildNetwork', label = 'Build Network',
-                          disabled = TRUE, icon = icon("gear")))
+                 disabled = TRUE, icon = icon("gear")))
   )
 }
 
@@ -121,24 +120,20 @@ selection_module <- function(){
 nodes_modifiers_box <- function(){
   list(
     selectInput(inputId = "snv_nodes_type",
-                label = "5) Predictors selection",
+                label = "Prediction visualization",
                 multiple = FALSE,
-                choices = c(
-                  "Score pie charts" = 'pie_scores',
-                  "Score pie charts (group by color)" = 'pie_scores_group',
-                  metascores
-                ),
+                choices = pie_types,
                 selected = 'pie_scores'
     ),
-    conditionalPanel(condition="input.snv_nodes_type=='pie_scores' | input.snv_nodes_type=='pie_rank_na_last' | input.snv_nodes_type=='pie_rank_na_mean' | input.snv_nodes_type=='pie_scores_group'",
+    conditionalPanel(condition="input.snv_nodes_type!='pie_rank_na_mean' & input.snv_nodes_type!='pie_rank_na_last'",
                      fluidRow(
                        column(width = 12,
-                              selectInput("selected_scores", 'Predictors',
+                              selectInput("selected_scores", 'Predictors selection',
                                           choices = c(),
                                           selectize = TRUE, multiple = TRUE))
                      ),
                      bsButton(inputId = 'update_metascore', label = 'Update',  
-                                       icon = icon("gear"), disabled = TRUE),
+                              icon = icon("gear"), disabled = TRUE),
                      p(
                        class = "text-muted", br(),
                        paste("This option enables to select the set of prediction and",
@@ -172,17 +167,17 @@ ld_mapping_module <- function(){
                 choices = populations),
     fluidRow(column(width = 6, 
                     bsButton(inputId = 'runLD', label = 'Add LD Information',  
-                                      icon = icon("gear"), disabled = TRUE)),
+                             icon = icon("gear"), disabled = TRUE)),
              column(width = 6, 
                     bsButton(inputId = 'removeLD', label = 'Remove LD Information',  
-                                      icon = icon("gear"), disabled = TRUE))
+                             icon = icon("gear"), disabled = TRUE))
     ),
     br(),
     bsAlert(anchorId = "alert_ld"),
     sliderInput("ld_range", "LD range",
                 min = 0, max = 1, value = c(0, 1), step = 0.1), 
     bsButton(inputId = 'update_ld', label = 'Update',  
-                      icon = icon("gear"), disabled = TRUE),
+             icon = icon("gear"), disabled = TRUE),
     p(class = "text-muted",
       br(),
       "This option enables to select the interval of LD values represented between variants"
