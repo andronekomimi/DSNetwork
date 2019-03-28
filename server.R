@@ -806,7 +806,7 @@ server <- function(input, output, session) {
         visRemoveEdges(id = values$current_edges$id)
     }
     
-    id <<- showNotification(paste("Building your wonderful network..."), duration = 0, type = "message")
+    id <<- showNotification(paste("Building your wonderful network (~30sec)..."), duration = 0, type = "message")
     
     values$my_res <- my_res
     save(my_res, file = paste0(tmpDir, "/my_res.rda"))
@@ -877,6 +877,7 @@ server <- function(input, output, session) {
   })
   
   output$my_network <- renderVisNetwork({
+    t0 <- Sys.time()
     vn_components <- buildNetwork()
     
     if(is.null(vn_components))
@@ -885,11 +886,12 @@ server <- function(input, output, session) {
     local({
       output$scale <- renderPlot({
         draw_rank_palette(nbr_variants = nrow(vn_components$nodes), 
-                          is_absolute = grepl(x = input$snv_nodes_type, pattern = "abs"))
+                          nodes_type = input$snv_nodes_type)
       }, height = 150)
     })
     
     save(vn_components, file = paste0(tmpDir, "/vn_components.rda"))
+    print(Sys.time() - t0)
     visNetwork(vn_components$nodes, 
                vn_components$edges) %>%
       visEvents(doubleClick = "function(nodes) {
@@ -1004,7 +1006,7 @@ server <- function(input, output, session) {
     }
     
     if(!is.null(values$all_scores_data) && length(values$all_scores_data) > 0){
-      print("update")
+      
       all_scores_data <- values$all_scores_data
       
       scores_data <- switch (input$snv_nodes_type,
@@ -1062,6 +1064,7 @@ server <- function(input, output, session) {
   #### METASCORES ####
   observeEvent(input$update_metascore, {
     id <<- showNotification(paste("Updating your wonderful network..."), duration = 0, type = "message")
+    t0 <- Sys.time()
     all_scores_data <- build_score_pies(session_values = values,
                                         selected_scores = input$selected_scores,
                                         net = input$buildNetwork, 
@@ -1096,6 +1099,8 @@ server <- function(input, output, session) {
     
     if (!is.null(id))
       removeNotification(id)
+    
+    print(Sys.time() - t0)
   })
   
   
@@ -1131,7 +1136,7 @@ server <- function(input, output, session) {
       colnames(snv_score_details) <- c("predictors", "value")
       rownames(snv_score_details) <- NULL
       snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),digits = 4)
-      
+      snv_score_details <- snv_score_details[order(snv_score_details$predictors),]
       tab <- tableHTML::tableHTML(snv_score_details, theme = 'scientific', rownames = FALSE)
       for (i in 1:nrow(snv_score_details)) { 
         tab <- tab %>% tableHTML::add_css_row(css = list(c('background-color','font-weight','color'), 

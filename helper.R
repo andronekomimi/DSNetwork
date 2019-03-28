@@ -24,6 +24,7 @@ if(is.local()){
 path_to_images <- paste0(appDir,"www/scores_figures/")
 MAX_VAR <- 30
 BIN_SIZE <- 5
+NCORES <- 4
 
 ld_breaks <- seq(0,1, by = 0.01)
 colfunc <- colorRampPalette(c("yellow","red"))
@@ -952,6 +953,10 @@ build_snv_nodes <- function(session_values, network_type, net){
 }
 
 build_score_pies <- function(session_values, selected_scores, net, inc = NULL){
+  force(session_values)
+  force(selected_scores)
+  force(net)
+  force(inc)
   
   my_res <- session_values$my_res
   
@@ -973,14 +978,17 @@ build_score_pies <- function(session_values, selected_scores, net, inc = NULL){
   
   save(nodes_data, file = paste0(tmpDir,"/nodes_data.rda")) # keep this one #
   
-  scores_data_rel_intra <- intra_rel_ranking(inc = inc, net = net)
-  scores_data_abs_intra <- intra_abs_ranking(inc = inc, net = net)
-  scores_data_global <- global_ranking(inc = inc, net = net)
+  tasks <- list(relative = "intra_rel_ranking", 
+                absolute = "intra_abs_ranking", 
+                absolute = "global_ranking")
+  
+  RES <- parallel::mclapply(X = tasks, mc.cores = NCORES, 
+                            FUN = function(task){
+                              do.call(task, list(inc, net))
+                            })
   
   
-  return(list(relative = scores_data_rel_intra,
-              absolute = scores_data_abs_intra,
-              global = scores_data_global))
+  return(RES)
 }
 
 
@@ -1943,9 +1951,13 @@ contrasting_text_color <- function(hex_str){
   return(ifelse(test = ( 1 - ((r * 0.299) + (g * 0.587) + (b * 0.114)) / 255 < 0.5), no = "white", yes = "black"))
 }
 
-draw_rank_palette <- function(nbr_variants, is_absolute = F){
-  #99ccff
-  #image(1:nbr_variants, 1, as.matrix(1:nbr_variants), col = rev(copal1))
+draw_rank_palette <- function(nbr_variants, nodes_type){
+  
+  if(grepl(x = nodes_type, pattern = "pie_rank")) #global scores
+    return(NULL)
+  
+  is_absolute = grepl(x = nodes_type, pattern = "abs")
+  
   if(!is_absolute){
     colfunc <- colorRampPalette(c("springgreen","yellow","red"))
     copal1 <- colfunc(n = nbr_variants)

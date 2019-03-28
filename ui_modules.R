@@ -125,10 +125,11 @@ nodes_modifiers_box <- function(){
                 choices = pie_types,
                 selected = 'pie_scores'
     ),
-    conditionalPanel(condition="input.snv_nodes_type!='pie_rank_na_mean' & input.snv_nodes_type!='pie_rank_na_last'",
+    conditionalPanel(condition="input.snv_nodes_type!='metascores'",
                      fluidRow(
                        column(width = 12,
-                              selectInput("selected_scores", 'Predictors selection',
+                              selectInput("selected_scores", 
+                                          'Predictors selection',
                                           choices = c(),
                                           selectize = TRUE, multiple = TRUE))
                      ),
