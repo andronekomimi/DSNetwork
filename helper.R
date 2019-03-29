@@ -980,7 +980,7 @@ build_score_pies <- function(session_values, selected_scores, net, inc = NULL){
   
   tasks <- list(relative = "intra_rel_ranking", 
                 absolute = "intra_abs_ranking", 
-                absolute = "global_ranking")
+                global = "global_ranking")
   
   RES <- parallel::mclapply(X = tasks, mc.cores = NCORES, 
                             FUN = function(task){
@@ -1071,15 +1071,8 @@ build_score_nodes <- function(session_values, selected_adj_scores,
     
     
     # les scores à proprement parler
-    nodes_titles <- c()
-    
     for(n in as.character(nodes_data$nodes)){
-      
       scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
-      scores_details <- paste0("\n\t- ",
-                               paste(paste0(selected_scores, " : ",scores_values), 
-                                     collapse = "\n\t- "))
-      nodes_titles <- c(nodes_titles, scores_details)
       new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
                                color = as.character(scores_values_mapped[row.names(scores_values_mapped) == n,]),
                                label = as.character(scores_values),
@@ -1233,9 +1226,6 @@ intra_rel_ranking <- function(inc = NULL, net){
       
       values_mapped <- d
       
-      #save(values_mapped, file = paste0(tmpDir,"/values_mapped.rda"))
-      #save(colpalette, file = paste0(tmpDir,"/colpalette.rda"))
-      
       for(i in unique(d)){
         if(i == "NA"){
           values_mapped[values_mapped == i] <- "#CCCCCC"
@@ -1253,15 +1243,9 @@ intra_rel_ranking <- function(inc = NULL, net){
     
     
     # les scores à proprement parler
-    nodes_titles <- c()
-    
     for(n in as.character(nodes_data$nodes)){
       
       scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
-      scores_details <- paste0("\n\t- ",
-                               paste(paste0(selected_scores, " : ",scores_values), 
-                                     collapse = "\n\t- "))
-      nodes_titles <- c(nodes_titles, scores_details)
       new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
                                color = as.character(scores_values_mapped[row.names(scores_values_mapped) == n,]),
                                label = as.character(scores_values),
@@ -1308,7 +1292,7 @@ intra_rel_ranking <- function(inc = NULL, net){
       pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
       dev.off()
       par(lwd = 1)
-      
+
       png(paste0(path_to_images,"pie_scores_group_", n, net, inc,".png"), width = 2000, height = 2000,
           units = "px")
       par(lwd = 0.001)
@@ -1318,11 +1302,9 @@ intra_rel_ranking <- function(inc = NULL, net){
       
     }
     
-    names(nodes_titles) <- as.character(nodes_data$nodes)
   }
   
-  return(list(nodes = score_nodes,
-              nodes_titles = nodes_titles))
+  return(list(original = score_nodes, group_by = ordered_score_nodes))
 }
 
 intra_abs_ranking <- function(inc = NULL, net){
@@ -1391,15 +1373,8 @@ intra_abs_ranking <- function(inc = NULL, net){
                                        stringsAsFactors = FALSE)
     
     # les scores à proprement parler
-    nodes_titles <- c()
-    
     for(n in as.character(nodes_data$nodes)){
-      
       scores_values <- as.numeric(nodes_data[nodes_data$nodes == n,-1])
-      scores_details <- paste0("\n\t- ",
-                               paste(paste0(selected_scores, " : ",scores_values), 
-                                     collapse = "\n\t- "))
-      nodes_titles <- c(nodes_titles, scores_details)
       new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
                                color = as.character(scores_values_mapped[row.names(scores_values_mapped) == n,]),
                                label = as.character(scores_values),
@@ -1455,12 +1430,9 @@ intra_abs_ranking <- function(inc = NULL, net){
       par(lwd = 1)
       
     }
-    
-    names(nodes_titles) <- as.character(nodes_data$nodes)
   }
   
-  return(list(nodes = score_nodes,
-              nodes_titles = nodes_titles))
+  return(list(original = score_nodes, group_by = ordered_score_nodes))
 }
 
 global_ranking <- function(inc = NULL, net){
@@ -1468,10 +1440,14 @@ global_ranking <- function(inc = NULL, net){
   
   load(paste0(tmpDir,"/nodes_data.rda"))
   nodes <- as.character(nodes_data$nodes)
+  selected_scores <- colnames(nodes_data)[-1]
   
   if(length(nodes) < 2){
     return(NULL)
   }
+  
+  score_nodes_na_last <- NULL
+  score_nodes_na_mean <- NULL
   
   # compute RANK for each classifier
   if(ncol(nodes_data) > 2){ # nodes + at least 2 scores
@@ -1513,7 +1489,6 @@ global_ranking <- function(inc = NULL, net){
     }
     
     colnames(ranked_nodes_data_na_mean) <- colnames(nodes_data)[-1]
-    
     rownames(ranked_nodes_data_na_last) <- rownames(ranked_nodes_data_na_mean) <- nodes
     
     # compute MEAN RANK accross all the classifier 
@@ -1536,6 +1511,46 @@ global_ranking <- function(inc = NULL, net){
     # compute MEAN RANK accross all the classifier 
     mean.rank_na_last = ranked_nodes_data_na_last
     mean.rank_na_mean = ranked_nodes_data_na_mean
+    
+  }
+  
+  # create NODES DETAILS
+  for(n in nodes){
+    scores_values <- as.character(ranked_nodes_data_na_last[n,])
+    new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
+                             color = "#FFFFFF",
+                             label = scores_values,
+                             shape = "square",
+                             image = NA,
+                             #title = NA,
+                             font.size = 10,
+                             size = 30,
+                             group = paste0("Scores_",n))
+    
+    if(is.null(score_nodes_na_last)){
+      score_nodes_na_last <- new_n_rows
+    } else {
+      score_nodes_na_last <- rbind(score_nodes_na_last, new_n_rows)
+    }
+  }
+  
+  for(n in nodes){
+    scores_values <- as.character(ranked_nodes_data_na_mean[n,])
+    new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
+                             color = "#FFFFFF",
+                             label = scores_values,
+                             shape = "square",
+                             image = NA,
+                             #title = NA,
+                             font.size = 10,
+                             size = 30,
+                             group = paste0("Scores_",n))
+    
+    if(is.null(score_nodes_na_mean)){
+      score_nodes_na_mean <- new_n_rows
+    } else {
+      score_nodes_na_mean <- rbind(score_nodes_na_mean, new_n_rows)
+    }
   }
   
   # compute FINAL RANK
@@ -1593,6 +1608,7 @@ global_ranking <- function(inc = NULL, net){
     dev.off()
   })
   
+  return(list(na_last = score_nodes_na_last, na_mean = score_nodes_na_mean))
 }
 
 

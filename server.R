@@ -824,21 +824,18 @@ server <- function(input, output, session) {
     
     scores_data <- switch (input$snv_nodes_type,
                            # - pie_scores : relative score ordered by predictors
-                           pie_scores = all_scores_data$relative,
+                           pie_scores = all_scores_data$relative$original,
                            # - pie_scores_group : relative score ordered by color
-                           pie_scores_group = all_scores_data$relative,
+                           pie_scores_group = all_scores_data$relative$group_by,
                            # - pie_scores_abs : absolute score ordered by predictors
-                           pie_scores_abs = all_scores_data$absolute,
+                           pie_scores_abs = all_scores_data$absolute$original,
                            # - pie_scores_abs_group : absolute score ordered by color
-                           pie_scores_abs_group = all_scores_data$absolute,
+                           pie_scores_abs_group = all_scores_data$absolute$group_by,
                            # - pie_rank_na_last : global ranking NA last
-                           pie_rank_na_last = all_scores_data$global,
+                           pie_rank_na_last = all_scores_data$global$na_last,
                            # - pie_rank_na_mean : global ranking NA mean
-                           pie_rank_na_mean = all_scores_data$global
+                           pie_rank_na_mean = all_scores_data$global$na_mean
     )
-    
-    snv_nodes$infos <- scores_data$nodes_titles
-    #basic_ranking(inc = NULL, net = input$buildNetwork)
     
     values$scores_data <- scores_data
     values$current_edges <- snv_edges
@@ -1002,7 +999,7 @@ server <- function(input, output, session) {
       
       visNetworkProxy("my_network") %>%
         visUpdateNodes(nodes = svn_nodes)
-
+      
     }
     
     if(!is.null(values$all_scores_data) && length(values$all_scores_data) > 0){
@@ -1011,17 +1008,17 @@ server <- function(input, output, session) {
       
       scores_data <- switch (input$snv_nodes_type,
                              # - pie_scores : relative score ordered by predictors
-                             pie_scores = all_scores_data$relative,
+                             pie_scores = all_scores_data$relative$original,
                              # - pie_scores_group : relative score ordered by color
-                             pie_scores_group = all_scores_data$relative,
+                             pie_scores_group = all_scores_data$relative$group_by,
                              # - pie_scores_abs : absolute score ordered by predictors
-                             pie_scores_abs = all_scores_data$absolute,
+                             pie_scores_abs = all_scores_data$absolute$original,
                              # - pie_scores_abs_group : absolute score ordered by color
-                             pie_scores_abs_group = all_scores_data$absolute,
+                             pie_scores_abs_group = all_scores_data$absolute$group_by,
                              # - pie_rank_na_last : global ranking NA last
-                             pie_rank_na_last = all_scores_data$global,
+                             pie_rank_na_last = all_scores_data$global$na_last,
                              # - pie_rank_na_mean : global ranking NA mean
-                             pie_rank_na_mean = all_scores_data$global
+                             pie_rank_na_mean = all_scores_data$global$na_mean
       )
       
       values$scores_data <- scores_data
@@ -1054,9 +1051,9 @@ server <- function(input, output, session) {
     predictors <- sort(values$adjusted_scores[!values$adjusted_scores %in% c(unwanted_cols, null_predictors)])
     
     if(length(values$adjusted_scores) > 0){
-        updateSelectizeInput(session, "selected_scores",
-                             choice = predictors,
-                             selected = predictors)
+      updateSelectizeInput(session, "selected_scores",
+                           choice = predictors,
+                           selected = predictors)
     }
   })
   
@@ -1075,17 +1072,17 @@ server <- function(input, output, session) {
     
     scores_data <- switch (input$snv_nodes_type,
                            # - pie_scores : relative score ordered by predictors
-                           pie_scores = all_scores_data$relative,
+                           pie_scores = all_scores_data$relative$original,
                            # - pie_scores_group : relative score ordered by color
-                           pie_scores_group = all_scores_data$relative,
+                           pie_scores_group = all_scores_data$relative$group_by,
                            # - pie_scores_abs : absolute score ordered by predictors
-                           pie_scores_abs = all_scores_data$absolute,
+                           pie_scores_abs = all_scores_data$absolute$original,
                            # - pie_scores_abs_group : absolute score ordered by color
-                           pie_scores_abs_group = all_scores_data$absolute,
+                           pie_scores_abs_group = all_scores_data$absolute$group_by,
                            # - pie_rank_na_last : global ranking NA last
-                           pie_rank_na_last = all_scores_data$global,
+                           pie_rank_na_last = all_scores_data$global$na_last,
                            # - pie_rank_na_mean : global ranking NA mean
-                           pie_rank_na_mean = all_scores_data$global
+                           pie_rank_na_mean = all_scores_data$global$na_mean
     )
     
     #save(scores_data, file = paste0(tmpDir, "/scores_data.rda"))
@@ -1127,17 +1124,29 @@ server <- function(input, output, session) {
   observeEvent(input$current_node_id, {
     values$selected_node <- input$current_node_id
     
-    snv_score_details <- values$scores_data$nodes[values$scores_data$nodes$group == paste0("Scores_",values$selected_node), c("id","color","label")]
+    snv_score_details <- values$scores_data[values$scores_data$group == paste0("Scores_",values$selected_node), 
+                                            c("id","color","label")]
     if(nrow(snv_score_details) > 0){
       color_code <- as.character(snv_score_details$color)
       text_color_code <- sapply(X = color_code, FUN = contrasting_text_color)
-      snv_score_details$id <- gsub(x = snv_score_details$id, pattern = paste0("_", values$selected_node), replacement = "")
+      snv_score_details$id <- gsub(x = snv_score_details$id, 
+                                   pattern = paste0("_", values$selected_node), 
+                                   replacement = "")
       snv_score_details <- snv_score_details[,-2] #suppression de la colonne 'color' 
-      colnames(snv_score_details) <- c("predictors", "value")
       rownames(snv_score_details) <- NULL
-      snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),digits = 4)
-      snv_score_details <- snv_score_details[order(snv_score_details$predictors),]
-      tab <- tableHTML::tableHTML(snv_score_details, theme = 'scientific', rownames = FALSE)
+      
+      if(grepl(x = input$snv_nodes_type, pattern = "pie_rank")){
+        colnames(snv_score_details) <- c("predictors", "rank")
+        snv_score_details$rank <- round(x = as.numeric(as.character(snv_score_details$rank)),
+                                         digits = 4)
+      } else {
+        colnames(snv_score_details) <- c("predictors", "value")
+        snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),
+                                         digits = 4)
+      }
+
+      tab <- tableHTML::tableHTML(snv_score_details, theme = 'scientific', 
+                                  rownames = FALSE)
       for (i in 1:nrow(snv_score_details)) { 
         tab <- tab %>% tableHTML::add_css_row(css = list(c('background-color','font-weight','color'), 
                                                          c(color_code[i],'bold', text_color_code[i])), rows = i+1) # first column is header
