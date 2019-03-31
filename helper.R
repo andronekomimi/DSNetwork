@@ -48,7 +48,7 @@ absolute_metascore <- list(
 )
 
 negative_oriented_scores <- function(score){
-  included_scores <- read.csv(file = paste0(appDir, 'scores_description.tsv'), 
+  included_scores <- read.csv(file = paste0(appDir, '/scores_description.tsv'), 
                               header = T, sep = "\t", stringsAsFactors = F)
   negative_oriented_scores <- included_scores[included_scores$orientation == "negative",]$id
   return(negative_oriented_scores)
@@ -986,8 +986,6 @@ build_score_pies <- function(session_values, selected_scores, net, inc = NULL){
                             FUN = function(task){
                               do.call(task, list(inc, net))
                             })
-  
-  
   return(RES)
 }
 
@@ -1497,6 +1495,7 @@ global_ranking <- function(inc = NULL, net){
     
   } else { # only on predictor
     x <- nodes_data[,-1]
+    score_name <- colnames(nodes_data[,-1])
     ranked_nodes_data_na_last <- data.table::frankv(x, na.last = T, 
                                                     order = ifelse(test = score_name %in% invert_scores, 
                                                                    yes = 1, no = -1))
@@ -1611,6 +1610,85 @@ global_ranking <- function(inc = NULL, net){
   return(list(na_last = score_nodes_na_last, na_mean = score_nodes_na_mean))
 }
 
+basic_ranking <- function(score_dataframe){
+  print("Creating basic ranking")
+  
+  if(is.null(score_dataframe) || nrow(score_dataframe) < 1){
+    return(NULL)
+  }
+  
+  score_nodes_na_last <- NULL
+  score_nodes_na_mean <- NULL
+  
+  # compute RANK for each classifier
+  if(ncol(score_dataframe) > 2){ # nodes + at least 2 scores
+    ranked_nodes_data_na_last <- NULL
+    for(j in 1:ncol(score_dataframe)){
+      score_name <- colnames(score_dataframe)[j]
+      x <- score_dataframe[,j]
+      ranked_x <- data.table::frankv(x = x, na.last = T, 
+                                     order = ifelse(test = score_name %in% invert_scores, 
+                                                    yes = 1, no = -1))
+      if(is.null(ranked_nodes_data_na_last)){
+        ranked_nodes_data_na_last <- ranked_x
+      } else {
+        ranked_nodes_data_na_last <- cbind(ranked_nodes_data_na_last, ranked_x)
+      }
+    }
+    
+    colnames(ranked_nodes_data_na_last) <-  colnames(score_dataframe)
+    
+    # replace NA by mean and re rank
+    nodes_data_na_mean <- apply(X = score_dataframe, MARGIN = 2, 
+                                FUN = function(x) {
+                                  x[is.na(x)] <- mean(x = x, na.rm =T)
+                                  return(x)
+                                }) 
+    
+    ranked_nodes_data_na_mean <- NULL
+    for(j in 1:ncol(score_dataframe)){
+      score_name <- colnames(score_dataframe)[j]
+      x <- score_dataframe[,j]
+      ranked_x <- data.table::frankv(x = x, na.last = F, 
+                                     order = ifelse(test = score_name %in% invert_scores, 
+                                                    yes = 1, no = -1))
+      if(is.null(ranked_nodes_data_na_mean)){
+        ranked_nodes_data_na_mean <- ranked_x
+      } else {
+        ranked_nodes_data_na_mean <- cbind(ranked_nodes_data_na_mean, ranked_x)
+      }
+    }
+    
+    colnames(ranked_nodes_data_na_mean) <-  colnames(score_dataframe)
+    
+    
+    # compute MEAN RANK accross all the classifier 
+    mean.rank_na_last = rowMeans(ranked_nodes_data_na_last)
+    mean.rank_na_mean = rowMeans(ranked_nodes_data_na_mean)
+    
+  } else { # only on predictor
+    x <- score_dataframe
+    score_name <- colnames(score_dataframe)
+    ranked_nodes_data_na_last <- data.table::frankv(x, na.last = T, 
+                                                    order = ifelse(test = score_name %in% invert_scores, 
+                                                                   yes = 1, no = -1))
+    # replace NA by mean and re rank
+    nodes_data_na_mean <- mean(x = x, na.rm =T)
+    x[is.na(x)] <- nodes_data_na_mean
+    ranked_nodes_data_na_mean <- data.table::frankv(x, na.last = T,
+                                                    order = ifelse(test = score_name %in% invert_scores, 
+                                                                   yes = 1, no = -1))
+
+    # compute MEAN RANK accross all the classifier 
+    mean.rank_na_last = ranked_nodes_data_na_last
+    mean.rank_na_mean = ranked_nodes_data_na_mean
+  }
+  
+  rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
+  rank_na_mean = as.numeric(rank(mean.rank_na_mean, ties.method = "average"))
+  
+  return(list(na_last = rank_na_last, na_mean = rank_na_mean))
+}
 
 #### Absolute metascores ####
 compute_absolute_metascore <- function(session_values){
@@ -1998,7 +2076,7 @@ draw_rank_palette <- function(nbr_variants, nodes_type){
     
     g <- ggplot(d) + geom_col(mapping = aes(x, y, fill = x), color="white", size=0.05, width=1) + 
       scale_x_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = copal1) + 
-      theme_minimal() + xlab(label = "Bins") + ylab(NULL) +
+      theme_minimal() + xlab(label = "Intervals") + ylab(NULL) +
       theme(axis.text.y = element_blank(), axis.ticks = element_blank()) + 
       scale_y_continuous(breaks = NULL)
     

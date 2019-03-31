@@ -301,6 +301,7 @@ server <- function(input, output, session) {
           
           #### fetch SNPnexus from HTML request ####
           if(input$fetch_snpnexus){
+            t1 <- Sys.time()
             incProgress(4/n, detail = "Interrogating SNPNexus platform...")
             path_to_snpnexus <- paste0(appDir, "scripts/")
             
@@ -313,7 +314,7 @@ server <- function(input, output, session) {
                                  path_to_snpnexus = path_to_snpnexus, 
                                  filename = filename, 
                                  waiting_time = input$waiting)
-            
+            print(Sys.time() - t1)
             save(value, file = paste0(tmpDir, "/value.rda"))
             
             if(!is.null(value)){
@@ -369,26 +370,24 @@ server <- function(input, output, session) {
                           content = "SNPnexus taking too long to answer, sorry..." ,
                           append = TRUE, style = "warning")
             }
+            print(Sys.time() - t1)
           } else {
             incProgress(4/n, detail = "Skipping SNPNexus...")
           }
           
-          res <- values$res
-          save(res, file = paste0(tmpDir, '/res.rda'))
-          
           incProgress(2/n, detail = "Aggregating data...")
           
-          common_fields <-c("query","X_id","cadd.ref","cadd.alt","cdts_score",
-                            "cdts_percentile")
+          common_fields <-c("query","X_id")
           
-          common_scores <- c("linsight",
-                             "bayesdel")
-          
-          included_scores <- read.csv(file = paste0(appDir, 'scores_description.tsv'), header = T, sep = "\t", stringsAsFactors = F)
+          included_scores <- read.csv(file = paste0(appDir, '/scores_description.tsv'), header = T, sep = "\t", stringsAsFactors = F)
           
           #### convert scores (toNumeric and mean if needed)
           values$all_res <- values$res[,(colnames(values$res) %in% c(common_fields, included_scores$id))]
+          
           if(nrow(values$all_res) > 0){
+            
+            #### suppress empty scores
+            values$all_res <- values$all_res[,sapply(X = values$all_res, FUN = function(x) sum(is.na(x)) != length(x))]
             
             adjusted_scores <- sapply(X = c(common_fields, included_scores$id), 
                                       FUN = function(x) extract_score_and_convert(values$all_res, score_name = x))
@@ -414,25 +413,47 @@ server <- function(input, output, session) {
             adjusted_scores <- NULL
           }
           
+          save(adjusted_scores, file = paste0(tmpDir, "/scores.rda"))
+          values$adjusted_scores <- names(adjusted_scores)
+          
           #### split res in 2 -> non-syn vs other
           non_syn_res <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
           values$all_nonsyn_res <- values$all_res[non_syn_res, ]
           values$all_regul_res <- values$all_res[!non_syn_res, ]
           
-          if(nrow(values$all_nonsyn_res) > MAX_VAR){
-            values$nonsyn_res <- values$all_nonsyn_res[1:MAX_VAR,]
-          } else {
-            values$nonsyn_res <- values$all_nonsyn_res
+          #### add the overall ranking  
+          temp_df <- NULL
+          if(nrow(values$all_nonsyn_res) > 0){
+            overall_mean_rank <- basic_ranking(score_dataframe = values$all_nonsyn_res[,values$adjusted_scores])
+            values$all_nonsyn_res$overall_mean_rank_na_last <- overall_mean_rank$na_last
+            values$all_nonsyn_res$overall_mean_rank_na_mean <- overall_mean_rank$na_mean
+            
+            temp_df <- values$all_nonsyn_res[,c("X_id",
+                                                "overall_mean_rank_na_last",
+                                                "overall_mean_rank_na_mean")]
           }
           
-          if(nrow(values$all_regul_res) > MAX_VAR){
-            values$regul_res <- values$all_regul_res[1:MAX_VAR,]
-          } else {
-            values$regul_res <- values$all_regul_res
+          if(nrow(values$all_regul_res) > 0){
+            overall_mean_rank <- basic_ranking(score_dataframe = values$all_regul_res[,values$adjusted_scores])
+            values$all_regul_res$overall_mean_rank_na_last <- overall_mean_rank$na_last
+            values$all_regul_res$overall_mean_rank_na_mean <- overall_mean_rank$na_mean
+            
+            if(is.null(temp_df)){
+              temp_df <- values$all_regul_res[,c("X_id",
+                                                 "overall_mean_rank_na_last",
+                                                 "overall_mean_rank_na_mean")]
+            } else {
+              temp_df <- rbind(temp_df, values$all_regul_res[,c("X_id",
+                                                                "overall_mean_rank_na_last",
+                                                                "overall_mean_rank_na_mean")])
+            }
           }
+
+          values$res <- merge(x = values$res, y = temp_df, by = "X_id", all = T)
           
-          save(adjusted_scores, file = paste0(tmpDir, "/scores.rda"))
-          values$adjusted_scores <- names(adjusted_scores)
+          res <- values$res
+          save(res, file = paste0(tmpDir, '/res.rda'))
+          remove(temp_df)
           
           if(is.null(values$notfound_id)){
             print("Annotations found for all variants")
@@ -466,10 +487,13 @@ server <- function(input, output, session) {
       if(values$can_run){
         local({
           #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
-          annotations_fields <- c("query","X_id", "dbsnp.chrom", "dbsnp.hg19.start", "cadd.consequence", "cdts_score",
-                                  "cdts_percentile", common_scores)
+          annotations_fields <- c("query","X_id", "cadd.consequence", 
+                                  "cdts_score","overall_mean_rank_na_last",
+                                  "overall_mean_rank_na_mean")
+          
           annotations_infos <- values$res[,annotations_fields]
-          annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+          annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, 
+                                                       FUN = function(x) paste(x, collapse = ","))
           # annotations_infos$more <- shinyInput(actionButton, nrow(annotations_infos), 
           #                                      'button_', label = "Fire", 
           #                                      onclick = 'Shiny.onInputChange(\"select_button\",  this.id)')
@@ -477,16 +501,18 @@ server <- function(input, output, session) {
           save(annotations_infos, file = paste0(tmpDir, "/annotations.rda"))
           
           output$raw_data <- DT::renderDataTable({
-            
+
             if(input$network_type == "regul"){
-              n <- seq(min(sum(!non_syn_res), MAX_VAR))
-              dt = values$annotations[!non_syn_res,]
+              dt <- values$annotations[!non_syn_res,]
+              max_var <- min(sum(!non_syn_res), MAX_VAR)
             } else {
-              n <- min(sum(non_syn_res), MAX_VAR)
-              dt = values$annotations[non_syn_res,]
+              dt <- values$annotations[non_syn_res,]
+              max_var <- min(sum(non_syn_res), MAX_VAR)
             }
             
-            # round 
+            n <- order(dt$overall_mean_rank_na_last)[1:max_var]
+            
+            # round scores
             for (i in 1:ncol(dt)) { if(is.numeric(dt[,i])) {dt[,i] <- round(x = dt[,i], 3)} }
             
             DT::datatable(dt, 
@@ -537,21 +563,24 @@ server <- function(input, output, session) {
               readr::write_delim(x = values$res, path = file, delim = "\t")
             }
           )
-          
-          
         })
         
         available_network_types <- c()
-        if(sum(!non_syn_res) > 0) available_network_types <- c(available_network_types, "synonymous and non-coding variants" = "regul")
-        if(sum(non_syn_res) > 0) available_network_types <- c(available_network_types, "non synonymous variants" = "non_syn")
+        if(sum(!non_syn_res) > 0) available_network_types <- c(available_network_types, 
+                                                               "synonymous and non-coding variants" = "regul")
+        if(sum(non_syn_res) > 0) available_network_types <- c(available_network_types, 
+                                                              "non synonymous variants" = "non_syn")
         
-        updateSelectInput(session = session, inputId = "network_type", choices = available_network_types)
+        updateSelectInput(session = session, inputId = "network_type", 
+                          choices = available_network_types)
         
         #### BUILDING DATA FOR FIRST DEFAULT PLOT ####
         my_data <- data.frame(values$global_ranges, stringsAsFactors = F)
         my_data$cdts_score <- values$res$cdts_score
-        my_data$non_synonymous <- sapply(values$res$cadd.consequence, function(x) "NON_SYNONYMOUS" %in% x)
-        my_data$consequences <- sapply(values$res$cadd.consequence, FUN = function(x) paste(x, collapse = ","))
+        my_data$non_synonymous <- sapply(values$res$cadd.consequence, 
+                                         FUN = function(x) "NON_SYNONYMOUS" %in% x)
+        my_data$consequences <- sapply(values$res$cadd.consequence, 
+                                       FUN = function(x) paste(x, collapse = ","))
         my_data$no_cdts <- is.na(my_data$cdts_score)
         my_data$selected <- TRUE
         
@@ -1168,44 +1197,70 @@ server <- function(input, output, session) {
     print(paste('click on',selectedRow))
   })
   
-  output$scores_description <- renderUI({
+  output$scores_description_table <- DT::renderDataTable({
+    
     X <- readr::read_tsv(file = paste0(appDir, 'scores_description.tsv'))
     X <- split(X, X$group_name)
     
-    table_content <- list()
-    for(n in names(X)){
-      score_infos <- X[[n]]
-      score_infos <- score_infos[order(score_infos$name),]
-      integration_list <- list()
+    new_df <- NULL
+    for (n in names(X)){
       
-      for(r in 1:nrow(score_infos)){ 
-        integration_list[[length(integration_list) + 1]] <- tags$li(
-          paste0(score_infos[r,]$name,
-                 " (id: ", score_infos[r,]$id,
-                 "; scope:" , score_infos[r,]$scope, 
-                 "; orientation: ", score_infos[r,]$orientation, ")")
-        )
-      }
-      
-      table_content[[length(table_content) + 1]] <- p(
-        strong(n),
-        br(),
-        helpText(paste0(gsub(x = score_infos$description[1], pattern = ".$", replacement = ""), " (",score_infos$reference[1],").")), 
-        "Integration",
-        tags$div(style = "margin-left: 30px;",
-                 tags$ul(
-                   integration_list
-                 )
-        ),
-        hr()
+      new_row <- data.frame(Score = n, 
+                            "Id" = paste(X[[n]]$id, collapse = "</br>"),
+                            Description = paste(unique(X[[n]]$description), 
+                                                collapse = " "),
+                            Annotations = as.character(tags$a(href = "#", 
+                                                              onclick = "$('#annotModal').modal('show')",
+                                                              "Show")),
+                            Ref = paste(unique(X[[n]]$reference), 
+                                        collapse = " ")
       )
+      
+      if(!is.null(new_df)){
+        new_df <- rbind(new_df, new_row)
+      } else {
+        new_df <- new_row
+      }
     }
     
-    tagList(
-      
-      table_content
+    
+    DT::datatable(new_df, 
+                  escape = FALSE,
+                  rownames = FALSE,
+                  extensions = c('Scroller','Buttons'),
+                  selection = 'none',
+                  options = list(dom = 'Bfrtip',
+                                 buttons = list(
+                                   list(
+                                     extend = 'print',
+                                     text = 'Print',
+                                     title = 'Predictors_description'
+                                   ),
+                                   list(
+                                     extend = 'csv',
+                                     filename = 'Predictors_description',
+                                     text = 'Download CSV'
+                                   ),
+                                   list(
+                                     extend = 'excel',
+                                     filename = 'Predictors_description',
+                                     text = 'Download XLSX'
+                                   ),
+                                   list(
+                                     extend = 'pdf',
+                                     title = 'Predictors_description',
+                                     text = 'Download PDF',
+                                     orientation = 'landscape'
+                                   )
+                                 ),
+                                 scrollX = TRUE,
+                                 scrollY = 500,
+                                 ordering = TRUE,
+                                 deferRender = TRUE,
+                                 scroller = TRUE)
     )
   })
+  
   
   #### ON STOP ####
   onStop(function() { 
