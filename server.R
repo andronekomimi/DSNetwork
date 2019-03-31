@@ -448,7 +448,7 @@ server <- function(input, output, session) {
                                                                 "overall_mean_rank_na_mean")])
             }
           }
-
+          
           values$res <- merge(x = values$res, y = temp_df, by = "X_id", all = T)
           
           res <- values$res
@@ -501,7 +501,7 @@ server <- function(input, output, session) {
           save(annotations_infos, file = paste0(tmpDir, "/annotations.rda"))
           
           output$raw_data <- DT::renderDataTable({
-
+            
             if(input$network_type == "regul"){
               dt <- values$annotations[!non_syn_res,]
               max_var <- min(sum(!non_syn_res), MAX_VAR)
@@ -1167,13 +1167,13 @@ server <- function(input, output, session) {
       if(grepl(x = input$snv_nodes_type, pattern = "pie_rank")){
         colnames(snv_score_details) <- c("predictors", "rank")
         snv_score_details$rank <- round(x = as.numeric(as.character(snv_score_details$rank)),
-                                         digits = 4)
+                                        digits = 4)
       } else {
         colnames(snv_score_details) <- c("predictors", "value")
         snv_score_details$value <- round(x = as.numeric(as.character(snv_score_details$value)),
                                          digits = 4)
       }
-
+      
       tab <- tableHTML::tableHTML(snv_score_details, theme = 'scientific', 
                                   rownames = FALSE)
       for (i in 1:nrow(snv_score_details)) { 
@@ -1197,23 +1197,24 @@ server <- function(input, output, session) {
     print(paste('click on',selectedRow))
   })
   
+  #### SCORES DESCRIPTION TABLE ####
   output$scores_description_table <- DT::renderDataTable({
     
-    X <- readr::read_tsv(file = paste0(appDir, 'scores_description.tsv'))
+    X <- readr::read_tsv(file = paste0(appDir, '/scores_description.tsv'))
     X <- split(X, X$group_name)
     
     new_df <- NULL
     for (n in names(X)){
-      
+      x <- X[[n]]
       new_row <- data.frame(Score = n, 
-                            "Id" = paste(X[[n]]$id, collapse = "</br>"),
-                            Description = paste(unique(X[[n]]$description), 
+                            Id = paste(x$id, collapse = ";</br>"),
+                            Range = paste(paste0(paste0("[",x$tolerate,"_",x$deleterious),paste0("]")), collapse = ";</br>"),
+                            Ref = paste(unique(x$reference), 
+                                        collapse = " "),
+                            Description = paste(unique(x$description),
                                                 collapse = " "),
-                            Annotations = as.character(tags$a(href = "#", 
-                                                              onclick = "$('#annotModal').modal('show')",
-                                                              "Show")),
-                            Ref = paste(unique(X[[n]]$reference), 
-                                        collapse = " ")
+                            Annotations = paste(unique(x$annotations),
+                                                collapse = " ")
       )
       
       if(!is.null(new_df)){
@@ -1223,41 +1224,62 @@ server <- function(input, output, session) {
       }
     }
     
-    
-    DT::datatable(new_df, 
+    DT::datatable(cbind(' ' = '&oplus;', new_df), 
                   escape = FALSE,
                   rownames = FALSE,
                   extensions = c('Scroller','Buttons'),
                   selection = 'none',
-                  options = list(dom = 'Bfrtip',
-                                 buttons = list(
-                                   list(
-                                     extend = 'print',
-                                     text = 'Print',
-                                     title = 'Predictors_description'
-                                   ),
-                                   list(
-                                     extend = 'csv',
-                                     filename = 'Predictors_description',
-                                     text = 'Download CSV'
-                                   ),
-                                   list(
-                                     extend = 'excel',
-                                     filename = 'Predictors_description',
-                                     text = 'Download XLSX'
-                                   ),
-                                   list(
-                                     extend = 'pdf',
-                                     title = 'Predictors_description',
-                                     text = 'Download PDF',
-                                     orientation = 'landscape'
-                                   )
-                                 ),
-                                 scrollX = TRUE,
-                                 scrollY = 500,
-                                 ordering = TRUE,
-                                 deferRender = TRUE,
-                                 scroller = TRUE)
+                  options = list(
+                    columnDefs = list(
+                      list(visible = FALSE, targets = c(5,6)),
+                      list(orderable = FALSE, className = 'details-control', targets = 0)
+                    ),
+                    dom = 'Bfrtip',
+                    buttons = list(
+                      list(
+                        extend = 'print',
+                        text = 'Print',
+                        title = 'Predictors_description'
+                      ),
+                      list(
+                        extend = 'csv',
+                        filename = 'Predictors_description',
+                        text = 'Download CSV'
+                      ),
+                      list(
+                        extend = 'excel',
+                        filename = 'Predictors_description',
+                        text = 'Download XLSX'
+                      ),
+                      list(
+                        extend = 'pdf',
+                        title = 'Predictors_description',
+                        text = 'Download PDF',
+                        orientation = 'landscape'
+                      )
+                    ),
+                    scrollX = TRUE,
+                    scrollY = 500,
+                    ordering = TRUE,
+                    deferRender = TRUE,
+                    scroller = TRUE),
+                  callback = JS("
+                                table.column(1).nodes().to$().css({cursor: 'pointer'});
+                                var format = function(d) {
+                                  return '<div style=\"background-color:#eee; padding: .5em;\"> <b>Description</b><br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' +
+                                          d[5] + '</br><b>Annotations</b><br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + d[6] + '</div>';
+                                };
+                                table.on('click', 'td.details-control', function() {
+                                  var td = $(this), row = table.row(td.closest('tr'));
+                                  if (row.child.isShown()) {
+                                    row.child.hide();
+                                    td.html('&oplus;');
+                                  } else {
+                                    row.child(format(row.data())).show();
+                                    td.html('&CircleMinus;');
+                                  }
+                                });"
+                  )
     )
   })
   
@@ -1266,8 +1288,8 @@ server <- function(input, output, session) {
   onStop(function() { 
     old_figures <- dir(path = "www/scores_figures/", full.names = T)
     file.remove(old_figures)
-    # temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
-    # file.remove(temp_files)
+    temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
+    file.remove(temp_files)
     graphics.off()
     cat("Session stopped\n")
   })

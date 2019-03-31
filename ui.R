@@ -94,7 +94,7 @@ dashboardPage(
               shiny::includeHTML(path = "README.Rhtml")
       ),
       tabItem(tabName = "description",
-              about_module()
+              score_desc_module()
       ),
       tabItem(tabName = "about",
               shiny::includeHTML("ABOUT.Rhtml")

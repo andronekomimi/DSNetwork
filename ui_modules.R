@@ -200,8 +200,12 @@ Nodes filling are dedicated to prediction scores display. The default display is
   ))
 }
 
-about_module <- function(){
-  uiOutput("scores_description")
+score_desc_module <- function(){
+  box(id = "description", title = "Predictors", solidHeader = FALSE, background = NULL, width = 12,
+      collapsible = FALSE, collapsed = FALSE,
+      DT::dataTableOutput("scores_description_table"),
+      bsModal("annotModal", "Annotations", "", tags$p("Annotations"), size = "small")
+  )
 }
 
 #### OBSOLETE ####
