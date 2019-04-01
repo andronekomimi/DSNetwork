@@ -155,7 +155,6 @@ nodes_modifiers_box <- function(){
 
 network_results_modules <- function(){
   list(
-    plotOutput(outputId = "scale", height = "auto", width = "100%"),
     shinyjqui::jqui_resizable(visNetworkOutput("my_network", height = "600px",
                                                width = "100%"))
   )

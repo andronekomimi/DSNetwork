@@ -913,7 +913,7 @@ server <- function(input, output, session) {
       output$scale <- renderPlot({
         draw_rank_palette(nbr_variants = nrow(vn_components$nodes), 
                           nodes_type = input$snv_nodes_type)
-      }, height = 150)
+      })
     })
     
     save(vn_components, file = paste0(tmpDir, "/vn_components.rda"))

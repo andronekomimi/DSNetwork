@@ -2045,7 +2045,7 @@ contrasting_text_color <- function(hex_str){
   return(ifelse(test = ( 1 - ((r * 0.299) + (g * 0.587) + (b * 0.114)) / 255 < 0.5), no = "white", yes = "black"))
 }
 
-draw_rank_palette <- function(nbr_variants, nodes_type){
+draw_rank_palette.old <- function(nbr_variants, nodes_type){
   
   if(grepl(x = nodes_type, pattern = "pie_rank")) #global scores
     return(NULL)
@@ -2084,6 +2084,47 @@ draw_rank_palette <- function(nbr_variants, nodes_type){
       annotate("text", x=2, y=(nbr_variants - 1), label="Deleteriousness level")
     
   }
+  
+  return(g)
+}
+
+draw_rank_palette <- function(nbr_variants, nodes_type){
+  
+  if(grepl(x = nodes_type, pattern = "pie_rank")) #global scores
+    return(NULL)
+  
+  is_absolute = grepl(x = nodes_type, pattern = "abs")
+  
+  if(!is_absolute){
+    colfunc <- colorRampPalette(c("springgreen","yellow","red"))
+    copal1 <- colfunc(n = nbr_variants)
+    d <- data.frame(x = as.character(rev(seq(1,nbr_variants))), y = 1:nbr_variants)
+    d$x <- ordered(d$x, levels = as.character(rev(seq(1,nbr_variants))))
+    
+    g <- ggplot(d) + geom_bar(mapping = aes(x = .5, fill =  x), color="white", size=.5) + 
+      scale_y_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + 
+      guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = rev(copal1)) + 
+      theme_minimal() + xlab(label = "Rank") + ylab(NULL) +
+      theme(axis.text.x = element_blank(), axis.ticks = element_blank()) + 
+      scale_x_continuous(breaks = NULL)
+    
+  } else {
+    nbr_variants <- 100/BIN_SIZE
+    colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
+    copal1 <- colfunc(n = nbr_variants)
+    
+    d <- data.frame(x = c(paste0(rev(4:nbr_variants),"th"), "3rd", "2nd", "1st"), y = 1:nbr_variants)
+    d$x <- ordered(d$x, levels = c(paste0(rev(4:nbr_variants),"th"), "3rd", "2nd", "1st"))
+    
+    g <- ggplot(d) + geom_bar(mapping = aes(x = .5, fill =  x), color="white", size=.5) + 
+      scale_y_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + 
+      guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = rev(copal1)) + 
+      theme_minimal() + xlab(label = "Intervals") + ylab(NULL) +
+      theme(axis.text.x = element_blank(), axis.ticks = element_blank()) + 
+      scale_x_continuous(breaks = NULL)
+  }
+  
+  #g <- g + ggtitle("Deleteriousness\nlevel")
   
   return(g)
 }
