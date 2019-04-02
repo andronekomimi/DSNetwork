@@ -85,11 +85,9 @@ dashboardPage(
                                                      network_results_modules()
                                               ),
                                               column(width = 1,
-                                                     "Deleteriousness level",
-                                                       plotOutput(outputId = "scale",
-                                                                  #height = "600px",
-                                                                  width = "100px")
-                                                     )
+                                                     scales_module()
+                                              )
+                                              
                                             )
                            )
                            

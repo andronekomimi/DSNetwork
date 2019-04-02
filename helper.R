@@ -2098,12 +2098,12 @@ draw_rank_palette <- function(nbr_variants, nodes_type){
   if(!is_absolute){
     colfunc <- colorRampPalette(c("springgreen","yellow","red"))
     copal1 <- colfunc(n = nbr_variants)
-    d <- data.frame(x = as.character(rev(seq(1,nbr_variants))), y = 1:nbr_variants)
-    d$x <- ordered(d$x, levels = as.character(rev(seq(1,nbr_variants))))
+    d <- data.frame(x = c("NA", as.character(rev(seq(1,nbr_variants)))), y = 1:(nbr_variants+1))
+    d$x <- ordered(d$x, levels = c("NA",as.character(rev(seq(1,nbr_variants)))))
     
     g <- ggplot(d) + geom_bar(mapping = aes(x = .5, fill =  x), color="white", size=.5) + 
       scale_y_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + 
-      guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = rev(copal1)) + 
+      guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = c(rev(copal1),"#DDDDDD")) + 
       theme_minimal() + xlab(label = "Rank") + ylab(NULL) +
       theme(axis.text.x = element_blank(), axis.ticks = element_blank()) + 
       scale_x_continuous(breaks = NULL)
@@ -2113,18 +2113,38 @@ draw_rank_palette <- function(nbr_variants, nodes_type){
     colfunc <- colorRampPalette(c("blue", "#99CCFF", "red"))
     copal1 <- colfunc(n = nbr_variants)
     
-    d <- data.frame(x = c(paste0(rev(4:nbr_variants),"th"), "3rd", "2nd", "1st"), y = 1:nbr_variants)
-    d$x <- ordered(d$x, levels = c(paste0(rev(4:nbr_variants),"th"), "3rd", "2nd", "1st"))
+    d <- data.frame(x = c("NA", paste0(rev(4:nbr_variants),"th"), "3rd", "2nd", "1st"), 
+                    y = 1:(nbr_variants+1))
+    d$x <- ordered(d$x, levels = c("NA",paste0(rev(4:nbr_variants),"th"), "3rd", "2nd", "1st"))
     
     g <- ggplot(d) + geom_bar(mapping = aes(x = .5, fill =  x), color="white", size=.5) + 
       scale_y_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + 
-      guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = rev(copal1)) + 
+      guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = c(rev(copal1),"#DDDDDD")) + 
       theme_minimal() + xlab(label = "Intervals") + ylab(NULL) +
       theme(axis.text.x = element_blank(), axis.ticks = element_blank()) + 
       scale_x_continuous(breaks = NULL)
   }
   
   #g <- g + ggtitle("Deleteriousness\nlevel")
+  
+  return(g)
+}
+
+draw_ld_palette <- function(){
+  ld_breaks <- seq(0,1, by = 0.1)
+  nbr_break <- length(ld_breaks)
+  colfunc <- colorRampPalette(c("yellow","red"))
+  copal1 <- colfunc(n = nbr_break)
+  
+  d <- data.frame(x = c("NA", as.character(ld_breaks)), y = 1:(nbr_break+1))
+  d$x <- ordered(d$x, levels = c("NA",as.character(ld_breaks)))
+  
+  g <- ggplot(d) + geom_bar(mapping = aes(x = .5, fill =  x), size=.5) + 
+    scale_y_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + 
+    guides(fill = F) + scale_fill_manual(breaks = as.character(d$x), values = c(rev(copal1),"#DDDDDD")) + 
+    theme_minimal() + xlab(label = "LD level") + ylab(NULL) +
+    theme(axis.text.x = element_blank(), axis.ticks = element_blank()) + 
+    scale_x_continuous(breaks = NULL)
   
   return(g)
 }

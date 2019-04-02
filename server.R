@@ -168,6 +168,9 @@ server <- function(input, output, session) {
   # })
   
   observeEvent(input$fetch_annotations, {
+    # fermeture de tous les graphiques existants
+    graphics.off()
+    
     updateButton(session = session, inputId = "fetch_annotations", 
                  disabled = TRUE)
     
@@ -640,6 +643,12 @@ server <- function(input, output, session) {
     if(is.null(my_res))
       return(NULL)
     
+    local({
+      output$ld_scale <- renderPlot({
+        draw_ld_palette()
+      })
+    })
+    
     updateSliderInput(session = session, inputId = "ld_range", value = c(0,1))
     
     id <<- showNotification(paste("Computing linkage disequilibrium..."), duration = 0, type = "message")
@@ -733,6 +742,12 @@ server <- function(input, output, session) {
   #### remove LD infos ####
   observeEvent(input$removeLD, {
     
+    local({
+      output$ld_scale <- renderPlot({
+        NULL
+      })
+    })
+    
     updateButton(session = session, inputId = "update_ld", 
                  disabled = TRUE)
     
@@ -754,6 +769,7 @@ server <- function(input, output, session) {
   
   #### update LD infos ####
   observeEvent(input$update_ld, {
+
     max_ld <- as.numeric(input$ld_range[2])
     min_ld <- as.numeric(input$ld_range[1])
     
