@@ -430,25 +430,30 @@ server <- function(input, output, session) {
             overall_mean_rank <- basic_ranking(score_dataframe = values$all_nonsyn_res[,values$adjusted_scores])
             values$all_nonsyn_res$overall_mean_rank_na_last <- overall_mean_rank$na_last
             values$all_nonsyn_res$overall_mean_rank_na_mean <- overall_mean_rank$na_mean
+            values$all_nonsyn_res$overall_mean_rank_na_median <- overall_mean_rank$na_median
             
             temp_df <- values$all_nonsyn_res[,c("X_id",
                                                 "overall_mean_rank_na_last",
-                                                "overall_mean_rank_na_mean")]
+                                                "overall_mean_rank_na_mean",
+                                                "overall_mean_rank_na_median")]
           }
           
           if(nrow(values$all_regul_res) > 0){
             overall_mean_rank <- basic_ranking(score_dataframe = values$all_regul_res[,values$adjusted_scores])
             values$all_regul_res$overall_mean_rank_na_last <- overall_mean_rank$na_last
             values$all_regul_res$overall_mean_rank_na_mean <- overall_mean_rank$na_mean
+            values$all_regul_res$overall_mean_rank_na_median <- overall_mean_rank$na_median
             
             if(is.null(temp_df)){
               temp_df <- values$all_regul_res[,c("X_id",
                                                  "overall_mean_rank_na_last",
-                                                 "overall_mean_rank_na_mean")]
+                                                 "overall_mean_rank_na_mean",
+                                                 "overall_mean_rank_na_median")]
             } else {
               temp_df <- rbind(temp_df, values$all_regul_res[,c("X_id",
                                                                 "overall_mean_rank_na_last",
-                                                                "overall_mean_rank_na_mean")])
+                                                                "overall_mean_rank_na_mean",
+                                                                "overall_mean_rank_na_median")])
             }
           }
           
@@ -492,7 +497,7 @@ server <- function(input, output, session) {
           #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
           annotations_fields <- c("query","X_id", "cadd.consequence", 
                                   "cdts_score","overall_mean_rank_na_last",
-                                  "overall_mean_rank_na_mean")
+                                  "overall_mean_rank_na_mean","overall_mean_rank_na_median")
           
           annotations_infos <- values$res[,annotations_fields]
           annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, 
@@ -769,7 +774,7 @@ server <- function(input, output, session) {
   
   #### update LD infos ####
   observeEvent(input$update_ld, {
-
+    
     max_ld <- as.numeric(input$ld_range[2])
     min_ld <- as.numeric(input$ld_range[1])
     
@@ -879,7 +884,9 @@ server <- function(input, output, session) {
                            # - pie_rank_na_last : global ranking NA last
                            pie_rank_na_last = all_scores_data$global$na_last,
                            # - pie_rank_na_mean : global ranking NA mean
-                           pie_rank_na_mean = all_scores_data$global$na_mean
+                           pie_rank_na_mean = all_scores_data$global$na_mean,
+                           # - pie_rank_na_median : global ranking NA median
+                           pie_rank_na_median = all_scores_data$global$na_median
     )
     
     values$scores_data <- scores_data
@@ -1063,7 +1070,9 @@ server <- function(input, output, session) {
                              # - pie_rank_na_last : global ranking NA last
                              pie_rank_na_last = all_scores_data$global$na_last,
                              # - pie_rank_na_mean : global ranking NA mean
-                             pie_rank_na_mean = all_scores_data$global$na_mean
+                             pie_rank_na_mean = all_scores_data$global$na_mean,
+                             # - pie_rank_na_median : global ranking NA median
+                             pie_rank_na_median = all_scores_data$global$na_median
       )
       
       values$scores_data <- scores_data
@@ -1127,7 +1136,9 @@ server <- function(input, output, session) {
                            # - pie_rank_na_last : global ranking NA last
                            pie_rank_na_last = all_scores_data$global$na_last,
                            # - pie_rank_na_mean : global ranking NA mean
-                           pie_rank_na_mean = all_scores_data$global$na_mean
+                           pie_rank_na_mean = all_scores_data$global$na_mean,
+                           # - pie_rank_na_median : global ranking NA median
+                           pie_rank_na_median = all_scores_data$global$na_median
     )
     
     #save(scores_data, file = paste0(tmpDir, "/scores_data.rda"))

@@ -42,7 +42,8 @@ pie_types <- list(
                                 "Absolute rank" = 'pie_scores_abs',
                                 "Absolute rank (group by color)" = 'pie_scores_abs_group'),
   `Global ranking` = c("Mean relative rank (NA last)" = 'pie_rank_na_last',
-                       "Mean relative (NA mean)" = 'pie_rank_na_mean')
+                       "Mean relative rank (NA mean)" = 'pie_rank_na_mean',
+                       "Mean relative rank (NA median)" = 'pie_rank_na_median')
 )
 
 sidebar_content <- function(){

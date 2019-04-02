@@ -1446,6 +1446,7 @@ global_ranking <- function(inc = NULL, net){
   
   score_nodes_na_last <- NULL
   score_nodes_na_mean <- NULL
+  score_nodes_na_median <- NULL
   
   # compute RANK for each classifier
   if(ncol(nodes_data) > 2){ # nodes + at least 2 scores
@@ -1462,20 +1463,19 @@ global_ranking <- function(inc = NULL, net){
         ranked_nodes_data_na_last <- cbind(ranked_nodes_data_na_last, ranked_x)
       }
     }
-    
     colnames(ranked_nodes_data_na_last) <- colnames(nodes_data)[-1]
     
     # replace NA by mean and re rank
-    nodes_data_na_mean <- apply(X = nodes_data[,-1], MARGIN = 2, 
+    nodes_data_na_mean <- data.frame(apply(X = nodes_data[,-1], MARGIN = 2, 
                                 FUN = function(x) {
                                   x[is.na(x)] <- mean(x = x, na.rm =T)
                                   return(x)
-                                }) 
+                                })) 
     
     ranked_nodes_data_na_mean <- NULL
-    for(j in 2:ncol(nodes_data)){
+    for(j in 1:ncol(nodes_data_na_mean)){
       score_name <- colnames(nodes_data)[j]
-      x <- nodes_data[,j]
+      x <- nodes_data_na_mean[,j]
       ranked_x <- data.table::frankv(x = x, na.last = F, 
                                      order = ifelse(test = score_name %in% invert_scores, 
                                                     yes = 1, no = -1))
@@ -1486,12 +1486,34 @@ global_ranking <- function(inc = NULL, net){
       }
     }
     
-    colnames(ranked_nodes_data_na_mean) <- colnames(nodes_data)[-1]
-    rownames(ranked_nodes_data_na_last) <- rownames(ranked_nodes_data_na_mean) <- nodes
+    # replace NA by median and re rank
+    nodes_data_na_median <- data.frame(apply(X = nodes_data[,-1], MARGIN = 2, 
+                                FUN = function(x) {
+                                  x[is.na(x)] <- median(x = x, na.rm =T)
+                                  return(x)
+                                })) 
+    
+    ranked_nodes_data_na_median <- NULL
+    for(j in 1:ncol(nodes_data_na_median)){
+      score_name <- colnames(nodes_data)[j]
+      x <- nodes_data_na_median[,j]
+      ranked_x <- data.table::frankv(x = x, na.last = F, 
+                                     order = ifelse(test = score_name %in% invert_scores, 
+                                                    yes = 1, no = -1))
+      if(is.null(ranked_nodes_data_na_median)){
+        ranked_nodes_data_na_median <- ranked_x
+      } else {
+        ranked_nodes_data_na_median <- cbind(ranked_nodes_data_na_median, ranked_x)
+      }
+    }
+    colnames(ranked_nodes_data_na_median) <- colnames(nodes_data)[-1]
+    
+    rownames(ranked_nodes_data_na_last) <- rownames(ranked_nodes_data_na_mean) <- rownames(ranked_nodes_data_na_median) <- nodes
     
     # compute MEAN RANK accross all the classifier 
     mean.rank_na_last = rowMeans(ranked_nodes_data_na_last)
     mean.rank_na_mean = rowMeans(ranked_nodes_data_na_mean)
+    mean.rank_na_median = rowMeans(ranked_nodes_data_na_median)
     
   } else { # only on predictor
     x <- nodes_data[,-1]
@@ -1500,16 +1522,26 @@ global_ranking <- function(inc = NULL, net){
                                                     order = ifelse(test = score_name %in% invert_scores, 
                                                                    yes = 1, no = -1))
     # replace NA by mean and re rank
+    x <- nodes_data[,-1]
     nodes_data_na_mean <- mean(x = x, na.rm =T)
     x[is.na(x)] <- nodes_data_na_mean
     ranked_nodes_data_na_mean <- data.table::frankv(x, na.last = T,
                                                     order = ifelse(test = score_name %in% invert_scores, 
                                                                    yes = 1, no = -1))
-    names(ranked_nodes_data_na_last) <- names(ranked_nodes_data_na_mean) <- nodes
+    # replace NA by median and re rank
+    x <- nodes_data[,-1]
+    nodes_data_na_median <- median(x = x, na.rm =T)
+    x[is.na(x)] <- nodes_data_na_median
+    ranked_nodes_data_na_median <- data.table::frankv(x, na.last = T,
+                                                    order = ifelse(test = score_name %in% invert_scores, 
+                                                                   yes = 1, no = -1))
+    
+    names(ranked_nodes_data_na_last) <- names(ranked_nodes_data_na_mean) <- names(ranked_nodes_data_na_median) <- nodes
     
     # compute MEAN RANK accross all the classifier 
     mean.rank_na_last = ranked_nodes_data_na_last
     mean.rank_na_mean = ranked_nodes_data_na_mean
+    mean.rank_na_median = ranked_nodes_data_na_median
     
   }
   
@@ -1552,18 +1584,40 @@ global_ranking <- function(inc = NULL, net){
     }
   }
   
+  for(n in nodes){
+    scores_values <- as.character(ranked_nodes_data_na_median[n,])
+    new_n_rows <- data.frame(id = paste0(selected_scores, "_",n),
+                             color = "#FFFFFF",
+                             label = scores_values,
+                             shape = "square",
+                             image = NA,
+                             #title = NA,
+                             font.size = 10,
+                             size = 30,
+                             group = paste0("Scores_",n))
+    
+    if(is.null(score_nodes_na_median)){
+      score_nodes_na_median <- new_n_rows
+    } else {
+      score_nodes_na_median <- rbind(score_nodes_na_median, new_n_rows)
+    }
+  }
+  
+  
   # compute FINAL RANK
   colfunc <- colorRampPalette(c("springgreen","yellow","red"))
   
   rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
   rank_na_mean = as.numeric(rank(mean.rank_na_mean, ties.method = "average"))
+  rank_na_median = as.numeric(rank(mean.rank_na_median, ties.method = "average"))
   
   colpalette_na_last <- colfunc(n = length(unique(rank_na_last)))
   colpalette_na_mean <- colfunc(n = length(unique(rank_na_mean)))
+  colpalette_na_median <- colfunc(n = length(unique(rank_na_median)))
   
   names(colpalette_na_last) <- sort(unique(rank_na_last), decreasing = T) # plus petit ranking = meilleur = plus rouge
   names(colpalette_na_mean) <- sort(unique(rank_na_mean), decreasing = T)
-  
+  names(colpalette_na_median) <- sort(unique(rank_na_median), decreasing = T)
   
   values_mapped_na_last <- as.character(rank_na_last)
   for(i in unique(rank_na_last)){
@@ -1575,6 +1629,11 @@ global_ranking <- function(inc = NULL, net){
     values_mapped_na_mean[values_mapped_na_mean == i] <- colpalette_na_mean[names(colpalette_na_mean) == i]
   }
   
+  values_mapped_na_median <- as.character(rank_na_median)
+  for(i in unique(rank_na_median)){
+    values_mapped_na_median[values_mapped_na_median == i] <- colpalette_na_median[names(colpalette_na_median) == i]
+  }
+  
   df = data.frame(id = nodes,
                   mean.rank_na_last,
                   final_rank_na_last = rank_na_last,
@@ -1582,6 +1641,9 @@ global_ranking <- function(inc = NULL, net){
                   mean.rank_na_mean,
                   final_rank_na_mean = rank_na_mean,
                   col_na_mean = as.character(values_mapped_na_mean),
+                  mean.rank_na_median,
+                  final_rank_na_median = rank_na_median,
+                  col_na_median = as.character(values_mapped_na_median),
                   stringsAsFactors = F,
                   row.names = NULL)
   
@@ -1596,7 +1658,6 @@ global_ranking <- function(inc = NULL, net){
     text(x = 0, y = 0, labels = n[names(n) == "final_rank_na_last"], cex = 50)
     dev.off()
     
-    
     png(paste0(path_to_images,"pie_rank_na_mean_",n[names(n) == "id"],net,inc,".png"),
         width = 2000, height = 2000,
         units = "px")
@@ -1605,9 +1666,21 @@ global_ranking <- function(inc = NULL, net){
     text(x = 0, y = 0, labels = n[names(n) == "final_rank_na_mean"], cex = 50)
     par(lwd = 1)
     dev.off()
+    
+    png(paste0(path_to_images,"pie_rank_na_median_",n[names(n) == "id"],net,inc,".png"),
+        width = 2000, height = 2000,
+        units = "px")
+    par(lwd = 0.001)
+    pie(x = 1, col = n[names(n) == "col_na_median"], labels = NA)
+    text(x = 0, y = 0, labels = n[names(n) == "final_rank_na_median"], cex = 50)
+    par(lwd = 1)
+    dev.off()
+    
   })
   
-  return(list(na_last = score_nodes_na_last, na_mean = score_nodes_na_mean))
+  return(list(na_last = score_nodes_na_last, 
+              na_mean = score_nodes_na_mean,
+              na_median = score_nodes_na_median))
 }
 
 basic_ranking <- function(score_dataframe){
@@ -1619,6 +1692,7 @@ basic_ranking <- function(score_dataframe){
   
   score_nodes_na_last <- NULL
   score_nodes_na_mean <- NULL
+  score_nodes_na_median <- NULL
   
   # compute RANK for each classifier
   if(ncol(score_dataframe) > 2){ # nodes + at least 2 scores
@@ -1635,20 +1709,20 @@ basic_ranking <- function(score_dataframe){
         ranked_nodes_data_na_last <- cbind(ranked_nodes_data_na_last, ranked_x)
       }
     }
-    
     colnames(ranked_nodes_data_na_last) <-  colnames(score_dataframe)
     
     # replace NA by mean and re rank
-    nodes_data_na_mean <- apply(X = score_dataframe, MARGIN = 2, 
+    nodes_data_na_mean <- data.frame(apply(X = score_dataframe, MARGIN = 2, 
                                 FUN = function(x) {
                                   x[is.na(x)] <- mean(x = x, na.rm =T)
                                   return(x)
-                                }) 
+                                }))
     
     ranked_nodes_data_na_mean <- NULL
-    for(j in 1:ncol(score_dataframe)){
-      score_name <- colnames(score_dataframe)[j]
-      x <- score_dataframe[,j]
+    for(j in 1:ncol(nodes_data_na_mean)){
+      score_name <- colnames(nodes_data_na_mean)[j]
+      #x <- score_dataframe[,j]
+      x <- nodes_data_na_mean[,j]
       ranked_x <- data.table::frankv(x = x, na.last = F, 
                                      order = ifelse(test = score_name %in% invert_scores, 
                                                     yes = 1, no = -1))
@@ -1658,13 +1732,35 @@ basic_ranking <- function(score_dataframe){
         ranked_nodes_data_na_mean <- cbind(ranked_nodes_data_na_mean, ranked_x)
       }
     }
-    
     colnames(ranked_nodes_data_na_mean) <-  colnames(score_dataframe)
     
+    # replace NA by median and re rank
+    nodes_data_na_median <- data.frame(apply(X = score_dataframe, MARGIN = 2, 
+                                FUN = function(x) {
+                                  x[is.na(x)] <- median(x = x, na.rm =T)
+                                  return(x)
+                                })) 
+    
+    ranked_nodes_data_na_median <- NULL
+    for(j in 1:ncol(nodes_data_na_median)){
+      score_name <- colnames(nodes_data_na_median)[j]
+      #x <- score_dataframe[,j]
+      x <- nodes_data_na_median[,j]
+      ranked_x <- data.table::frankv(x = x, na.last = F, 
+                                     order = ifelse(test = score_name %in% invert_scores, 
+                                                    yes = 1, no = -1))
+      if(is.null(ranked_nodes_data_na_median)){
+        ranked_nodes_data_na_median <- ranked_x
+      } else {
+        ranked_nodes_data_na_median <- cbind(ranked_nodes_data_na_median, ranked_x)
+      }
+    }
+    colnames(ranked_nodes_data_na_median) <-  colnames(score_dataframe)
     
     # compute MEAN RANK accross all the classifier 
     mean.rank_na_last = rowMeans(ranked_nodes_data_na_last)
     mean.rank_na_mean = rowMeans(ranked_nodes_data_na_mean)
+    mean.rank_na_median = rowMeans(ranked_nodes_data_na_median)
     
   } else { # only on predictor
     x <- score_dataframe
@@ -1673,21 +1769,33 @@ basic_ranking <- function(score_dataframe){
                                                     order = ifelse(test = score_name %in% invert_scores, 
                                                                    yes = 1, no = -1))
     # replace NA by mean and re rank
+    x <- score_dataframe
     nodes_data_na_mean <- mean(x = x, na.rm =T)
     x[is.na(x)] <- nodes_data_na_mean
     ranked_nodes_data_na_mean <- data.table::frankv(x, na.last = T,
                                                     order = ifelse(test = score_name %in% invert_scores, 
                                                                    yes = 1, no = -1))
-
+    # replace NA by median and re rank
+    x <- score_dataframe
+    nodes_data_na_mean <- median(x = x, na.rm =T)
+    x[is.na(x)] <- nodes_data_na_median
+    ranked_nodes_data_na_median <- data.table::frankv(x, na.last = T,
+                                                    order = ifelse(test = score_name %in% invert_scores, 
+                                                                   yes = 1, no = -1))
+    
     # compute MEAN RANK accross all the classifier 
     mean.rank_na_last = ranked_nodes_data_na_last
     mean.rank_na_mean = ranked_nodes_data_na_mean
+    mean.rank_na_median = ranked_nodes_data_na_median
   }
   
   rank_na_last = as.numeric(rank(mean.rank_na_last, ties.method = "average"))
   rank_na_mean = as.numeric(rank(mean.rank_na_mean, ties.method = "average"))
+  rank_na_median = as.numeric(rank(mean.rank_na_median, ties.method = "average"))
   
-  return(list(na_last = rank_na_last, na_mean = rank_na_mean))
+  return(list(na_last = rank_na_last, 
+              na_mean = rank_na_mean,
+              na_median = rank_na_median))
 }
 
 #### Absolute metascores ####
