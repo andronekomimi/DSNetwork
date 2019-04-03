@@ -1125,6 +1125,7 @@ build_score_nodes <- function(session_values, selected_adj_scores,
       dev.off()
       par(lwd = 1)
       
+      graphics.off()
     }
     
     names(nodes_titles) <- as.character(nodes_data$nodes)
@@ -1298,6 +1299,7 @@ intra_rel_ranking <- function(inc = NULL, net){
       dev.off()
       par(lwd = 1)
       
+      graphics.off()
     }
     
   }
@@ -1427,6 +1429,7 @@ intra_abs_ranking <- function(inc = NULL, net){
       dev.off()
       par(lwd = 1)
       
+      graphics.off()
     }
   }
   
@@ -1676,7 +1679,10 @@ global_ranking <- function(inc = NULL, net){
     par(lwd = 1)
     dev.off()
     
+    graphics.off()
+    
   })
+  
   
   return(list(na_last = score_nodes_na_last, 
               na_mean = score_nodes_na_mean,
@@ -1861,6 +1867,8 @@ compute_absolute_metascore <- function(session_values){
     pie(x = rep(1, times = length(absolute_metascore)), col = n[names(n) != "query"], labels = "")
     dev.off()
     par(lwd = 1)
+    
+    graphics.off()
   })
   
   

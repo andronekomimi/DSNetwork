@@ -77,9 +77,14 @@ input_data_module <- function(){
                        sliderInput(inputId = "waiting", 
                                    label = "How long are you willing to wait ? (default: 5 min)", 
                                    min = 1, max = 10, value = 5, step = 1)),
-      bsButton(inputId = "fetch_annotations", 
-               label = "Fetch Annotations", 
-               icon = icon("search"), disabled = FALSE),
+      conditionalPanel(condition = "input.fetch_annotations == 0",
+                       bsButton(inputId = "fetch_annotations", 
+                                label = "Fetch Annotations", 
+                                icon = icon("search"), disabled = FALSE)),
+      conditionalPanel(condition = "input.fetch_annotations == 1",
+                       bsButton(inputId = "reload", 
+                                label = "Reset for new query", 
+                                icon = icon("redo"), disabled = FALSE)),
       conditionalPanel(condition = "input.fetch_annotations",
                        br(),
                        bsAlert("alert_conv"),
@@ -102,6 +107,7 @@ output_plot_row <- function(){
 raw_results_row <- function(){
   list(
     DT::dataTableOutput("raw_data"),
+    helpText("*OGMR = global mean rank computed with all the available annotations."),
     div(style = "text-align:-webkit-right", 
         bsButton(inputId = 'buildNetwork', label = 'Build Network',
                  disabled = TRUE, icon = icon("gear")))

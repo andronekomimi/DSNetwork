@@ -14,7 +14,8 @@ $('#' + boxid).closest('.box').find('[data-widget=collapse]').click();
 };
 shinyjs.myFunction = function(idx) {
     alert('Select '+idx);
-}
+};
+shinyjs.reset = function() {history.go(0)}
 "
 
 dashboardPage(
@@ -26,7 +27,7 @@ dashboardPage(
   body = dashboardBody(
     shinyalert::useShinyalert(),
     useShinyjs(),
-    extendShinyjs(text = jscode, functions = c("collapse","myFunction")),
+    extendShinyjs(text = jscode, functions = c("collapse","myFunction","reset")),
     tags$head(tags$style(
       HTML(".shiny-notification {
              position:fixed;

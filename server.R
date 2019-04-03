@@ -78,6 +78,8 @@ server <- function(input, output, session) {
     }
   }))
   
+  observeEvent(input$reload, {js$reset()})  
+  
   #### LOAD PRESET QUERY ####
   observeEvent(input$preload_loci, {
     updateTextAreaInput(session = session, inputId = "query", value = preload[[input$preload]])
@@ -496,15 +498,12 @@ server <- function(input, output, session) {
         local({
           #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
           annotations_fields <- c("query","X_id", "cadd.consequence", 
-                                  "cdts_score","overall_mean_rank_na_last",
+                                  "overall_mean_rank_na_last",
                                   "overall_mean_rank_na_mean","overall_mean_rank_na_median")
           
           annotations_infos <- values$res[,annotations_fields]
           annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, 
                                                        FUN = function(x) paste(x, collapse = ","))
-          # annotations_infos$more <- shinyInput(actionButton, nrow(annotations_infos), 
-          #                                      'button_', label = "Fire", 
-          #                                      onclick = 'Shiny.onInputChange(\"select_button\",  this.id)')
           values$annotations <- annotations_infos
           save(annotations_infos, file = paste0(tmpDir, "/annotations.rda"))
           
@@ -526,6 +525,9 @@ server <- function(input, output, session) {
             DT::datatable(dt, 
                           escape = FALSE,
                           rownames = FALSE,
+                          colnames = c("query", "hgvs ID","consequences",
+                                       "OGMR (na last)", "OGMR (na mean)", 
+                                       "OGMR (na median)"),
                           extensions = c('Scroller','Buttons'),
                           selection = list(mode = 'multiple', selected = n),
                           options = list(dom = 'Bfrtip',
@@ -983,6 +985,7 @@ server <- function(input, output, session) {
   
   output$my_plot <- plotly::renderPlotly({
     pdf(NULL) # to avoid the production of Rplots.pdf
+    graphics.off()
     
     #my_data <- buildPlot_d()
     my_data <- buildPlot()
@@ -1317,7 +1320,6 @@ server <- function(input, output, session) {
     file.remove(old_figures)
     temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
     file.remove(temp_files)
-    graphics.off()
     cat("Session stopped\n")
   })
 }
