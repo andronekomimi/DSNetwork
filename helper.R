@@ -985,6 +985,7 @@ build_score_pies <- function(session_values, selected_scores, net, inc = NULL){
                             FUN = function(task){
                               do.call(task, list(nodes_data, inc, net))
                             })
+  save(RES, file = paste0(tmpDir,"/RES.rda"))
   return(RES)
 }
 
