@@ -977,7 +977,6 @@ build_score_pies <- function(session_values, selected_scores, net, inc = NULL){
   nodes_data <- data.frame(nodes_data, stringsAsFactors = FALSE)
   
   save(nodes_data, file = paste0(tmpDir,"/nodes_data.rda")) # keep this one #
-  
   tasks <- list(relative = "intra_rel_ranking", 
                 absolute = "intra_abs_ranking", 
                 global = "global_ranking")
@@ -1203,8 +1202,9 @@ intra_rel_ranking <- function(nodes_data, inc = NULL, net){
   
   #### relative score
   colfunc = colorRampPalette(c("red","yellow","springgreen"))
-  colpalette <- colfunc(n = length(nodes))
-  names(colpalette) <- 1:length(nodes)
+  rank_with_average <- seq(1,length(nodes),0.5)
+  colpalette <- colfunc(n = length(rank_with_average))
+  names(colpalette) <- rank_with_average
   
   if(ncol(nodes_data) >= 1){
     score_nodes <- NULL
@@ -1252,6 +1252,7 @@ intra_rel_ranking <- function(nodes_data, inc = NULL, net){
                                group = paste0("Scores_",n))
       
       # tri des couleur pour des blocks colorés dans les pie charts
+      # ordered_new_n_rows <- new_n_rows[order(new_n_rows$color),]
       ordered_new_n_rows <- new_n_rows
       ordered_new_n_rows$color <- ordered(ordered_new_n_rows$color, rev(c(colpalette, "#CCCCCC")))
       ordered_new_n_rows <- ordered_new_n_rows[order(ordered_new_n_rows$color),]
@@ -1308,26 +1309,6 @@ intra_rel_ranking <- function(nodes_data, inc = NULL, net){
 intra_abs_ranking <- function(nodes_data, inc = NULL, net){
   print("Creating pie for absolute ranking")
   
-  where <- function(x, info, pal){
-    if(x == "NA")
-      return("#CCCCCC")
-    x <- as.numeric(x)
-    neg_direction <- info$tolerate > info$deleterious
-    xrange <- sort(round(x = seq(from = info$tolerate, 
-                                 to = info$deleterious, 
-                                 length.out = length(pal)), digits = 2), 
-                   decreasing = neg_direction)
-    if(!neg_direction){
-      if(sum(x >= xrange))
-        return(pal[max(which(x >= xrange))])
-      return(pal[1])
-    } else {
-      if(sum(x <= xrange))
-        return(pal[max(which(x <= xrange))])
-      return(pal[1])
-    }
-  }
-  
   nodes <- as.character(nodes_data$nodes)
   selected_scores <- colnames(nodes_data)[-1]
   
@@ -1336,33 +1317,50 @@ intra_abs_ranking <- function(nodes_data, inc = NULL, net){
   }
   
   # load score details file 
-  included_scores <- read.csv(file = paste0(appDir, '/scores_description.tsv'), 
+  included_scores <- read.csv(file = paste0(appDir, '/scores_description.tsv'),
                               header = T, sep = "\t", stringsAsFactors = F)
   
   #### absolute score
-  colfunc = colorRampPalette(c("blue", "#99CCFF", "red"))
-  invert_colfunc = colorRampPalette(c("red", "#99CCFF", "blue"))
+  colfunc = colorRampPalette(c("red", "#99CCFF", "blue"))
   colpalette_length <- 100/BIN_SIZE
+  colpalette <- colfunc(n = colpalette_length)
+  
   
   if(ncol(nodes_data) >= 1){
     score_nodes <- NULL
     ordered_score_nodes <- NULL
     scores_values_mapped <- list()
     
-    for(selected_score in selected_scores){
-      #print(selected_score)
-      d <- nodes_data[[selected_score]]
-      score_info <- included_scores[included_scores$id == selected_score,]
-      colpalette <- colfunc(n = colpalette_length)
+    for(score_name in selected_scores){
+      x <- nodes_data[[score_name]]
+      score_info <- included_scores[included_scores$id == score_name,]
       neg_direction <- score_info$tolerate > score_info$deleterious
-      names(colpalette) <- sort(round(x = seq(from = score_info$tolerate, 
-                                              to = score_info$deleterious, 
-                                              length.out = colpalette_length), digits = 2), 
-                                decreasing = neg_direction) # plus petit ranking = meilleur = plus rouge
+      cut_points <- seq(from = score_info$tolerate, 
+                        to = score_info$deleterious,  
+                        length.out = colpalette_length+1)
       
-      d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
+      interval_names <- levels(cut(x = cut_points, cut_points, include.lowest = T))
       
-      scores_values_mapped[[selected_score]] <- sapply(X = d, FUN = function(i) where(x = i, info = score_info, pal = colpalette))
+      if(neg_direction){
+        names(colpalette) <- interval_names
+      } else {
+        names(colpalette) <- rev(interval_names)
+      }
+      
+      x_intervals <- as.character(cut(x = x, cut_points, include.lowest = T))
+      x_intervals[is.na(x_intervals)] <- "NA"
+      values_mapped <- x_intervals
+      
+      for(i in unique(x_intervals)){
+        if(i == "NA"){
+          values_mapped[values_mapped == i] <- "#CCCCCC"
+        } else {
+          values_mapped[values_mapped == i] <- colpalette[names(colpalette) == i]
+        }
+        
+      }
+      
+      scores_values_mapped[[score_name]] <- values_mapped
     }
     
     scores_values_mapped <- data.frame(scores_values_mapped, 
@@ -1383,7 +1381,10 @@ intra_abs_ranking <- function(nodes_data, inc = NULL, net){
                                group = paste0("Scores_",n))
       
       # tri des couleur pour des blocks colorés dans les pie charts
-      ordered_new_n_rows <- new_n_rows[order(new_n_rows$color),]
+      # ordered_new_n_rows <- new_n_rows[order(new_n_rows$color),]
+      ordered_new_n_rows <- new_n_rows
+      ordered_new_n_rows$color <- ordered(ordered_new_n_rows$color, rev(c(colpalette, "#CCCCCC")))
+      ordered_new_n_rows <- ordered_new_n_rows[order(ordered_new_n_rows$color),]
       
       if(is.null(score_nodes)){
         score_nodes <- new_n_rows
@@ -2209,10 +2210,11 @@ draw_rank_palette <- function(nbr_variants, nodes_type){
   is_absolute = grepl(x = nodes_type, pattern = "abs")
   
   if(!is_absolute){
+    rank_labels <- as.character(rev(seq(1,nbr_variants, 0.5)))
     colfunc <- colorRampPalette(c("springgreen","yellow","red"))
-    copal1 <- colfunc(n = nbr_variants)
-    d <- data.frame(x = c("NA", as.character(rev(seq(1,nbr_variants)))), y = 1:(nbr_variants+1))
-    d$x <- ordered(d$x, levels = c("NA",as.character(rev(seq(1,nbr_variants)))))
+    copal1 <- colfunc(n = length(rank_labels))
+    d <- data.frame(x = c("NA", rank_labels), y = 1:(length(rank_labels)+1))
+    d$x <- ordered(d$x, levels = c("NA",rank_labels))
     
     g <- ggplot(d) + geom_bar(mapping = aes(x = .5, fill =  x), color="white", size=.5) + 
       scale_y_discrete(labels =  as.character(d$x), limits =  as.character(d$x)) + 
