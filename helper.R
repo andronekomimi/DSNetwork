@@ -1289,15 +1289,15 @@ intra_rel_ranking <- function(nodes_data, inc = NULL, net){
           units = "px")
       par(lwd = 0.001)
       pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
-      dev.off()
       par(lwd = 1)
+      dev.off()
       
       png(paste0(path_to_images,"pie_scores_group_", n, net, inc,".png"), width = 2000, height = 2000,
           units = "px")
       par(lwd = 0.001)
       pie(x = ordered_new_n_rows$h, col = ordered_new_n_rows$color, labels = "")
-      dev.off()
       par(lwd = 1)
+      dev.off()
       
       graphics.off()
     }
@@ -1418,15 +1418,16 @@ intra_abs_ranking <- function(nodes_data, inc = NULL, net){
           units = "px")
       par(lwd = 0.001)
       pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
-      dev.off()
       par(lwd = 1)
+      dev.off()
       
       png(paste0(path_to_images,"pie_scores_abs_group_", n, net, inc,".png"), width = 2000, height = 2000,
           units = "px")
       par(lwd = 0.001)
       pie(x = ordered_new_n_rows$h, col = ordered_new_n_rows$color, labels = "")
-      dev.off()
       par(lwd = 1)
+      dev.off()
+      
       
       graphics.off()
     }
