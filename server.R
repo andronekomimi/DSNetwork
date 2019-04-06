@@ -389,6 +389,9 @@ server <- function(input, output, session) {
           #### convert scores (toNumeric and mean if needed)
           values$all_res <- values$res[,(colnames(values$res) %in% c(common_fields, included_scores$id))]
           
+          print(values$res$query)
+          print(values$all_res$query)
+          
           if(nrow(values$all_res) > 0){
             
             #### suppress empty scores
@@ -459,8 +462,7 @@ server <- function(input, output, session) {
             }
           }
           
-          values$res <- merge(x = values$res, y = temp_df, by = "X_id", all = T)
-          
+          values$res <- merge(x = values$res, y = temp_df, by = "X_id", all = T, sort = F)
           res <- values$res
           save(res, file = paste0(tmpDir, '/res.rda'))
           remove(temp_df)
@@ -497,9 +499,11 @@ server <- function(input, output, session) {
       if(values$can_run){
         local({
           #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
-          annotations_fields <- c("query","X_id", "cadd.consequence", 
-                                  "overall_mean_rank_na_last",
-                                  "overall_mean_rank_na_mean","overall_mean_rank_na_median")
+          annotations_fields <- c("query","X_id", 
+                                  "cadd.consequence",
+                                  "overall_mean_rank_na_median",
+                                  "overall_mean_rank_na_mean",
+                                  "overall_mean_rank_na_last")
           
           annotations_infos <- values$res[,annotations_fields]
           annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, 
@@ -508,7 +512,6 @@ server <- function(input, output, session) {
           save(annotations_infos, file = paste0(tmpDir, "/annotations.rda"))
           
           output$raw_data <- DT::renderDataTable({
-            
             if(input$network_type == "regul"){
               dt <- values$annotations[!non_syn_res,]
               max_var <- min(sum(!non_syn_res), MAX_VAR)
@@ -517,7 +520,8 @@ server <- function(input, output, session) {
               max_var <- min(sum(non_syn_res), MAX_VAR)
             }
             
-            n <- order(dt$overall_mean_rank_na_last)[1:max_var]
+            # get index of the 30 first best variants
+            n <- order(dt$overall_mean_rank_na_median)[1:max_var]
             
             # round scores
             for (i in 1:ncol(dt)) { if(is.numeric(dt[,i])) {dt[,i] <- round(x = dt[,i], 3)} }
@@ -525,9 +529,9 @@ server <- function(input, output, session) {
             DT::datatable(dt, 
                           escape = FALSE,
                           rownames = FALSE,
-                          colnames = c("query", "hgvs ID","consequences",
-                                       "OGMR (na last)", "OGMR (na mean)", 
-                                       "OGMR (na median)"),
+                          colnames = c("query", "hgvs ID","consequences", 
+                                       "OGMR (NA = median)", "OGMR (NA = mean)",
+                                       "OGMR (NA = worst)"),
                           extensions = c('Scroller','Buttons'),
                           selection = list(mode = 'multiple', selected = n),
                           options = list(dom = 'Bfrtip',
@@ -832,10 +836,10 @@ server <- function(input, output, session) {
     my_data <- values$my_data
     
     if(input$network_type == "regul"){
-      absolute_idx <- which(!my_data$non_synonymous)
+      #absolute_idx <- which(!my_data$non_synonymous)
       my_res <- values$all_regul_res
     } else {
-      absolute_idx <- which(my_data$non_synonymous)
+      #absolute_idx <- which(my_data$non_synonymous)
       my_res <- values$all_nonsyn_res
     }
     
@@ -1094,14 +1098,14 @@ server <- function(input, output, session) {
     my_data <- values$my_data
     
     if(input$network_type == "regul"){
-      absolute_idx <- which(!my_data$non_synonymous)
+      #absolute_idx <- which(!my_data$non_synonymous)
       my_res <- values$all_regul_res
     } else {
-      absolute_idx <- which(my_data$non_synonymous)
+      #absolute_idx <- which(my_data$non_synonymous)
       my_res <- values$all_nonsyn_res
     }
     
-    my_res <- my_res[sort(input$raw_data_rows_selected),]
+    #my_res <- my_res[sort(input$raw_data_rows_selected),] #ICI
     x <- values$res[values$res$query %in% my_res$query, colnames(values$res) %in% values$adjusted_scores]
     null_predictors <- names(which(apply(x, 2, function(i) sum(is.na(i))) == nrow(x)))
     
