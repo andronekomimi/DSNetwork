@@ -217,7 +217,7 @@ score_desc_module <- function(){
 scales_module <- function(){
   list(
     plotOutput(outputId = "scale",
-               #height = "600px",
+               height = "600px",
                width = "100px"),
     plotOutput(outputId = "ld_scale",
                #height = "600px",
