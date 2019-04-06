@@ -1467,10 +1467,10 @@ global_ranking <- function(nodes_data, inc = NULL, net){
     
     # replace NA by mean and re rank
     nodes_data_na_mean <- data.frame(apply(X = nodes_data[,-1], MARGIN = 2, 
-                                FUN = function(x) {
-                                  x[is.na(x)] <- mean(x = x, na.rm =T)
-                                  return(x)
-                                })) 
+                                           FUN = function(y) {
+                                             y[is.na(y)] <- mean(x = y, na.rm =T)
+                                             return(y)
+                                           })) 
     
     ranked_nodes_data_na_mean <- NULL
     for(j in 1:ncol(nodes_data_na_mean)){
@@ -1489,14 +1489,14 @@ global_ranking <- function(nodes_data, inc = NULL, net){
     
     # replace NA by median and re rank
     nodes_data_na_median <- data.frame(apply(X = nodes_data[,-1], MARGIN = 2, 
-                                FUN = function(x) {
-                                  x[is.na(x)] <- median(x = x, na.rm =T)
-                                  return(x)
-                                })) 
+                                             FUN = function(y) {
+                                               y[is.na(y)] <- median(x = y, na.rm =T)
+                                               return(y)
+                                             })) 
     
     ranked_nodes_data_na_median <- NULL
     for(j in 1:ncol(nodes_data_na_median)){
-      score_name <- colnames(nodes_data)[j]
+      score_name <- colnames(nodes_data_na_median)[j]
       x <- nodes_data_na_median[,j]
       ranked_x <- data.table::frankv(x = x, na.last = F, 
                                      order = ifelse(test = score_name %in% invert_scores, 
@@ -1534,8 +1534,8 @@ global_ranking <- function(nodes_data, inc = NULL, net){
     nodes_data_na_median <- median(x = x, na.rm =T)
     x[is.na(x)] <- nodes_data_na_median
     ranked_nodes_data_na_median <- data.table::frankv(x, na.last = T,
-                                                    order = ifelse(test = score_name %in% invert_scores, 
-                                                                   yes = 1, no = -1))
+                                                      order = ifelse(test = score_name %in% invert_scores, 
+                                                                     yes = 1, no = -1))
     
     names(ranked_nodes_data_na_last) <- names(ranked_nodes_data_na_mean) <- names(ranked_nodes_data_na_median) <- nodes
     
