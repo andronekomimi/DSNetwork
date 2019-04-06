@@ -815,9 +815,9 @@ server <- function(input, output, session) {
     if(length(input$raw_data_rows_selected) > MAX_VAR){
       shinyalert::shinyalert(title = "Selection limit", html = TRUE, type = "warning",
                              text = as.character(tags$div(style = "text-align:-webkit-center",
-                                                          paste0("Variants selection from ",
+                                                          paste0("Exceed selection limit (suppress at least ",
                                                                  (length(input$raw_data_rows_selected) - MAX_VAR),
-                                                                 " the Network visualisation is limit (",MAX_VAR, ")")
+                                                                 " variant(s))")
                              )))
       updateButton(session = session, inputId = "buildNetwork", 
                    disabled = TRUE, style = "danger")
