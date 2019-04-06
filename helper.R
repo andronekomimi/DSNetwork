@@ -984,7 +984,7 @@ build_score_pies <- function(session_values, selected_scores, net, inc = NULL){
   
   RES <- parallel::mclapply(X = tasks, mc.cores = NCORES, 
                             FUN = function(task){
-                              do.call(task, list(inc, net))
+                              do.call(task, list(nodes_data, inc, net))
                             })
   return(RES)
 }
@@ -1191,10 +1191,9 @@ extract_score_and_convert.old <- function(my_res_infos, score_name, sub_score_na
 
 
 #### RANKING ####
-intra_rel_ranking <- function(inc = NULL, net){
+intra_rel_ranking <- function(nodes_data, inc = NULL, net){
   print("Creating pie for relative ranking")
   
-  load(paste0(tmpDir,"/nodes_data.rda"))
   nodes <- as.character(nodes_data$nodes)
   selected_scores <- colnames(nodes_data)[-1]
   
@@ -1204,28 +1203,25 @@ intra_rel_ranking <- function(inc = NULL, net){
   
   #### relative score
   colfunc = colorRampPalette(c("red","yellow","springgreen"))
-  invert_colfunc = colorRampPalette(c("springgreen","yellow","red"))
+  colpalette <- colfunc(n = length(nodes))
+  names(colpalette) <- 1:length(nodes)
   
   if(ncol(nodes_data) >= 1){
     score_nodes <- NULL
     ordered_score_nodes <- NULL
     scores_values_mapped <- list()
     
-    for(selected_score in selected_scores){
-      d <-  nodes_data[[selected_score]]
+    for(score_name in selected_scores){
+      x <-  nodes_data[[score_name]]
+      na_idx <- which(is.na(x))
       
-      if(selected_score %in% invert_scores){
-        colpalette <- invert_colfunc(n = length(unique(d)))
-      } else {
-        colpalette <- colfunc(n = length(unique(d)))
-      }
+      ranked_x <- data.table::frankv(x = x, na.last = T, 
+                                     order = ifelse(test = score_name %in% invert_scores, 
+                                                    yes = 1, no = -1))
+      ranked_x[na_idx] <- "NA"
+      values_mapped <- ranked_x
       
-      names(colpalette) <- sort(unique(d), decreasing = T, na.last = T)
-      d[is.na(d)] <- names(colpalette)[is.na(names(colpalette))] <- "NA"
-      
-      values_mapped <- d
-      
-      for(i in unique(d)){
+      for(i in unique(ranked_x)){
         if(i == "NA"){
           values_mapped[values_mapped == i] <- "#CCCCCC"
         } else {
@@ -1233,7 +1229,7 @@ intra_rel_ranking <- function(inc = NULL, net){
         }
         
       }
-      scores_values_mapped[[selected_score]] <- values_mapped
+      scores_values_mapped[[score_name]] <- values_mapped
     }
     
     scores_values_mapped <- data.frame(scores_values_mapped, 
@@ -1256,7 +1252,9 @@ intra_rel_ranking <- function(inc = NULL, net){
                                group = paste0("Scores_",n))
       
       # tri des couleur pour des blocks colorés dans les pie charts
-      ordered_new_n_rows <- new_n_rows[order(new_n_rows$color),]
+      ordered_new_n_rows <- new_n_rows
+      ordered_new_n_rows$color <- ordered(ordered_new_n_rows$color, rev(c(colpalette, "#CCCCCC")))
+      ordered_new_n_rows <- ordered_new_n_rows[order(ordered_new_n_rows$color),]
       
       if(is.null(score_nodes)){
         score_nodes <- new_n_rows
@@ -1291,7 +1289,7 @@ intra_rel_ranking <- function(inc = NULL, net){
       pie(x = new_n_rows$h, col = new_n_rows$color, labels = "")
       dev.off()
       par(lwd = 1)
-
+      
       png(paste0(path_to_images,"pie_scores_group_", n, net, inc,".png"), width = 2000, height = 2000,
           units = "px")
       par(lwd = 0.001)
@@ -1307,7 +1305,7 @@ intra_rel_ranking <- function(inc = NULL, net){
   return(list(original = score_nodes, group_by = ordered_score_nodes))
 }
 
-intra_abs_ranking <- function(inc = NULL, net){
+intra_abs_ranking <- function(nodes_data, inc = NULL, net){
   print("Creating pie for absolute ranking")
   
   where <- function(x, info, pal){
@@ -1330,7 +1328,6 @@ intra_abs_ranking <- function(inc = NULL, net){
     }
   }
   
-  load(paste0(tmpDir,"/nodes_data.rda"))
   nodes <- as.character(nodes_data$nodes)
   selected_scores <- colnames(nodes_data)[-1]
   
@@ -1436,10 +1433,9 @@ intra_abs_ranking <- function(inc = NULL, net){
   return(list(original = score_nodes, group_by = ordered_score_nodes))
 }
 
-global_ranking <- function(inc = NULL, net){
+global_ranking <- function(nodes_data, inc = NULL, net){
   print("Creating pie for global ranking")
   
-  load(paste0(tmpDir,"/nodes_data.rda"))
   nodes <- as.character(nodes_data$nodes)
   selected_scores <- colnames(nodes_data)[-1]
   
@@ -1477,7 +1473,7 @@ global_ranking <- function(inc = NULL, net){
     
     ranked_nodes_data_na_mean <- NULL
     for(j in 1:ncol(nodes_data_na_mean)){
-      score_name <- colnames(nodes_data)[j]
+      score_name <- colnames(nodes_data_na_mean)[j]
       x <- nodes_data_na_mean[,j]
       ranked_x <- data.table::frankv(x = x, na.last = F, 
                                      order = ifelse(test = score_name %in% invert_scores, 
@@ -1488,6 +1484,7 @@ global_ranking <- function(inc = NULL, net){
         ranked_nodes_data_na_mean <- cbind(ranked_nodes_data_na_mean, ranked_x)
       }
     }
+    colnames(ranked_nodes_data_na_mean) <- colnames(nodes_data)[-1]
     
     # replace NA by median and re rank
     nodes_data_na_median <- data.frame(apply(X = nodes_data[,-1], MARGIN = 2, 
