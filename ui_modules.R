@@ -37,13 +37,13 @@ populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
                  "Yoruba in Ibadan, Nigeria (YRI)" = 'YRI')
 
 pie_types <- list(
-  `Intra-predictor ranking` = c("Relative rank" = 'pie_scores',
-                                "Relative rank (group by color)" = 'pie_scores_group',
-                                "Absolute rank" = 'pie_scores_abs',
-                                "Absolute rank (group by color)" = 'pie_scores_abs_group'),
-  `Global ranking` = c("Mean relative rank (NA last)" = 'pie_rank_na_last',
-                       "Mean relative rank (NA mean)" = 'pie_rank_na_mean',
-                       "Mean relative rank (NA median)" = 'pie_rank_na_median')
+  `Intra-predictor` = c("Relative rank" = 'pie_scores',
+                        "Relative rank (group by color)" = 'pie_scores_group',
+                        "Absolute score" = 'pie_scores_abs',
+                        "Absolute score (group by color)" = 'pie_scores_abs_group'),
+  `Global` = c("Mean relative rank (NA = median)" = 'pie_rank_na_median',
+               "Mean relative rank (NA = mean)" = 'pie_rank_na_mean',
+               "Mean relative rank (NA = worst)" = 'pie_rank_na_last')
 )
 
 sidebar_content <- function(){
