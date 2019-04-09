@@ -620,7 +620,7 @@ server <- function(input, output, session) {
     
     if(!is.null(values$res) && nrow(values$res) > 0){
       updateButton(session = session, inputId = "buildNetwork", 
-                   disabled = FALSE, style = "success")
+                   disabled = FALSE, style = "info")
     } else {
       updateButton(session = session, inputId = "buildNetwork",
                    disabled = TRUE, style = "primary")
@@ -800,7 +800,7 @@ server <- function(input, output, session) {
     # updateButton(session = session, inputId = "buildNetwork", 
     #                       disabled = FALSE, style = "warning", label = "Update Network")
     
-    if(length(input$raw_data_rows_selected) > MAX_VAR){
+    if(length(input$raw_data_rows_selected) > MAX_VAR || length(input$raw_data_rows_selected) == 0){
       shinyalert::shinyalert(title = "Selection limit", html = TRUE, type = "warning",
                              text = as.character(tags$div(style = "text-align:-webkit-center",
                                                           paste0("Exceed selection limit (suppress at least ",
@@ -811,7 +811,7 @@ server <- function(input, output, session) {
                    disabled = TRUE, style = "danger")
     } else {
       updateButton(session = session, inputId = "buildNetwork", 
-                   disabled = FALSE, style = "success")
+                   disabled = FALSE, style = "info")
     }
   })
   

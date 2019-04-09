@@ -45,10 +45,10 @@ dashboardPage(
                            solidHeader = FALSE, background = NULL, width = 12,
                            collapsible = TRUE, collapsed = FALSE,
                            fluidRow(
-                             column(width = 4, 
+                             column(width = 3, 
                                     input_data_module()
                              ),
-                             column(width = 8, 
+                             column(width = 9, 
                                     conditionalPanel(condition="input.fetch_annotations",
                                                      output_plot_row()
                                     )       
@@ -61,10 +61,10 @@ dashboardPage(
                            collapsible = TRUE, collapsed = FALSE,
                            conditionalPanel(condition="input.fetch_annotations",
                                             fluidRow(
-                                              column(width = 4, 
+                                              column(width = 3, 
                                                      selection_module()
                                               ),
-                                              column(width = 8, 
+                                              column(width = 9, 
                                                      raw_results_row()
                                               )
                                             )
@@ -74,15 +74,13 @@ dashboardPage(
               fluidRow(box(title = "Network panel", status = "success",
                            solidHeader = FALSE, background = NULL, width = 12,
                            collapsible = TRUE, collapsed = FALSE,
-                           conditionalPanel(condition="input.fetch_annotations",
+                           conditionalPanel(condition="input.buildNetwork",
                                             fluidRow(
-                                              column(width = 4, 
-                                                     box(width = "100%",
-                                                         ld_mapping_module(),
-                                                         nodes_modifiers_box()
-                                                     ) 
+                                              column(width = 3, 
+                                                     ld_mapping_module(),
+                                                     nodes_modifiers_box()
                                               ),
-                                              column(width = 7, 
+                                              column(width = 8, 
                                                      network_results_modules()
                                               ),
                                               column(width = 1,

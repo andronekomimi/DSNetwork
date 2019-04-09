@@ -56,40 +56,40 @@ sidebar_content <- function(){
 }
 
 input_data_module <- function(){
-  box(width = "100%",
-      textAreaInput("query", "Enter variant ids", "", rows = 5, 
-                    placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
-      div(style = "text-align:-webkit-right", 
-          actionLink(inputId = "load_demo1", label = "Load 1p36 data, "),
-          actionLink(inputId = "load_demo2", label = "load 1p34 data, "),
-          actionLink(inputId = "load_demo3", label = "load 7q22 data, "),
-          actionLink(inputId = "load_demo4", label = "load 11p15 data.")),
-      br(),
-      fileInput("query_file", "or load text file (one variant id per line)", 
-                multiple = FALSE, 
-                accept = c(
-                  "text/csv",
-                  "text/comma-separated-values,text/plain",
-                  ".csv")
-      ),
-      checkboxInput(inputId = "fetch_snpnexus", label = "Fetch annotations from SNPnexus (significatively increases fetching duration)"),
-      conditionalPanel(condition = "input.fetch_snpnexus == 1",
-                       sliderInput(inputId = "waiting", 
-                                   label = "How long are you willing to wait ? (default: 5 min)", 
-                                   min = 1, max = 10, value = 5, step = 1)),
-      conditionalPanel(condition = "input.fetch_annotations == 0",
-                       bsButton(inputId = "fetch_annotations", 
-                                label = "Fetch Annotations", 
-                                icon = icon("search"), disabled = FALSE)),
-      conditionalPanel(condition = "input.fetch_annotations == 1",
-                       bsButton(inputId = "reload", 
-                                label = "Reset for new query", 
-                                icon = icon("redo"), disabled = FALSE)),
-      conditionalPanel(condition = "input.fetch_annotations",
-                       br(),
-                       bsAlert("alert_conv"),
-                       bsAlert("alert_res"),
-                       downloadButton('downloadRawTable', 'Download results (TSV)'))
+  list(
+    textAreaInput("query", "Enter variant ids", "", rows = 5, 
+                  placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
+    div(style = "text-align:-webkit-right", 
+        actionLink(inputId = "load_demo1", label = "Load 1p36 data, "),
+        actionLink(inputId = "load_demo2", label = "load 1p34 data, "),
+        actionLink(inputId = "load_demo3", label = "load 7q22 data, "),
+        actionLink(inputId = "load_demo4", label = "load 11p15 data.")),
+    br(),
+    fileInput("query_file", "or load text file (one variant id per line)", 
+              multiple = FALSE, 
+              accept = c(
+                "text/csv",
+                "text/comma-separated-values,text/plain",
+                ".csv")
+    ),
+    checkboxInput(inputId = "fetch_snpnexus", label = "Fetch annotations from SNPnexus (significatively increases fetching duration)"),
+    conditionalPanel(condition = "input.fetch_snpnexus == 1",
+                     sliderInput(inputId = "waiting", 
+                                 label = "How long are you willing to wait ? (default: 5 min)", 
+                                 min = 1, max = 10, value = 5, step = 1)),
+    conditionalPanel(condition = "input.fetch_annotations == 0",
+                     bsButton(inputId = "fetch_annotations", 
+                              label = "Fetch Annotations", 
+                              icon = icon("search"), disabled = FALSE)),
+    conditionalPanel(condition = "input.fetch_annotations == 1",
+                     bsButton(inputId = "reload", 
+                              label = "Reset for new query", 
+                              icon = icon("redo"), disabled = FALSE)),
+    conditionalPanel(condition = "input.fetch_annotations",
+                     br(),
+                     bsAlert("alert_conv"),
+                     bsAlert("alert_res"),
+                     downloadButton('downloadRawTable', 'Download results (TSV)'))
   )
 }
 
@@ -108,20 +108,19 @@ raw_results_row <- function(){
   list(
     DT::dataTableOutput("raw_data"),
     htmlOutput(outputId = "OGMR"),
+    br(),
     div(style = "text-align:-webkit-right", 
         bsButton(inputId = 'buildNetwork', label = 'Build Network',
-                 disabled = TRUE, icon = icon("gear")))
+                 disabled = TRUE, icon = icon("gear"), style = "info"))
   )
 }
 
 selection_module <- function(){
-  box(width = "100%",
-      selectInput(inputId = 'network_type',
-                  label = 'Choose the network to build', selected = "regul",
-                  choices = c("non synonymous variants" = "non_syn",
-                              "synonymous and non-coding variants" = "regul"),
-                  width = "100%")
-  )
+  selectInput(inputId = 'network_type',
+              label = 'Choose the network to build', selected = "regul",
+              choices = c("non synonymous variants" = "non_syn",
+                          "synonymous and non-coding variants" = "regul"),
+              width = "100%")
 }
 
 nodes_modifiers_box <- function(){
