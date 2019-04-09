@@ -107,7 +107,7 @@ output_plot_row <- function(){
 raw_results_row <- function(){
   list(
     DT::dataTableOutput("raw_data"),
-    helpText("*OGMR = global mean rank computed with all the available annotations."),
+    htmlOutput(outputId = "OGMR"),
     div(style = "text-align:-webkit-right", 
         bsButton(inputId = 'buildNetwork', label = 'Build Network',
                  disabled = TRUE, icon = icon("gear")))

@@ -1689,7 +1689,7 @@ global_ranking <- function(nodes_data, inc = NULL, net){
               na_median = score_nodes_na_median))
 }
 
-basic_ranking <- function(score_dataframe){
+basic_ranking <- function(nodes, score_dataframe){
   print("Creating basic ranking")
   
   if(is.null(score_dataframe) || nrow(score_dataframe) < 1){
@@ -1799,9 +1799,12 @@ basic_ranking <- function(score_dataframe){
   rank_na_mean = as.numeric(rank(mean.rank_na_mean, ties.method = "average"))
   rank_na_median = as.numeric(rank(mean.rank_na_median, ties.method = "average"))
   
-  return(list(na_last = rank_na_last, 
-              na_mean = rank_na_mean,
-              na_median = rank_na_median))
+  ranks <- data.frame(nodes = nodes, 
+                      na_last = rank_na_last, 
+                      na_mean = rank_na_mean,
+                      na_median = rank_na_median, 
+                      stringsAsFactors = F)
+  return(ranks)
 }
 
 #### Absolute metascores ####

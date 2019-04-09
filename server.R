@@ -388,10 +388,7 @@ server <- function(input, output, session) {
           
           #### convert scores (toNumeric and mean if needed)
           values$all_res <- values$res[,(colnames(values$res) %in% c(common_fields, included_scores$id))]
-          
-          print(values$res$query)
-          print(values$all_res$query)
-          
+
           if(nrow(values$all_res) > 0){
             
             #### suppress empty scores
@@ -432,37 +429,24 @@ server <- function(input, output, session) {
           #### add the overall ranking  
           temp_df <- NULL
           if(nrow(values$all_nonsyn_res) > 0){
-            overall_mean_rank <- basic_ranking(score_dataframe = values$all_nonsyn_res[,values$adjusted_scores])
-            values$all_nonsyn_res$overall_mean_rank_na_last <- overall_mean_rank$na_last
-            values$all_nonsyn_res$overall_mean_rank_na_mean <- overall_mean_rank$na_mean
-            values$all_nonsyn_res$overall_mean_rank_na_median <- overall_mean_rank$na_median
-            
-            temp_df <- values$all_nonsyn_res[,c("X_id",
-                                                "overall_mean_rank_na_last",
-                                                "overall_mean_rank_na_mean",
-                                                "overall_mean_rank_na_median")]
+            overall_mean_rank <- basic_ranking(nodes = as.character(values$all_nonsyn_res$query), 
+                                               score_dataframe = values$all_nonsyn_res[,values$adjusted_scores])
+            temp_df <- overall_mean_rank
           }
           
           if(nrow(values$all_regul_res) > 0){
-            overall_mean_rank <- basic_ranking(score_dataframe = values$all_regul_res[,values$adjusted_scores])
-            values$all_regul_res$overall_mean_rank_na_last <- overall_mean_rank$na_last
-            values$all_regul_res$overall_mean_rank_na_mean <- overall_mean_rank$na_mean
-            values$all_regul_res$overall_mean_rank_na_median <- overall_mean_rank$na_median
+            overall_mean_rank <- basic_ranking(nodes = as.character(values$all_regul_res$query),
+                                               score_dataframe = values$all_regul_res[,values$adjusted_scores])
             
             if(is.null(temp_df)){
-              temp_df <- values$all_regul_res[,c("X_id",
-                                                 "overall_mean_rank_na_last",
-                                                 "overall_mean_rank_na_mean",
-                                                 "overall_mean_rank_na_median")]
+              temp_df <- overall_mean_rank
             } else {
-              temp_df <- rbind(temp_df, values$all_regul_res[,c("X_id",
-                                                                "overall_mean_rank_na_last",
-                                                                "overall_mean_rank_na_mean",
-                                                                "overall_mean_rank_na_median")])
+              temp_df <- rbind(temp_df, overall_mean_rank)
             }
           }
           
-          values$res <- merge(x = values$res, y = temp_df, by = "X_id", all = T, sort = F)
+          values$res <- merge(x = values$res, y = temp_df, by.x = "query", 
+                              by.y = "nodes", all = T, sort = F)
           res <- values$res
           save(res, file = paste0(tmpDir, '/res.rda'))
           remove(temp_df)
@@ -501,9 +485,9 @@ server <- function(input, output, session) {
           #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
           annotations_fields <- c("query","X_id", 
                                   "cadd.consequence",
-                                  "overall_mean_rank_na_median",
-                                  "overall_mean_rank_na_mean",
-                                  "overall_mean_rank_na_last")
+                                  "na_median",
+                                  "na_mean",
+                                  "na_last")
           
           annotations_infos <- values$res[,annotations_fields]
           annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, 
@@ -521,7 +505,7 @@ server <- function(input, output, session) {
             }
             
             # get index of the 30 first best variants
-            n <- order(dt$overall_mean_rank_na_median)[1:max_var]
+            n <- order(dt$na_median)[1:max_var]
             
             # round scores
             for (i in 1:ncol(dt)) { if(is.numeric(dt[,i])) {dt[,i] <- round(x = dt[,i], 3)} }
@@ -569,6 +553,10 @@ server <- function(input, output, session) {
                                          scrollY = 400,
                                          scroller = TRUE)
             )
+          })
+          
+          output$OGMR <- renderUI({
+            HTML("*OGMR = global mean rank computed by taking info account <strong><u>all</u></strong> with <strong><u>all</u></strong> the available annotations.<br/>")
           })
           
           output$downloadRawTable <- downloadHandler(
