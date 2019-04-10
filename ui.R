@@ -77,6 +77,7 @@ dashboardPage(
                            conditionalPanel(condition="input.buildNetwork",
                                             fluidRow(
                                               column(width = 3, 
+                                                     focus_module(),
                                                      ld_mapping_module(),
                                                      nodes_modifiers_box()
                                               ),

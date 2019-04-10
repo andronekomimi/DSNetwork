@@ -388,7 +388,7 @@ server <- function(input, output, session) {
           
           #### convert scores (toNumeric and mean if needed)
           values$all_res <- values$res[,(colnames(values$res) %in% c(common_fields, included_scores$id))]
-
+          
           if(nrow(values$all_res) > 0){
             
             #### suppress empty scores
@@ -636,6 +636,33 @@ server <- function(input, output, session) {
     }
   })
   
+  #### FOCUS ####
+  observe({
+    updateSelectInput(session, "focus",
+                      choices = c("None", as.character(values$current_nodes$id)),
+                      selected = "None"
+    )
+    if(!is.null(values$current_nodes) && nrow(values$current_nodes) > 0){
+      choices <- c("all", as.character(values$current_nodes$id))
+      names(choices) <- c("all vs all", paste0(as.character(values$current_nodes$id), " vs all"))
+      updateSelectInput(session, "ld_variant_focus",
+                        choices = choices,
+                        selected = "all"
+      )
+    }
+  })
+  
+  observe({
+    if(input$focus != "None"){
+      visNetworkProxy("my_network") %>%
+        visFocus(id = input$focus, scale = 1)
+    } else {
+      visNetworkProxy("my_network") %>%
+        visFit()
+    }
+  })
+  
+  
   #### FETCH LD INFOS ####
   observeEvent(input$runLD,{
     my_res <- values$my_res
@@ -649,6 +676,7 @@ server <- function(input, output, session) {
     })
     
     updateSliderInput(session = session, inputId = "ld_range", value = c(0,1))
+    updateSelectInput(session = session, inputId = "ld_variant_focus", selected = "all")
     
     id <<- showNotification(paste("Computing linkage disequilibrium..."), duration = 0, type = "message")
     
@@ -768,16 +796,27 @@ server <- function(input, output, session) {
   
   #### update LD infos ####
   observeEvent(input$update_ld, {
-    
     max_ld <- as.numeric(input$ld_range[2])
     min_ld <- as.numeric(input$ld_range[1])
+    focus <- input$ld_variant_focus
     
     # update edges
     ld_edges <- values$all_edges #set all color on
     
-    if(sum((as.numeric(ld_edges$xvalue) > max_ld) | (as.numeric(ld_edges$xvalue) < min_ld)) > 0){
-      ld_edges[(as.numeric(ld_edges$xvalue) > max_ld) | (as.numeric(ld_edges$xvalue) < min_ld),]$color <- "rgba(0, 0, 0, 0)"
+    # mask ld link over max_ld
+    if(sum(as.numeric(ld_edges$xvalue) > max_ld) > 0)
+      ld_edges[(as.numeric(ld_edges$xvalue) > max_ld),]$color <- "rgba(0, 0, 0, 0)"
+    
+    # mask ld link under min_ld
+    if(sum(as.numeric(ld_edges$xvalue) < min_ld) > 0)
+      ld_edges[(as.numeric(ld_edges$xvalue) < min_ld),]$color <- "rgba(0, 0, 0, 0)"
+    
+    # mask unwanted link
+    if(focus != "all"){
+      if(sum(ld_edges$from != focus & ld_edges$to != focus) > 0)
+        ld_edges[(ld_edges$from != focus & ld_edges$to != focus),]$color <- "rgba(0, 0, 0, 0)"
     }
+    
     values$current_edges <- ld_edges
     # update network
     visNetworkProxy("my_network") %>%
@@ -973,7 +1012,7 @@ server <- function(input, output, session) {
     return(my_data)
   })
   
-  buildPlot_d <- buildPlot %>% debounce(5000)
+  buildPlot_d <- buildPlot %>% debounce(500)
   
   output$my_plot <- plotly::renderPlotly({
     pdf(NULL) # to avoid the production of Rplots.pdf
@@ -1414,24 +1453,6 @@ server <- function(input, output, session) {
 #   
 #   visNetworkProxy("my_network") %>%
 #     visRemoveEdges(id = edges_id_2_remove)
-# })
-
-#### FOCUS ####
-# observe({
-#   updateSelectInput(session, "focus",
-#                     choices = c("None", as.character(values$current_nodes$id)),
-#                     selected = "None"
-#   )
-# })
-# 
-# observe({
-#   if(input$focus != "None"){
-#     visNetworkProxy("my_network") %>%
-#       visFocus(id = input$focus, scale = 1)
-#   } else {
-#     visNetworkProxy("my_network") %>%
-#       visFit()
-#   }
 # })
 
 #### HIGHLIGHT ####

@@ -131,23 +131,23 @@ nodes_modifiers_box <- function(){
                 choices = pie_types,
                 selected = 'pie_scores'
     ),
-    conditionalPanel(condition="input.snv_nodes_type!='metascores'",
-                     fluidRow(
-                       column(width = 12,
-                              selectInput("selected_scores", 
-                                          'Predictors selection',
-                                          choices = c(),
-                                          selectize = TRUE, multiple = TRUE))
-                     ),
-                     bsButton(inputId = 'update_metascore', label = 'Update',  
-                              icon = icon("gear"), disabled = TRUE),
-                     p(
-                       class = "text-muted", br(),
-                       paste("This option enables to select the set of prediction and",
-                             "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
-                       )
-                     )
-    )
+    hr(),
+    fluidRow(
+      column(width = 12,
+             selectInput("selected_scores", 
+                         'Predictors selection',
+                         choices = c(),
+                         selectize = TRUE, multiple = TRUE))
+    ),
+    bsButton(inputId = 'update_metascore', label = 'Update',  
+             icon = icon("gear"), disabled = TRUE),
+    p(
+      class = "text-muted", br(),
+      paste("This option enables to select the set of prediction and",
+            "scoring algorithms used to compute the metascore (color of the database-shaped nodes)"
+      )
+    ),
+    hr()
   )
 }
 
@@ -166,6 +166,21 @@ network_results_modules <- function(){
   )
 }
 
+focus_module <- function(){
+  list(
+    selectInput(inputId = 'focus',
+                label = 'Focus on',
+                choices = c('None')),
+    p(class = "text-muted",
+      br(),
+      "This option enables to focus the network on a particular variants. 
+      Select 'None' to zoom out and visualize the whole network."
+    ),
+    hr()
+    
+  )
+}
+
 ld_mapping_module <- function(){
   list(
     selectInput(inputId = 'population',
@@ -180,14 +195,20 @@ ld_mapping_module <- function(){
     ),
     br(),
     bsAlert(anchorId = "alert_ld"),
-    sliderInput("ld_range", "LD range",
-                min = 0, max = 1, value = c(0, 1), step = 0.1), 
-    bsButton(inputId = 'update_ld', label = 'Update',  
-             icon = icon("gear"), disabled = TRUE),
-    p(class = "text-muted",
-      br(),
-      "This option enables to select the interval of LD values represented between variants"
-    )
+    conditionalPanel(condition="input.runLD > input.removeLD",
+                     sliderInput("ld_range", "LD range",
+                                 min = 0, max = 1, value = c(0, 1), step = 0.1),
+                     selectInput(inputId = 'ld_variant_focus',
+                                 label = 'Between',
+                                 choices = c('all vs all')),
+                     bsButton(inputId = 'update_ld', label = 'Update',  
+                              icon = icon("gear"), disabled = TRUE),
+                     p(class = "text-muted",
+                       br(),
+                       "Those options enable to select the interval of LD values represented between all variants or for a single variant."
+                     )
+    ),
+    hr()
   )
 }
 
