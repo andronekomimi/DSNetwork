@@ -775,8 +775,8 @@ server <- function(input, output, session) {
       })
     })
     
-    updateButton(session = session, inputId = "update_ld", 
-                 disabled = TRUE)
+    shinyBS::closeAlert(session = session, alertId = "alert5")
+    updateButton(session = session, inputId = "update_ld", disabled = TRUE)
     
     max_ld <- as.numeric(input$ld_range[2])
     min_ld <- as.numeric(input$ld_range[1])
@@ -831,6 +831,9 @@ server <- function(input, output, session) {
     js$collapse("selection_box")
     updateSelectInput(session = session, inputId = "snv_nodes_type", selected = 'pie_scores')
     updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
+    updateButton(session = session, inputId = "update_ld", disabled = TRUE) #update ld
+    updateButton(session = session, inputId = "removeLD", disabled = TRUE) #remove ld
+    shinyBS::closeAlert(session = session, alertId = "alert5")
   })
   
   observeEvent(input$raw_data_rows_selected,{
@@ -876,7 +879,7 @@ server <- function(input, output, session) {
       my_res <- my_res[sort(s1),]
     }
     
-    # start by destroying everything
+    ## start by destroying everything ##
     if(!is.null(values$current_nodes)){
       print("cleaning nodes")
       visNetworkProxy("my_network") %>%
@@ -888,6 +891,14 @@ server <- function(input, output, session) {
       visNetworkProxy("my_network") %>%
         visRemoveEdges(id = values$current_edges$id)
     }
+    
+    values$all_edges <- NULL
+    values$all_nodes <- NULL
+    values$current_edges <- NULL
+    values$current_nodes <- NULL
+    values$ld_regions <- NULL
+    values$ld <- NULL
+    ## end by destroying everything ##
     
     id <<- showNotification(paste("Building your wonderful network (~30sec)..."), duration = 0, type = "message")
     
