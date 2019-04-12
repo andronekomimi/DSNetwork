@@ -28,7 +28,7 @@ server <- function(input, output, session) {
     python_path <- "/usr/bin/python"
     tabix_path <- '/usr/bin/tabix'
     path_to_vcf_converter <- paste0(appDir, "scripts/vcf_to_ped_converter.pl")
-    load(paste0(appDir, "demo/preload.rda"))
+    load(paste0(appDir, "demo/preload_dev.rda"))
   } else {
     #### CONF ####
     appDir <- "/srv/shiny-server/dsnetwork/"
