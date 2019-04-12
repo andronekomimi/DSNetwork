@@ -670,7 +670,7 @@ build_snv_edges.old <- function(session_values, edges_type, edges_range, network
             new_row <- data.frame(id = paste0("edge_dist_", i, "_", 1:ncol(dist_comb)),
                                   from = dist_comb[1,], 
                                   to = dist_comb[2,],
-                                  width = 1,
+                                  width = 3,
                                   dashes = FALSE,
                                   xvalue = snv_dist,
                                   type = "snv_dist_edges",
@@ -745,11 +745,12 @@ build_snv_edges.old <- function(session_values, edges_type, edges_range, network
         edges <- data.frame(id = paste0("edge_ld_", 1:length(ld_values_mapped)),
                             from = svn_comb[(1:length(svn_comb) %% 2 != 0)], 
                             to = svn_comb[(1:length(svn_comb) %% 2 == 0)],
-                            width = 1,
+                            width = 3,
                             dashes = FALSE,
                             xvalue = nodes_edges,
+                            label = nodes_edges,
                             type = "snv_ld_edges",
-                            title = nodes_edges,
+                            #title = nodes_edges,
                             color = ld_values_mapped, stringsAsFactors = FALSE)
         
         # ajout artificiel du LD pour les variant polyalleleic
@@ -780,11 +781,12 @@ build_snv_edges.old <- function(session_values, edges_type, edges_range, network
       edges <- data.frame(id = paste0("edge_ld_",1:nrow(svn_comb)),
                           from = svn_comb[,1], 
                           to = svn_comb[,2],
-                          width = 1,
+                          width = 3,
                           dashes = FALSE,
                           xvalue = 0,
                           type = "snv_ld_edges",
-                          title = "NA",
+                          #title = "NA",
+                          label = "",
                           color = "#DDDDDD", stringsAsFactors = FALSE)
     }
   }
@@ -835,7 +837,7 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
             new_row <- data.frame(id = paste0("edge_dist_", i, "_", 1:ncol(dist_comb)),
                                   from = dist_comb[1,], 
                                   to = dist_comb[2,],
-                                  width = 1,
+                                  width = 3,
                                   dashes = FALSE,
                                   xvalue = snv_dist,
                                   type = "snv_dist_edges",
@@ -846,7 +848,7 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
             new_row <- data.frame(id = paste0("edge_dist_", i, "_", seq_along(dist_comb)),
                                   from = dist_comb[1], 
                                   to = dist_comb[2],
-                                  width = 1,
+                                  width = 3,
                                   dashes = FALSE,
                                   xvalue = snv_dist,
                                   type = "snv_dist_edges",
@@ -873,11 +875,12 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
     edges <- data.frame(id = paste0("edge_ld_",1:nrow(svn_comb)),
                         from = svn_comb[,1], 
                         to = svn_comb[,2],
-                        width = 2,
+                        width = 3,
                         dashes = FALSE,
                         xvalue = 0,
                         type = "snv_ld_edges",
-                        title = "NA",
+                        #title = "NA",
+                        label = "",
                         color = "rgba(0, 0, 0, 0)", stringsAsFactors = FALSE)
     
     if(!is.null(ld_results)){
@@ -895,21 +898,22 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
               e_to <- unique(gsub(x = e$to, pattern = "(.*)_(.*)", replacement = "\\1"))
               
               if(e_from == e_to){
-                e$title <- "NA"
+                #e$title <- "NA"
+                e$label <- ""
                 e$xvalue <- 0
               } else {
                 if(e_from %in% colnames(ld) && e_to %in% colnames(ld)){
-                  e$title <- e$xvalue <- round(x = ld[e_from, e_to], digits = 2)
+                  e$xvalue <- e$label <- round(x = ld[e_from, e_to], digits = 2)
                   edges[j,] <- e
                 }
               }
             }
             
             # color
-            ld_values_mapped <- edges$title
+            ld_values_mapped <- edges$label
             
-            for(x in unique(edges$title)){
-              if(x == "NA"){
+            for(x in unique(edges$label)){
+              if(x == ""){
                 ld_values_mapped[ld_values_mapped == x] <- "#DDDDDD"
               } else {
                 ld_values_mapped[ld_values_mapped == x] <- ld_color_breaks[names(ld_color_breaks) == x]
@@ -941,7 +945,8 @@ build_snv_nodes <- function(session_values, network_type, net){
                       color = "gray",
                       label = node_names,
                       shape = "circularImage",
-                      image = paste0("scores_figures/pie_scores_",node_names,net,".png"),
+                      image = paste0("scores_figures/pie_scores_",
+                                     node_names,net,".png"),
                       #title = NA,
                       font.size = 30,
                       size = 50,

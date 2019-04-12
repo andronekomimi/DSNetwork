@@ -785,7 +785,7 @@ server <- function(input, output, session) {
     ld_edges <- values$all_edges #set all color on
     ld_edges$color <- "rgba(0, 0, 0, 0)" # set every edges at 
     ld_edges$xvalue <- 0
-    ld_edges$title <- NA
+    ld_edges$label <- ""
     
     values$current_edges <- ld_edges
     # update network
@@ -804,17 +804,23 @@ server <- function(input, output, session) {
     ld_edges <- values$all_edges #set all color on
     
     # mask ld link over max_ld
-    if(sum(as.numeric(ld_edges$xvalue) > max_ld) > 0)
+    if(sum(as.numeric(ld_edges$xvalue) > max_ld) > 0){
       ld_edges[(as.numeric(ld_edges$xvalue) > max_ld),]$color <- "rgba(0, 0, 0, 0)"
+      ld_edges[(as.numeric(ld_edges$xvalue) > max_ld),]$label <- "" 
+      }
     
     # mask ld link under min_ld
-    if(sum(as.numeric(ld_edges$xvalue) < min_ld) > 0)
+    if(sum(as.numeric(ld_edges$xvalue) < min_ld) > 0){
       ld_edges[(as.numeric(ld_edges$xvalue) < min_ld),]$color <- "rgba(0, 0, 0, 0)"
+      ld_edges[(as.numeric(ld_edges$xvalue) < min_ld),]$label <- ""
+      }
     
     # mask unwanted link
     if(focus != "all"){
-      if(sum(ld_edges$from != focus & ld_edges$to != focus) > 0)
+      if(sum(ld_edges$from != focus & ld_edges$to != focus) > 0){
         ld_edges[(ld_edges$from != focus & ld_edges$to != focus),]$color <- "rgba(0, 0, 0, 0)"
+        ld_edges[(ld_edges$from != focus & ld_edges$to != focus),]$label <- ""
+        }
     }
     
     values$current_edges <- ld_edges
