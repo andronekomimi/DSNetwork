@@ -336,15 +336,16 @@ server <- function(input, output, session) {
             region_start <- min(cdts_hits_spread$start)
             region_stop <- max(cdts_hits_spread$start)
             missing_pos <- seq(region_start, region_stop)[!seq(region_start, region_stop) %in% cdts_hits_spread$start]
-            
-            new_rows <- data.frame(seqnames = requested_chr,
-                                   start = missing_pos, 
-                                   CDTS = NA, 
-                                   percentile = NA, 
-                                   stringsAsFactors = F)
-            
-            cdts_hits_spread <- rbind(cdts_hits_spread, new_rows)
-            cdts_hits_spread <- cdts_hits_spread[order(cdts_hits_spread$start),]
+            if(length(missing_pos) > 0){
+              new_rows <- data.frame(seqnames = requested_chr,
+                                     start = missing_pos, 
+                                     CDTS = NA, 
+                                     percentile = NA, 
+                                     stringsAsFactors = F)
+              
+              cdts_hits_spread <- rbind(cdts_hits_spread, new_rows)
+              cdts_hits_spread <- cdts_hits_spread[order(cdts_hits_spread$start),]
+            }
             
             values$cdts_region <- cdts_hits_spread
           } else {
