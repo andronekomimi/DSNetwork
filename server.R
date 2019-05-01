@@ -226,8 +226,7 @@ server <- function(input, output, session) {
             print("ERROR : Variants on different chromosomes!")
             createAlert(session = session, anchorId = "alert_conv",
                         alertId = "alert1", title = "Id recognition",
-                        content = paste0(paste(values$res$query, collapse = ","),
-                                         " are on different chromosomes."),
+                        content = "The variants are on different chromosomes.",
                         append = TRUE, style = "danger")
           } else {
             values$can_run <- TRUE 
