@@ -1289,7 +1289,7 @@ server <- function(input, output, session) {
     }
     shinyalert::shinyalert(title = input$current_node_id, html = TRUE, 
                            closeOnEsc = TRUE,closeOnClickOutside = TRUE,
-                           text = as.character(tags$div(style = "text-align:-webkit-center",
+                           text = as.character(tags$div(style = "text-align:-moz-center; text-align:-webkit-center; text-align:center; height:300px; overflow-y: auto;",
                                                         tab)))
   })
   
