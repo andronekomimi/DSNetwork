@@ -318,12 +318,41 @@ server <- function(input, output, session) {
           
           if(length(cdts_hits) > 0){
             cdts_hits <- as.data.frame(CDTS[subjectHits(cdts_hits)])
-            values$cdts_region <- cdts_hits
+            cdts_hits_spread <- NULL
+            for(i in 1:nrow(cdts_hits)){
+              new_rows <- data.frame(seqnames = requested_chr,
+                                     start = seq(cdts_hits[i,]$start, (cdts_hits[i,]$end - 1)), 
+                                     CDTS = cdts_hits[i,]$CDTS, 
+                                     percentile = cdts_hits[i,]$percentile, 
+                                     stringsAsFactors = F)
+              if(!is.null(cdts_hits_spread)){
+                cdts_hits_spread <- rbind(cdts_hits_spread, new_rows)
+              } else {
+                cdts_hits_spread <- new_rows
+              }
+            }
+            
+            # padding
+            region_start <- min(cdts_hits_spread$start)
+            region_stop <- max(cdts_hits_spread$start)
+            missing_pos <- seq(region_start, region_stop)[!seq(region_start, region_stop) %in% cdts_hits_spread$start]
+            
+            new_rows <- data.frame(seqnames = requested_chr,
+                                   start = missing_pos, 
+                                   CDTS = NA, 
+                                   percentile = NA, 
+                                   stringsAsFactors = F)
+            
+            cdts_hits_spread <- rbind(cdts_hits_spread, new_rows)
+            cdts_hits_spread <- cdts_hits_spread[order(cdts_hits_spread$start),]
+            
+            values$cdts_region <- cdts_hits_spread
           } else {
             values$cdts_region <- data.frame(seqnames = requested_chr,
                                              start = c(start(global_ranges)-100,
                                                        start(global_ranges)+100), CDTS = 0, 
-                                             percentile = 0)
+                                             percentile = 0,
+                                             stringsAsFactors = F)
           }
           
           #### fetch bayesdel
