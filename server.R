@@ -270,37 +270,33 @@ server <- function(input, output, session) {
             values$res <- values$res[-which(values$res$notfound == TRUE), ]
           }
           
-          requested_chromosomes <- GenomeInfoDb::seqlevelsInUse(global_ranges)
+          requested_chr <- GenomeInfoDb::seqlevelsInUse(global_ranges)
 
           #### fetch linsight ####
           incProgress(1/n, detail = "Extracting LINSIGHT scores...")
-          for(requested_chr in requested_chromosomes){
-            if(file.exists(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
-              load(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
-              hits <- findOverlaps(query = values$global_ranges, subject = gr)
-              for(i in seq_along(hits)){ 
-                hit <- hits[i]
-                query <- values$global_ranges[queryHits(hit)]$query
-                value <- gr[subjectHits(hit)]$score
-                values$res[values$res$query == query,"linsight"] <- value
-              }
+          if(file.exists(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
+            load(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
+            hits <- findOverlaps(query = values$global_ranges, subject = gr)
+            for(i in seq_along(hits)){ 
+              hit <- hits[i]
+              query <- values$global_ranges[queryHits(hit)]$query
+              value <- gr[subjectHits(hit)]$score
+              values$res[values$res$query == query,"linsight"] <- value
             }
           }
           
           #### fetch cdts ####
           incProgress(1/n, detail = "Extracting CDTS data...")
-          for(requested_chr in requested_chromosomes){
-            if(file.exists(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
-              load(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
-              hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
-              for(i in seq_along(hits)){ 
-                hit <- hits[i]
-                query <- global_ranges[queryHits(hit)]$query
-                value1 <- CDTS[subjectHits(hit)]$CDTS
-                value2 <- CDTS[subjectHits(hit)]$percentile
-                values$res[values$res$query == query,"cdts_score"] <- value1
-                values$res[values$res$query == query,"cdts_percentile"] <- value2
-              }
+          if(file.exists(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
+            load(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
+            hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
+            for(i in seq_along(hits)){ 
+              hit <- hits[i]
+              query <- global_ranges[queryHits(hit)]$query
+              value1 <- CDTS[subjectHits(hit)]$CDTS
+              value2 <- CDTS[subjectHits(hit)]$percentile
+              values$res[values$res$query == query,"cdts_score"] <- value1
+              values$res[values$res$query == query,"cdts_percentile"] <- value2
             }
           }
           
@@ -311,7 +307,10 @@ server <- function(input, output, session) {
             cdts_hits <- as.data.frame(CDTS[subjectHits(cdts_hits)])
             values$cdts_region <- cdts_hits
           } else {
-            values$cdts_region <- NULL
+            values$cdts_region <- data.frame(seqnames = requested_chr,
+                                             start = c(start(global_ranges)-100,
+                                                       start(global_ranges)+100), CDTS = 0, 
+                                             percentile = 0)
           }
           
           #### fetch bayesdel
