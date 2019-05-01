@@ -201,6 +201,8 @@ server <- function(input, output, session) {
       }
       
       if(length(valid_transfo) > 0){
+        values$can_run <- FALSE
+        
         #### run myvariant ####
         incProgress(1/n, detail = "Interrogating MyVariant.info...")
         res <- as.data.frame(myvariant::getVariants(hgvsids = valid_transfo,
@@ -214,8 +216,28 @@ server <- function(input, output, session) {
         
         values$res <- res
         remove(res)
+        
         if(!is.null(values$res) && nrow(values$res) > 0){
-          values$can_run <- TRUE
+          #### test if all variants are on the same chromosome ####
+          chromosomes <- unique(values$res$chrom)
+          chromosomes <- chromosomes[!is.na(chromosomes)]
+          if(length(chromosomes) > 1){
+            values$can_run <- FALSE
+            print("ERROR : Variants on different chromosomes!")
+            createAlert(session = session, anchorId = "alert_conv",
+                        alertId = "alert1", title = "Id recognition",
+                        content = paste0(paste(values$res$query, collapse = ","),
+                                         " are on different chromosomes."),
+                        append = TRUE, style = "danger")
+          } else {
+            values$can_run <- TRUE 
+          }
+        } else {
+          values$can_run <- FALSE 
+        }
+        
+        if(values$can_run){
+          
           #### renommage des doublons ####
           duplicated_entries <- unique(values$res$query[duplicated(values$res$query)])
           row_2_delete <- c() 
