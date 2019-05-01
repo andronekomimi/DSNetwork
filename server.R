@@ -106,7 +106,10 @@ server <- function(input, output, session) {
   transform_query <- function(string){
     if(nchar(input$query) > 0){
       string <- unlist(strsplit(x = string, split = "\n"))
+      # supress trailing blank
       string <- gsub(x = string, pattern = " ", replacement = "")
+      # suppress empty line
+      string <- string[!stringi::stri_isempty(string)]
       
       modstring <- sapply(X = string,  FUN = function(x) {
         #rsids
@@ -135,7 +138,10 @@ server <- function(input, output, session) {
   transform_query_file <- function(filepath){
     if(file.exists(filepath)){
       string <- read.csv(file = filepath, header = F, stringsAsFactors = F)$V1
+      # supress trailing blank
       string <- tolower(gsub(x = string, pattern = " ", replacement = ""))
+      # suppress empty line
+      string <- string[!stringi::stri_isempty(string)]
       
       modstring <- sapply(X = string,  FUN = function(x) {
         # rsids
