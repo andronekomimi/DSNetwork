@@ -214,8 +214,6 @@ server <- function(input, output, session) {
         res <- as.data.frame(myvariant::getVariants(hgvsids = valid_transfo,
                                                     verbose = F, return.as = "DataFrame"))
         
-        
-        
         #### add metascores columns ####
         res$linsight <- res$cdts_score <- res$cdts_percentile <- NA
         res$bayesdel <- res$iwscoring_known <- res$iwscoring_novel <- NA
@@ -224,24 +222,40 @@ server <- function(input, output, session) {
         remove(res)
         
         if(!is.null(values$res) && nrow(values$res) > 0){
-          #### test if all variants are on the same chromosome ####
-          chromosomes <- unique(values$res$chrom)
-          chromosomes <- chromosomes[!is.na(chromosomes)]
-          if(length(chromosomes) > 1){
-            values$can_run <- FALSE
-            print("ERROR : Variants on different chromosomes!")
-            createAlert(session = session, anchorId = "alert_conv",
-                        alertId = "alert1", title = "Id recognition",
-                        content = "The variants are on different chromosomes.",
-                        append = TRUE, style = "danger")
+          #### remove nonfound variant lines ####
+          if("notfound" %in% colnames(values$res)){
+            values$notfound_id <- paste(values$res[!is.na(values$res$notfound),"query"], collapse = ", ")
+            values$res <- values$res[-which(values$res$notfound == TRUE), ]
+          }
+          
+          if(nrow(values$res) > 0){
+            #### test if all variants are on the same chromosome ####
+            chromosomes <- unique(values$res$chrom)
+            chromosomes <- chromosomes[!is.na(chromosomes)]
+            if(length(chromosomes) > 1){
+              values$can_run <- FALSE
+              print("ERROR : Variants on different chromosomes!")
+              createAlert(session = session, anchorId = "alert_conv",
+                          alertId = "alert1", title = "Id recognition",
+                          content = "The variants are on different chromosomes.",
+                          append = TRUE, style = "danger")
+            } else {
+              values$can_run <- TRUE 
+            }
           } else {
-            values$can_run <- TRUE 
+            values$can_run <- FALSE 
           }
         } else {
           values$can_run <- FALSE 
         }
         
         if(values$can_run){
+          
+          local({
+            output$can_run <- renderText('CDTS plot')
+            # expose can_run output
+            outputOptions(output, "can_run", suspendWhenHidden = FALSE)
+          })
           
           #### renommage des doublons ####
           duplicated_entries <- unique(values$res$query[duplicated(values$res$query)])
@@ -269,14 +283,8 @@ server <- function(input, output, session) {
           save(global_ranges, file = paste0(tmpDir, "/global_ranges.rda"))
           values$global_ranges <- global_ranges
           
-          ### remove nonfound variant lines 
-          if("notfound" %in% colnames(values$res)){
-            values$notfound_id <- paste(values$res[!is.na(values$res$notfound),"query"], collapse = ", ")
-            values$res <- values$res[-which(values$res$notfound == TRUE), ]
-          }
-          
           requested_chr <- GenomeInfoDb::seqlevelsInUse(global_ranges)
-
+          
           #### fetch linsight ####
           incProgress(1/n, detail = "Extracting LINSIGHT scores...")
           if(file.exists(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
@@ -832,20 +840,20 @@ server <- function(input, output, session) {
     if(sum(as.numeric(ld_edges$xvalue) > max_ld) > 0){
       ld_edges[(as.numeric(ld_edges$xvalue) > max_ld),]$color <- "rgba(0, 0, 0, 0)"
       ld_edges[(as.numeric(ld_edges$xvalue) > max_ld),]$label <- "" 
-      }
+    }
     
     # mask ld link under min_ld
     if(sum(as.numeric(ld_edges$xvalue) < min_ld) > 0){
       ld_edges[(as.numeric(ld_edges$xvalue) < min_ld),]$color <- "rgba(0, 0, 0, 0)"
       ld_edges[(as.numeric(ld_edges$xvalue) < min_ld),]$label <- ""
-      }
+    }
     
     # mask unwanted link
     if(focus != "all"){
       if(sum(ld_edges$from != focus & ld_edges$to != focus) > 0){
         ld_edges[(ld_edges$from != focus & ld_edges$to != focus),]$color <- "rgba(0, 0, 0, 0)"
         ld_edges[(ld_edges$from != focus & ld_edges$to != focus),]$label <- ""
-        }
+      }
     }
     
     values$current_edges <- ld_edges

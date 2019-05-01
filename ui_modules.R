@@ -80,16 +80,7 @@ input_data_module <- function(){
     conditionalPanel(condition = "input.fetch_annotations == 0",
                      bsButton(inputId = "fetch_annotations", 
                               label = "Fetch Annotations", 
-                              icon = icon("search"), disabled = FALSE)),
-    conditionalPanel(condition = "input.fetch_annotations == 1",
-                     bsButton(inputId = "reload", 
-                              label = "Reset for new query", 
-                              icon = icon("redo"), disabled = FALSE)),
-    conditionalPanel(condition = "input.fetch_annotations",
-                     br(),
-                     bsAlert("alert_conv"),
-                     bsAlert("alert_res"),
-                     downloadButton('downloadRawTable', 'Download results (TSV)'))
+                              icon = icon("search"), disabled = FALSE))
   )
 }
 
@@ -100,7 +91,8 @@ output_plot_row <- function(){
              "- <b>C</b>ontext-<b>D</b>ependent <b>T</b>olerance <b>S</b>core (CDTS) - ",
              "determined throught alignment of thousands human genomes.")),
     shinyjqui::jqui_resizable(plotly::plotlyOutput(outputId = "my_plot",
-                                                   height = "400px", width = "auto"))
+                                                   height = "500px", width = "auto")),
+                     downloadButton('downloadRawTable', 'Download results (TSV)')
   )
 }
 

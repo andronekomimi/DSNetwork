@@ -46,10 +46,21 @@ dashboardPage(
                            collapsible = TRUE, collapsed = FALSE,
                            fluidRow(
                              column(width = 3, 
-                                    input_data_module()
+                                    conditionalPanel(condition = "input.fetch_annotations == 0",
+                                                     input_data_module()
+                                    ),
+                                    conditionalPanel(condition = "input.fetch_annotations == 1",
+                                                     bsButton(inputId = "reload", 
+                                                              label = "Reset for new query", 
+                                                              icon = icon("redo"), disabled = FALSE),
+                                                     br(),
+                                                     br(),
+                                                     bsAlert("alert_conv"),
+                                                     bsAlert("alert_res"))
                              ),
                              column(width = 9, 
-                                    conditionalPanel(condition="input.fetch_annotations",
+                                    textOutput(outputId = 'can_run'),
+                                    conditionalPanel(condition="output.can_run == 'CDTS plot'",
                                                      output_plot_row()
                                     )       
                              )
@@ -59,7 +70,7 @@ dashboardPage(
               fluidRow(box(id = "selection_box", title = "Selection panel", status = "info",
                            solidHeader = FALSE, background = NULL, width = 12,
                            collapsible = TRUE, collapsed = FALSE,
-                           conditionalPanel(condition="input.fetch_annotations",
+                           conditionalPanel(condition="output.can_run == 'CDTS plot'",
                                             fluidRow(
                                               column(width = 3, 
                                                      selection_module()
