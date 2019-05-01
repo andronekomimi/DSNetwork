@@ -637,7 +637,7 @@ server <- function(input, output, session) {
       }
     })
     
-    if(!is.null(values$res) && nrow(values$res) > 0){
+    if(!is.null(values$res) && nrow(values$res) > 1 && values$can_run){
       updateButton(session = session, inputId = "buildNetwork", 
                    disabled = FALSE, style = "info")
     } else {
