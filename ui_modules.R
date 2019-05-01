@@ -72,7 +72,8 @@ input_data_module <- function(){
                 "text/comma-separated-values,text/plain",
                 ".csv")
     ),
-    checkboxInput(inputId = "fetch_snpnexus", label = "Fetch annotations from SNPnexus (significatively increases fetching duration)"),
+    checkboxInput(inputId = "fetch_snpnexus", label = "Check to fetch SNPnexus annotations"),
+    helpText("Querying SNPNexus will populate the results with numerous scores for non-coding variants but will also significatively increase the fetching duration"),
     conditionalPanel(condition = "input.fetch_snpnexus == 1",
                      sliderInput(inputId = "waiting", 
                                  label = "How long are you willing to wait ? (default: 5 min)", 
