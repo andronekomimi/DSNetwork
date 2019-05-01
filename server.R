@@ -1276,7 +1276,7 @@ server <- function(input, output, session) {
                                          digits = 4)
       }
       
-      tab <- tableHTML::tableHTML(snv_score_details, theme = 'scientific', 
+      tab <- tableHTML::tableHTML(snv_score_details, class = 'table1', theme = 'scientific', 
                                   rownames = FALSE)
       for (i in 1:nrow(snv_score_details)) { 
         tab <- tab %>% tableHTML::add_css_row(css = list(c('background-color','font-weight','color'), 
@@ -1289,7 +1289,7 @@ server <- function(input, output, session) {
     }
     shinyalert::shinyalert(title = input$current_node_id, html = TRUE, 
                            closeOnEsc = TRUE,closeOnClickOutside = TRUE,
-                           text = as.character(tags$div(style = "text-align:-moz-center; text-align:-webkit-center; text-align:center; height:300px; overflow-y: auto;",
+                           text = as.character(tags$div(style = "height:300px; overflow-y: auto;",
                                                         tab)))
   })
   
