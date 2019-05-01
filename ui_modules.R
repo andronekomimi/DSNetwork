@@ -97,8 +97,8 @@ output_plot_row <- function(){
   list(
     div(style = "color:gray", 
         HTML(paste0("This plot represents the requested variants along the map of sequence constraint "),
-             "- <b>C</b>ontect-<b>D</b>ependent <b>T</b>olerence <b>S</b>core (CDTS) - ",
-             "determined throught alignment of thousands of human genomes.")),
+             "- <b>C</b>ontext-<b>D</b>ependent <b>T</b>olerance <b>S</b>core (CDTS) - ",
+             "determined throught alignment of thousands human genomes.")),
     shinyjqui::jqui_resizable(plotly::plotlyOutput(outputId = "my_plot",
                                                    height = "400px", width = "auto"))
   )
