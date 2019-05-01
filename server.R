@@ -231,7 +231,6 @@ server <- function(input, output, session) {
           #### order ####
           values$res <- values$res[order(values$res$dbsnp.chrom, values$res$dbsnp.hg19.start),]
           
-          
           #### global range ####
           global_ranges <- apply(X = values$res, MARGIN = 1, 
                                  FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"]$X_id, 
@@ -249,9 +248,8 @@ server <- function(input, output, session) {
             values$res <- values$res[-which(values$res$notfound == TRUE), ]
           }
           
-          
           requested_chromosomes <- GenomeInfoDb::seqlevelsInUse(global_ranges)
-          
+
           #### fetch linsight ####
           incProgress(1/n, detail = "Extracting LINSIGHT scores...")
           for(requested_chr in requested_chromosomes){
@@ -286,6 +284,7 @@ server <- function(input, output, session) {
           
           #### store CDTS scores on the complete region
           cdts_hits <- findOverlaps(query = range(values$global_ranges), subject = CDTS, maxgap = 100)
+          
           if(length(cdts_hits) > 0){
             cdts_hits <- as.data.frame(CDTS[subjectHits(cdts_hits)])
             values$cdts_region <- cdts_hits
@@ -848,7 +847,7 @@ server <- function(input, output, session) {
     # updateButton(session = session, inputId = "buildNetwork", 
     #                       disabled = FALSE, style = "warning", label = "Update Network")
     
-    if(length(input$raw_data_rows_selected) > MAX_VAR || length(input$raw_data_rows_selected) == 0){
+    if(length(input$raw_data_rows_selected) > MAX_VAR){
       shinyalert::shinyalert(title = "Selection limit", html = TRUE, type = "warning",
                              text = as.character(tags$div(style = "text-align:-webkit-center",
                                                           paste0("Exceed selection limit (suppress at least ",
@@ -858,8 +857,13 @@ server <- function(input, output, session) {
       updateButton(session = session, inputId = "buildNetwork", 
                    disabled = TRUE, style = "danger")
     } else {
-      updateButton(session = session, inputId = "buildNetwork", 
-                   disabled = FALSE, style = "info")
+      if(length(input$raw_data_rows_selected) <= 1){
+        updateButton(session = session, inputId = "buildNetwork", 
+                     disabled = TRUE, style = "danger")
+      } else {
+        updateButton(session = session, inputId = "buildNetwork", 
+                     disabled = FALSE, style = "info")
+      }
     }
   })
   

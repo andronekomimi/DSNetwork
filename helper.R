@@ -1698,7 +1698,19 @@ basic_ranking <- function(nodes, score_dataframe){
   print("Creating basic ranking")
   
   if(is.null(score_dataframe) || nrow(score_dataframe) < 1){
-    return(NULL)
+    return(data.frame(nodes = nodes, 
+               na_last = 0, 
+               na_mean = 0,
+               na_median = 0, 
+               stringsAsFactors = F))
+  }
+  
+  if(nrow(score_dataframe) == 1){
+    return(data.frame(nodes = nodes, 
+               na_last = 1, 
+               na_mean = 1,
+               na_median = 1, 
+               stringsAsFactors = F))
   }
   
   score_nodes_na_last <- NULL
