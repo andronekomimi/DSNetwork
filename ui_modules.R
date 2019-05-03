@@ -50,7 +50,7 @@ sidebar_content <- function(){
   sidebarMenu(
     menuItem("Get your network", tabName = "main", icon = icon("hand-o-up")),
     menuItem("Scores description", tabName = "description", icon = icon("info-circle")),
-    menuItem("Read Me", tabName = "readme", icon = icon("mortar-board")),
+    menuItem("Read Me", icon = icon("mortar-board"), href = "DSNetwork_UserGuide_v1.2.pdf"),
     menuItem("About", tabName = "about", icon = icon("question"))
   )
 }
