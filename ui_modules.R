@@ -58,7 +58,7 @@ sidebar_content <- function(){
 input_data_module <- function(){
   list(
     textAreaInput("query", "Enter variant ids", "", rows = 5, 
-                  placeholder = "Please enter one variant id per line (rs123455 or 1:1324:A:C)"),
+                  placeholder = "Please enter one variant id per line (rs12345 or 1:1324:A:C)"),
     div(style = "text-align:-webkit-right", 
         actionLink(inputId = "load_demo1", label = "Load 1p36 data, "),
         actionLink(inputId = "load_demo2", label = "load 1p34 data, "),
