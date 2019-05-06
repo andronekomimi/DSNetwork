@@ -105,9 +105,9 @@ dashboardPage(
               )) # end network
               
       ),
-      tabItem(tabName = "readme",
-              shiny::includeHTML(path = "README.Rhtml")
-      ),
+      # tabItem(tabName = "readme",
+      #         shiny::includeHTML(path = "README.Rhtml")
+      # ),
       tabItem(tabName = "description",
               score_desc_module()
       ),
