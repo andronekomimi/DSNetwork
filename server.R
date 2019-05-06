@@ -681,7 +681,7 @@ server <- function(input, output, session) {
       }
     })
     
-    if(!is.null(values$res) && nrow(values$res) > 1 && values$can_run){
+    if(!is.null(values$res) && nrow(values$res) > 0 && values$can_run){ #ici
       updateButton(session = session, inputId = "buildNetwork", 
                    disabled = FALSE, style = "info")
     } else {
@@ -905,12 +905,15 @@ server <- function(input, output, session) {
     shinyBS::closeAlert(session = session, alertId = "alert5")
   })
   
+  observe({
+    if(is.null(input$raw_data_rows_selected)){
+      print("no selection")
+      updateButton(session = session, inputId = "buildNetwork", 
+                   disabled = TRUE, style = "danger")
+    }
+  })
+  
   observeEvent(input$raw_data_rows_selected,{
-    
-    #setdiff(input$tbl_rows_selected, input$tbl_row_last_clicked)
-    # updateButton(session = session, inputId = "buildNetwork", 
-    #                       disabled = FALSE, style = "warning", label = "Update Network")
-    
     if(length(input$raw_data_rows_selected) > MAX_VAR){
       shinyalert::shinyalert(title = "Selection limit", html = TRUE, type = "warning",
                              text = as.character(tags$div(style = "text-align:-webkit-center",
@@ -921,7 +924,7 @@ server <- function(input, output, session) {
       updateButton(session = session, inputId = "buildNetwork", 
                    disabled = TRUE, style = "danger")
     } else {
-      if(length(input$raw_data_rows_selected) <= 1){
+      if(length(input$raw_data_rows_selected) < 1){ #ne fonctionne pas car observeEvent pas appele si aucune ligne selectionne
         updateButton(session = session, inputId = "buildNetwork", 
                      disabled = TRUE, style = "danger")
       } else {
@@ -1092,19 +1095,22 @@ server <- function(input, output, session) {
       my_data$color <- "blue"
       my_data[sort(absolute_idx[s1]),]$selected <- TRUE
       my_data$color[my_data$selected] <- "red"
+    } else {
+      my_data$selected <- FALSE
+      my_data$color <- "blue"
     }
     
     return(my_data)
   })
   
-  buildPlot_d <- buildPlot %>% debounce(500)
+  buildPlot_d <- buildPlot %>% debounce(1000)
   
   output$my_plot <- plotly::renderPlotly({
     pdf(NULL) # to avoid the production of Rplots.pdf
     graphics.off()
     
-    #my_data <- buildPlot_d()
-    my_data <- buildPlot()
+    my_data <- buildPlot_d()
+    #my_data <- buildPlot()
     if(is.null(my_data) || nrow(my_data) == 0)
       return(NULL)
     
@@ -1298,7 +1304,7 @@ server <- function(input, output, session) {
   #### SCORES POPUP ####
   observeEvent(input$current_node_id, {
     values$selected_node <- input$current_node_id
-    
+    print(input$current_node_id)
     snv_score_details <- values$scores_data[values$scores_data$group == paste0("Scores_",values$selected_node), 
                                             c("id","color","label")]
     if(nrow(snv_score_details) > 0){

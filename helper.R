@@ -1318,7 +1318,7 @@ intra_abs_ranking <- function(nodes_data, inc = NULL, net){
   nodes <- as.character(nodes_data$nodes)
   selected_scores <- colnames(nodes_data)[-1]
   
-  if(length(nodes) < 2){
+  if(length(nodes) < 1){ #ici 2
     return(NULL)
   }
   
@@ -1432,7 +1432,6 @@ intra_abs_ranking <- function(nodes_data, inc = NULL, net){
       pie(x = ordered_new_n_rows$h, col = ordered_new_n_rows$color, labels = "")
       par(lwd = 1)
       dev.off()
-      
       
       graphics.off()
     }
@@ -2232,6 +2231,10 @@ draw_rank_palette <- function(nbr_variants, nodes_type){
   is_absolute = grepl(x = nodes_type, pattern = "abs")
   
   if(!is_absolute){
+    
+    if(nbr_variants < 2)
+      return(NULL)
+    
     rank_labels <- as.character(rev(seq(1,nbr_variants, 0.5)))
     colfunc <- colorRampPalette(c("springgreen","yellow","red"))
     copal1 <- colfunc(n = length(rank_labels))
