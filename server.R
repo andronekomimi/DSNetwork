@@ -3,7 +3,7 @@ require(shiny)
 require(visNetwork)
 require(myvariant)
 require(shinyBS)
-require(plotly) # do not update to 4.8.0, keep 4.7.1
+#require(plotly) # do not update to 4.8.0, keep 4.7.1
 require(shinyjs)
 #require(tableHTML)
 #require(magrittr)
@@ -668,8 +668,8 @@ server <- function(input, output, session) {
         }
         
         # reste inchangé
-        my_data$shape <- "x"
-        my_data$shape[my_data$non_synonymous] <- "o"
+        my_data$consequence <- "SYNONYMOUS/REGULATORY"
+        my_data$consequence[my_data$non_synonymous] <- "NON-SYNONYMOUS"
         my_data$size <- 10
         
         # sera MAJ
@@ -896,8 +896,8 @@ server <- function(input, output, session) {
   
   #### BUILDING NETWORK ####
   observeEvent(input$buildNetwork, {
-    js$collapse("input_box")
-    js$collapse("selection_box")
+    #js$collapse("input_box")
+    #js$collapse("selection_box")
     updateSelectInput(session = session, inputId = "snv_nodes_type", selected = 'pie_scores')
     updateButton(session = session, inputId = "buildNetwork", disabled = TRUE)
     updateButton(session = session, inputId = "update_ld", disabled = TRUE) #update ld
@@ -1075,7 +1075,8 @@ server <- function(input, output, session) {
   })
   
   #### UPDATE PLOT ####
-  buildPlot <- eventReactive(c(input$fetch_annotations, input$raw_data_rows_selected, input$network_type), {
+  buildPlot <- eventReactive(c(input$fetch_annotations, 
+                               input$raw_data_rows_selected, input$network_type), {
     if(is.null(values$my_data))
       return(NULL)
     
@@ -1103,14 +1104,15 @@ server <- function(input, output, session) {
     return(my_data)
   })
   
-  buildPlot_d <- buildPlot %>% debounce(1000)
+  buildPlot_d <- buildPlot %>% debounce(500)
   
-  output$my_plot <- plotly::renderPlotly({
-    pdf(NULL) # to avoid the production of Rplots.pdf
-    graphics.off()
+  output$my_plot <- renderPlot({
+    #pdf(NULL) # to avoid the production of Rplots.pdf
+    #graphics.off()
     
     my_data <- buildPlot_d()
     #my_data <- buildPlot()
+    
     if(is.null(my_data) || nrow(my_data) == 0)
       return(NULL)
     
@@ -1119,46 +1121,69 @@ server <- function(input, output, session) {
     cdts_region_line$size = 1
     cdts_region_line$shape = "line-ew"
     
-    text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
-    text_snp <- paste(text_snp, paste0("\nConsequences: ", my_data$consequences))
-    xa <- list(title = levels(my_data$seqnames),
-               zeroline = FALSE,
-               showline = TRUE,
-               showticklabels = TRUE,
-               showgrid = TRUE)
-    pdf(NULL) # to avoid the production of Rplots.pdf
-    plotly::plot_ly(data = my_data,
-                    type = "scatter",
-                    mode = "markers",
-                    x = ~start,
-                    y = ~cdts_score,
-                    symbol = ~I(shape), color = ~I(color), size = ~I(size),
-                    marker = list(
-                      opacity = 0.5
-                    ),
-                    showlegend = F, source = "subset") %>%
-      plotly::add_trace(data = cdts_region_line,
-                        type = 'scatter',
-                        mode = 'lines',
-                        x = ~start,
-                        y = ~CDTS,
-                        hoverinfo = "none",
-                        line = list(color = 'gray'), 
-                        opacity = 0.3,
-                        showlegend = F) %>%
-      plotly::add_trace(data = my_data,
-                        x = ~start,
-                        y = ~cdts_score,
-                        text =  text_snp,
-                        type = "scatter", 
-                        mode = "markers",
-                        #split = ~non_synonymous,
-                        hoverinfo = 'text',
-                        # legendgroup = 'In network',
-                        # name = 'In network',
-                        showlegend = T) %>%
-      plotly::layout(xaxis = xa, dragmode =  "select")
+    save(my_data, cdts_region_line, file = "~/Desktop/my_data.rda")
+    
+    drawPlot(my_data = my_data, cdts_region_line = cdts_region_line)
   })
+  
+  
+  # output$my_plot <- plotly::renderPlotly({
+  #   pdf(NULL) # to avoid the production of Rplots.pdf
+  #   graphics.off()
+  #   
+  #   my_data <- buildPlot_d()
+  #   #my_data <- buildPlot()
+  #   
+  #   if(is.null(my_data) || nrow(my_data) == 0)
+  #     return(NULL)
+  #   
+  #   cdts_region_line <- values$cdts_region
+  #   cdts_region_line$color = "blue"
+  #   cdts_region_line$size = 1
+  #   cdts_region_line$shape = "line-ew"
+  #   
+  #   save(my_data, cdts_region_line, file = "~/Desktop/my_data.rda")
+  #   
+  #   text_snp <- ifelse(test = my_data$no_cdts, yes = paste0(my_data$query," (no CDTS data)"), no = my_data$query)
+  #   text_snp <- paste(text_snp, paste0("\nConsequences: ", my_data$consequences))
+  #   xa <- list(title = levels(my_data$seqnames),
+  #              zeroline = FALSE,
+  #              showline = TRUE,
+  #              showticklabels = TRUE,
+  #              showgrid = TRUE)
+  #   pdf(NULL) # to avoid the production of Rplots.pdf
+  #   plotly::plot_ly(data = my_data,
+  #                   type = "scatter",
+  #                   mode = "markers",
+  #                   x = ~start,
+  #                   y = ~cdts_score,
+  #                   symbol = ~I(shape), color = ~I(color), size = ~I(size),
+  #                   marker = list(
+  #                     opacity = 0.5
+  #                   ),
+  #                   showlegend = F, source = "subset") %>%
+  #     plotly::add_trace(data = cdts_region_line,
+  #                       type = 'scatter',
+  #                       mode = 'lines',
+  #                       x = ~start,
+  #                       y = ~CDTS,
+  #                       hoverinfo = "none",
+  #                       line = list(color = 'gray'), 
+  #                       opacity = 0.3,
+  #                       showlegend = F) %>%
+  #     plotly::add_trace(data = my_data,
+  #                       x = ~start,
+  #                       y = ~cdts_score,
+  #                       text =  text_snp,
+  #                       type = "scatter", 
+  #                       mode = "markers",
+  #                       #split = ~non_synonymous,
+  #                       hoverinfo = 'text',
+  #                       # legendgroup = 'In network',
+  #                       # name = 'In network',
+  #                       showlegend = T) %>%
+  #     plotly::layout(xaxis = xa, dragmode =  "select")
+  # })
   
   #### UPDATE NODES CONTENT ####
   observe({

@@ -2,7 +2,7 @@ require(shinydashboard)
 require(visNetwork)
 require(shinyBS)
 #require(d3heatmap)
-require(plotly)
+#require(plotly)
 #require(ggrepel)
 require(shinyjqui)
 require(shinyjs)
@@ -91,9 +91,11 @@ output_plot_row <- function(){
         HTML(paste0("This plot represents the requested variants along the map of sequence constraint "),
              "- <b>C</b>ontext-<b>D</b>ependent <b>T</b>olerance <b>S</b>core (CDTS) - ",
              "determined throught alignment of thousands human genomes.")),
-    shinyjqui::jqui_resizable(plotly::plotlyOutput(outputId = "my_plot",
-                                                   height = "500px", width = "auto")),
-                     downloadButton('downloadRawTable', 'Download results (TSV)')
+    plotOutput(outputId = "my_plot", height = "500px", width = "auto"),
+    downloadButton('downloadRawTable', 'Download results (TSV)')
+    # shinyjqui::jqui_resizable(plotly::plotlyOutput(outputId = "my_plot",
+    #                                                height = "500px", width = "auto")),
+    #                  downloadButton('downloadRawTable', 'Download results (TSV)')
   )
 }
 

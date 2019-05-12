@@ -2292,3 +2292,19 @@ draw_ld_palette <- function(){
 draw_colpalette <- function(colpalette){
   image(seq_along(colpalette), 1, as.matrix(seq_along(colpalette)), col = colpalette)
 }
+
+
+drawPlot <- function(my_data, cdts_region_line){
+  chr <- levels(my_data$seqnames)
+  p1 <- ggplot(data = cdts_region_line) + geom_line(mapping = aes(x = start, y = CDTS), color = "gray") +
+    theme_minimal() + xlab(label = chr) + ylab(NULL) +
+    theme(axis.ticks = element_blank())
+  p1 <- p1 + geom_point(data = my_data, 
+                        mapping = aes(x = start, y = cdts_score, color = selected, shape = consequence), 
+                        size = 4, alpha = 0.9) + 
+    #guides(color = F, shape = F) + 
+    scale_color_manual(breaks = c("FALSE","TRUE"), values = c("blue","red")) + 
+    scale_shape_manual(breaks = c("NON-SYNONYMOUS","SYNONYMOUS/REGULATORY"), values = c(1,4))
+  
+  return(p1)
+}
