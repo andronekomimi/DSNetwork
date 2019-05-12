@@ -6,6 +6,7 @@ require(shinyBS)
 #require(ggrepel)
 require(shinyjqui)
 require(shinyjs)
+require(ggplot2)
 
 source('helper.R', local = TRUE)
 

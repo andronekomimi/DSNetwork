@@ -5,6 +5,7 @@ require(shinyBS)
 require(shinyjs)
 require(shinyalert)
 #require(markdown)
+require(ggplot2)
 
 source('ui_modules.R')
 

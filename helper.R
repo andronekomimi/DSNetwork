@@ -6,6 +6,7 @@ require(grid)
 #require(yaml)
 #require(c3)
 require(myvariant)
+require(ggplot2)
 
 is.local <- function(){ 
   return(!grepl(x = system('uname -n',intern=T), pattern = "ulaval"))

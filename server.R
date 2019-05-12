@@ -8,6 +8,7 @@ require(shinyjs)
 #require(tableHTML)
 #require(magrittr)
 require(shinyalert)
+require(ggplot2)
 
 options(shiny.trace = FALSE)
 
@@ -1114,7 +1115,7 @@ server <- function(input, output, session) {
     #my_data <- buildPlot()
     
     if(is.null(my_data) || nrow(my_data) == 0)
-      return(NULL)
+      return(ggplot())
     
     cdts_region_line <- values$cdts_region
     cdts_region_line$color = "blue"
