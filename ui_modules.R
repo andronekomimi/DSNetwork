@@ -91,7 +91,7 @@ output_plot_row <- function(){
         HTML(paste0("This plot represents the requested variants along the map of sequence constraint "),
              "- <b>C</b>ontext-<b>D</b>ependent <b>T</b>olerance <b>S</b>core (CDTS) - ",
              "determined throught alignment of thousands human genomes.")),
-    plotOutput(outputId = "my_plot", height = "500px", width = "auto"),
+    plotOutput(outputId = "my_plot", height = "500px"),
     downloadButton('downloadRawTable', 'Download results (TSV)')
     # shinyjqui::jqui_resizable(plotly::plotlyOutput(outputId = "my_plot",
     #                                                height = "500px", width = "auto")),
