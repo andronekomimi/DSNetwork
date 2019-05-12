@@ -2045,7 +2045,7 @@ createVCF <- function(session_values, filename){
   vcf_desc_1 <- paste0("##fileDate=",gsub(x = Sys.Date(), pattern = "-",replacement = ""))
   vcf_desc_2 <- '##INFO=<ID=MAF,Number=A,Type=Float,Description="MAF">'
   vcf_header <- "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
-  vcf_content <- paste(res$dbsnp.chrom, res$dbsnp.hg19.start, res$query, res$dbsnp.ref, res$dbsnp.alt, 100, "PASS", paste0("MAF:",res$dbsnp.gmaf), sep = "\t")
+  vcf_content <- paste(res$chrom, res$vcf.position, res$query, res$vcf.ref, res$vcf.alt, 100, "PASS", paste0("OBS:",res$observed), sep = "\t")
   
   write(x = vcf_desc_0, file = filename)
   write(x = vcf_desc_1, file = filename, append = T)
@@ -2132,7 +2132,7 @@ extract_BAYESDEL_range <- function(){
 createSNPnexusInput <- function(session_values, filename){
   res <- session_values$res
   #chromosome      3       55279372        A       C       1
-  file_content <- paste("chromosome",res$dbsnp.chrom, res$dbsnp.hg19.start, res$dbsnp.ref, res$dbsnp.alt, 1, sep = "\t")
+  file_content <- paste("chromosome",res$chrom, res$hg19.start, res$vcf.ref, res$vcf.alt, 1, sep = "\t")
   write(x = file_content, file = filename, append = T)
 }
 

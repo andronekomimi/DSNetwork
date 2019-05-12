@@ -264,13 +264,13 @@ server <- function(input, output, session) {
           if(length(duplicated_entries) > 0){
             for(duplicated_entry in duplicated_entries){
               values$res[values$res$query == duplicated_entry,]$query <- paste0(values$res[values$res$query == duplicated_entry,]$query,"_",
-                                                                                values$res[values$res$query == duplicated_entry,]$dbsnp.ref,".",
-                                                                                values$res[values$res$query == duplicated_entry,]$dbsnp.alt)
+                                                                                values$res[values$res$query == duplicated_entry,]$vcf.ref,".",
+                                                                                values$res[values$res$query == duplicated_entry,]$vcf.alt)
             }
           }
           
           #### order ####
-          values$res <- values$res[order(values$res$dbsnp.chrom, values$res$dbsnp.hg19.start),]
+          values$res <- values$res[order(values$res$chrom, values$res$hg19.start),]
           
           #### global range ####
           global_ranges <- apply(X = values$res, MARGIN = 1, 
