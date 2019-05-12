@@ -1121,8 +1121,6 @@ server <- function(input, output, session) {
     cdts_region_line$size = 1
     cdts_region_line$shape = "line-ew"
     
-    save(my_data, cdts_region_line, file = "~/Desktop/my_data.rda")
-    
     drawPlot(my_data = my_data, cdts_region_line = cdts_region_line)
   })
   
