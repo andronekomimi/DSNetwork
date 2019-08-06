@@ -2091,7 +2091,7 @@ extract_BAYESDEL_range <- function(){
   min_range <- +Inf
   max_range <- -Inf
   cadd_data_dir <- "~/Transit/data/cadd_scores/"
-  path_to_victor <- "/home/lemaud01/thesis/workspace/exomes/softs/VICTOR/vAnnBase"
+  path_to_victor <- "/home/lemaud01/thesis/workspace/exomes/softs/VICTOR/"
   
   RES <- mclapply(X = c(1:22,"X","Y","MT"), mc.cores = 8, FUN = function(chr) {
     filename <- tempfile(tmpdir = "~/Transit/data/bayesdel", fileext = ".vcf")
@@ -2306,6 +2306,21 @@ drawPlot <- function(my_data, cdts_region_line){
     #guides(color = F, shape = F) + 
     scale_color_manual(breaks = c("FALSE","TRUE"), values = c("blue","red")) + 
     scale_shape_manual(breaks = c("NON-SYNONYMOUS","SYNONYMOUS/REGULATORY"), values = c(1,4))
+  x <- my_data
   
+  if(sum(!x$selected) > 0){
+    x[!x$selected,]$query <- ""
+  }
+  
+  p1 <- p1 + ggrepel::geom_text_repel(data = x, 
+                                      mapping = aes(x = start, 
+                                                    y = cdts_score, 
+                                                    label = query),
+                                      direction    = "x",
+                                      angle        = 90,
+                                      hjust        = 1,
+                                      vjust        = 1,
+                                      segment.size = 0.2,
+                                      nudge_y = 50 + max(cdts_region_line$CDTS, na.rm = T))
   return(p1)
 }
