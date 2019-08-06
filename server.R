@@ -229,6 +229,12 @@ server <- function(input, output, session) {
             values$res <- values$res[-which(values$res$notfound == TRUE), ]
           }
           
+          #### remove strange DUP variants ####
+          dup_variants_idx <- grep(x = values$res$X_id, pattern = "dup$")
+          if(length(dup_variants_idx) > 0){
+            values$res <- values$res[-dup_variants_idx, ]
+          }
+          
           if(nrow(values$res) > 0){
             #### test if all variants are on the same chromosome ####
             chromosomes <- unique(values$res$chrom)
@@ -620,7 +626,7 @@ server <- function(input, output, session) {
           })
           
           output$OGMR <- renderUI({
-            HTML("*OGMR = global mean rank computed by taking info account <strong><u>all</u></strong> with <strong><u>all</u></strong> the available annotations.<br/>")
+            HTML("*OGMR = global mean rank computed by taking into account <strong><u>all</u></strong> variants with <strong><u>all</u></strong> the available annotations.<br/>")
           })
           
           output$downloadRawTable <- downloadHandler(
