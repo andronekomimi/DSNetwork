@@ -42,9 +42,8 @@ pie_types <- list(
                         "Relative rank (group by color)" = 'pie_scores_group',
                         "Absolute score" = 'pie_scores_abs',
                         "Absolute score (group by color)" = 'pie_scores_abs_group'),
-  `Global` = c("Mean relative rank (NA = median)" = 'pie_rank_na_median',
-               "Mean relative rank (NA = mean)" = 'pie_rank_na_mean',
-               "Mean relative rank (NA = worst)" = 'pie_rank_na_last')
+  `Global` = c("Mean relative rank (NA = mean)" = 'pie_rank_na_mean',
+               "Mean relative rank (NA = median)" = 'pie_rank_na_median')
 )
 
 sidebar_content <- function(){
@@ -73,11 +72,11 @@ input_data_module <- function(){
                 "text/comma-separated-values,text/plain",
                 ".csv")
     ),
-    checkboxInput(inputId = "fetch_snpnexus", label = "Check to fetch SNPnexus annotations"),
+    shiny::checkboxInput(inputId = "fetch_snpnexus", label = "Check to fetch SNPnexus annotations"),
     helpText("Querying SNPNexus will populate the results with numerous scores for non-coding variants but will also significatively increase the fetching duration"),
     conditionalPanel(condition = "input.fetch_snpnexus == 1",
-                     sliderInput(inputId = "waiting", 
-                                 label = "How long are you willing to wait ? (default: 5 min)", 
+                     sliderInput(inputId = "waiting",
+                                 label = "How long are you willing to wait ? (default: 5 min)",
                                  min = 1, max = 10, value = 5, step = 1)),
     conditionalPanel(condition = "input.fetch_annotations == 0",
                      bsButton(inputId = "fetch_annotations", 
@@ -92,7 +91,12 @@ output_plot_row <- function(){
         HTML(paste0("This plot represents the requested variants along the map of sequence constraint "),
              "- <b>C</b>ontext-<b>D</b>ependent <b>T</b>olerance <b>S</b>core (CDTS) - ",
              "determined throught alignment of thousands human genomes.")),
-    plotOutput(outputId = "my_plot", height = "500px"),
+    plotOutput(outputId = "my_plot", height = "500px",
+               dblclick = "my_plot_dblclick",
+               brush = brushOpts(
+                 id = "my_plot_brush",
+                 resetOnNew = TRUE
+               )),
     downloadButton('downloadRawTable', 'Download results (TSV)')
     # shinyjqui::jqui_resizable(plotly::plotlyOutput(outputId = "my_plot",
     #                                                height = "500px", width = "auto")),
@@ -225,6 +229,8 @@ Nodes filling are dedicated to prediction scores display. The default display is
 score_desc_module <- function(){
   box(id = "description", title = "Predictors", solidHeader = FALSE, background = NULL, width = 12,
       collapsible = FALSE, collapsed = FALSE,
+      htmlOutput(outputId = "version"),
+      br(),
       DT::dataTableOutput("scores_description_table"),
       bsModal("annotModal", "Annotations", "", tags$p("Annotations"), size = "small")
   )
