@@ -92,6 +92,18 @@ hgvsToGRange <- function(hgvs_id, query_id){
     return(GRanges(seqnames = chr, ranges = IRanges::IRanges(start = start_pos, end = end_pos), 
                    query= query_id, type = svn_type))
   }
+  
+  if(grepl(x = hgvs_id, pattern = "dup")){ #duplication
+    svn_type <- "dup"
+    hgvs_id <- unlist(strsplit(x = hgvs_id, split = "_"))
+    if(length(hgvs_id) == 2){
+      end_pos <- as.numeric(gsub(x = hgvs_id[2], pattern = "([0-9]+)dup", replacement = "\\1"))
+    } else {
+      end_pos <- start_pos
+    }
+    return(GRanges(seqnames = chr, ranges = IRanges::IRanges(start = start_pos, end = end_pos), 
+                   query= query_id, type = svn_type))
+  }
 }
 
 setStudyRange <- function(my_ranges, selection){
@@ -885,45 +897,48 @@ build_snv_edges <- function(session_values, edges_type, edges_range, network_typ
                         color = "rgba(0, 0, 0, 0)", stringsAsFactors = FALSE)
     
     if(!is.null(ld_results)){
+      ld <- ld_results$ld
       
-      for(i in 1:ncol(ld_results)){
-        if("LDmatrix" %in% names(ld_results[,i]$data)){
-          ld <- ld_results[,i]$data$LDmatrix
-          not_found <- ld_results[,i]$notfound
-          if(!is.null(ld)){
-            ld[lower.tri(ld)] = t(ld)[lower.tri(ld)]
-            
-            for(j in 1:nrow(edges)){
-              e <- edges[j,]
-              e_from <- unique(gsub(x = e$from, pattern = "(.*)_(.*)", replacement = "\\1"))
-              e_to <- unique(gsub(x = e$to, pattern = "(.*)_(.*)", replacement = "\\1"))
+      not_found <- ld_results$notfound
+      if(!is.null(ld)){
+        ld[lower.tri(ld)] = t(ld)[lower.tri(ld)]
+        
+        for(j in 1:nrow(edges)){
+          e <- edges[j,]
+          e_from <- unique(gsub(x = e$from, pattern = "(.*)_(.*)", replacement = "\\1"))
+          e_to <- unique(gsub(x = e$to, pattern = "(.*)_(.*)", replacement = "\\1"))
+          
+          if(e_from == e_to){
+            #e$title <- "NA"
+            e$label <- ""
+            e$xvalue <- 0
+          } else {
+            if(e_from %in% colnames(ld) && e_to %in% colnames(ld)){
+              val <- round(x = ld[e_from, e_to], digits = 2)
               
-              if(e_from == e_to){
-                #e$title <- "NA"
+              if(!is.na(val)){
+                e$xvalue <- e$label <- val
+              } else {
                 e$label <- ""
                 e$xvalue <- 0
-              } else {
-                if(e_from %in% colnames(ld) && e_to %in% colnames(ld)){
-                  e$xvalue <- e$label <- round(x = ld[e_from, e_to], digits = 2)
-                  edges[j,] <- e
-                }
               }
+              edges[j,] <- e
             }
-            
-            # color
-            ld_values_mapped <- edges$label
-            
-            for(x in unique(edges$label)){
-              if(x == ""){
-                ld_values_mapped[ld_values_mapped == x] <- "#DDDDDD"
-              } else {
-                ld_values_mapped[ld_values_mapped == x] <- ld_color_breaks[names(ld_color_breaks) == x]
-              }
-            }
-            
-            edges$color <- ld_values_mapped
           }
         }
+        
+        # color
+        ld_values_mapped <- edges$label
+        
+        for(x in unique(edges$label)){
+          if(x == ""){
+            ld_values_mapped[ld_values_mapped == x] <- "#DDDDDD"
+          } else {
+            ld_values_mapped[ld_values_mapped == x] <- ld_color_breaks[names(ld_color_breaks) == x]
+          }
+        }
+        
+        edges$color <- ld_values_mapped
       }
     }
   }
@@ -1699,18 +1714,18 @@ basic_ranking <- function(nodes, score_dataframe){
   
   if(is.null(score_dataframe) || nrow(score_dataframe) < 1){
     return(data.frame(nodes = nodes, 
-               na_last = 0, 
-               na_mean = 0,
-               na_median = 0, 
-               stringsAsFactors = F))
+                      na_last = 0, 
+                      na_mean = 0,
+                      na_median = 0, 
+                      stringsAsFactors = F))
   }
   
   if(nrow(score_dataframe) == 1){
     return(data.frame(nodes = nodes, 
-               na_last = 1, 
-               na_mean = 1,
-               na_median = 1, 
-               stringsAsFactors = F))
+                      na_last = 1, 
+                      na_mean = 1,
+                      na_median = 1, 
+                      stringsAsFactors = F))
   }
   
   score_nodes_na_last <- NULL
@@ -1736,10 +1751,10 @@ basic_ranking <- function(nodes, score_dataframe){
     
     # replace NA by mean and re rank
     nodes_data_na_mean <- data.frame(apply(X = score_dataframe, MARGIN = 2, 
-                                FUN = function(x) {
-                                  x[is.na(x)] <- mean(x = x, na.rm =T)
-                                  return(x)
-                                }))
+                                           FUN = function(x) {
+                                             x[is.na(x)] <- mean(x = x, na.rm =T)
+                                             return(x)
+                                           }))
     
     ranked_nodes_data_na_mean <- NULL
     for(j in 1:ncol(nodes_data_na_mean)){
@@ -1759,10 +1774,10 @@ basic_ranking <- function(nodes, score_dataframe){
     
     # replace NA by median and re rank
     nodes_data_na_median <- data.frame(apply(X = score_dataframe, MARGIN = 2, 
-                                FUN = function(x) {
-                                  x[is.na(x)] <- median(x = x, na.rm =T)
-                                  return(x)
-                                })) 
+                                             FUN = function(x) {
+                                               x[is.na(x)] <- median(x = x, na.rm =T)
+                                               return(x)
+                                             })) 
     
     ranked_nodes_data_na_median <- NULL
     for(j in 1:ncol(nodes_data_na_median)){
@@ -1803,8 +1818,8 @@ basic_ranking <- function(nodes, score_dataframe){
     nodes_data_na_mean <- median(x = x, na.rm =T)
     x[is.na(x)] <- nodes_data_na_median
     ranked_nodes_data_na_median <- data.table::frankv(x, na.last = T,
-                                                    order = ifelse(test = score_name %in% invert_scores, 
-                                                                   yes = 1, no = -1))
+                                                      order = ifelse(test = score_name %in% invert_scores, 
+                                                                     yes = 1, no = -1))
     
     # compute MEAN RANK accross all the classifier 
     mean.rank_na_last = ranked_nodes_data_na_last
@@ -2296,16 +2311,45 @@ draw_colpalette <- function(colpalette){
 
 
 drawPlot <- function(my_data, cdts_region_line){
+  if(sum(my_data$consequences == "") > 0)
+    my_data[my_data$consequences == "",]$consequences <- "INDETERMINATE"
+  
+  if(sum(my_data$consequences == "NA") > 0)
+    my_data[my_data$consequences == "NA",]$consequences <- "INDETERMINATE"
+  
+  if(sum(is.na(my_data$consequences)) > 0)
+    my_data[is.na(my_data$consequences),]$consequences <- "INDETERMINATE"
+  
   chr <- levels(my_data$seqnames)
   p1 <- ggplot(data = cdts_region_line) + geom_line(mapping = aes(x = start, y = CDTS), color = "gray") +
     theme_minimal() + xlab(label = chr) + ylab(NULL) +
     theme(axis.ticks = element_blank())
+  
+  cols <- c("blue","red")
+  names(cols) <- c("FALSE","TRUE")
+
+  available_shapes <- 1:6
+  max_annot <- length(available_shapes)
+  
+  annotations <- unique(my_data$consequences)
+  colored_annots <- names(sort(table(my_data$consequences), decreasing = T)[1:min(max_annot, length(annotations))])
+  other_annots <- annotations[!annotations %in% colored_annots]
+  
+  
+  shapes <- available_shapes[1:length(colored_annots)]
+  names(shapes) <- colored_annots
+  
+  shapes_2 <- rep(x = 0, times = length(other_annots))
+  names(shapes_2) <- other_annots
+
+  shapes <- c(shapes, shapes_2)
+  
   p1 <- p1 + geom_point(data = my_data, 
-                        mapping = aes(x = start, y = cdts_score, color = selected, shape = consequence), 
+                        mapping = aes(x = start, y = cdts_score, color = selected, shape = consequences), 
                         size = 4, alpha = 0.9) + 
-    #guides(color = F, shape = F) + 
-    scale_color_manual(breaks = c("FALSE","TRUE"), values = c("blue","red")) + 
-    scale_shape_manual(breaks = c("NON-SYNONYMOUS","SYNONYMOUS/REGULATORY"), values = c(1,4))
+    scale_color_manual(values = cols) + 
+    scale_shape_manual(breaks = names(shapes), values = shapes)
+  
   x <- my_data
   
   if(sum(!x$selected) > 0){
@@ -2323,4 +2367,23 @@ drawPlot <- function(my_data, cdts_region_line){
                                       segment.size = 0.2,
                                       nudge_y = 50 + max(cdts_region_line$CDTS, na.rm = T))
   return(p1)
+}
+
+data_check <- function(dataDir){
+  return(
+    list(
+      linsight = (
+        file.exists(paste0(dataDir,"LINSIGHT/linsight.bed.bgz")) & 
+          file.exists(paste0(dataDir,"LINSIGHT/linsight.bed.bgz.tbi"))
+      ),
+      cdts = (
+        file.exists(paste0(dataDir,"CDTS/cdts.bed.bgz")) & 
+          file.exists(paste0(dataDir,"CDTS/cdts.bed.bgz.tbi"))
+      ),
+      bayesdel = (
+        file.exists(paste0(dataDir,"VICTOR/victor.bed.bgz")) & 
+          file.exists(paste0(dataDir,"VICTOR/victor.bed.bgz.tbi"))
+      )
+    )
+  )
 }
