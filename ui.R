@@ -115,7 +115,8 @@ dashboardPage(
       tabItem(tabName = "about",
               shiny::includeHTML("ABOUT.Rhtml")
       )
-    )
+    ),#end dashboardPage
+    tags$footer(htmlOutput(outputId = "version_footer"), align = "center")
   ), 
   title = "DSNetwork",
   skin = "black"
