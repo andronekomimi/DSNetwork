@@ -688,7 +688,7 @@ server <- function(input, output, session) {
         my_data$non_synonymous <- sapply(values$res$cadd.consequence, 
                                          FUN = function(x) "NON_SYNONYMOUS" %in% x)
         my_data$consequences <- sapply(values$res$cadd.consequence, 
-                                       FUN = function(x) paste(x, collapse = ","))
+                                       FUN = function(x) paste(sort(unique(x)), collapse = ", "))
         my_data$no_cdts <- is.na(my_data$cdts_score)
         my_data$selected <- TRUE
         
@@ -786,90 +786,63 @@ server <- function(input, output, session) {
     
     id <<- showNotification(paste("Computing linkage disequilibrium..."), duration = 0, type = "message")
     
+    requested_variants <- my_res$query
+    requested_variants <- unique(gsub(x = requested_variants, pattern = "(.*)_(.*)", replacement = "\\1"))
     
-    if(nrow(my_res) > 1){
-      my_ranges <- apply(X = my_res, MARGIN = 1, 
-                         FUN = function(x) hgvsToGRange(hgvs_id = x[names(x) == "X_id"], 
-                                                        query_id = x[names(x) == "query"]))
-      names(x = my_ranges) <- NULL
-      my_ranges <- do.call("c", my_ranges) 
-      my_ranges <- sort(my_ranges)
+    if(length(requested_variants) > 1){
       
-    } else {
-      my_ranges <- hgvsToGRange(hgvs_id = my_res$X_id, 
-                                query_id = my_res$query)
-    }
-    
-    # build ilets
-    hits <- findOverlaps(query = my_ranges, subject = my_ranges, maxgap = 1000000) #1Mbp
-    ilets <- c()
-    
-    for(i in queryHits(hits)){
-      ilets <- c(ilets, paste(subjectHits(hits[queryHits(hits) == i]), collapse = "_"))
-    }
-    
-    ilets <- unique(ilets)
-    
-    ld_results <- sapply(ilets, function(selection){
-      current_range  <- setStudyRange(my_ranges, selection)
-      ld <- matrix(current_range$query) # notfound set to all
+      ld_results <- NULL
       
-      if(length(current_range) > 1){
-        region <- setStudyRegion(current_range)
-        tryCatch({
-          ld <- computeLDHeatmap(region = region,
-                                 requested_variants = current_range$query, 
-                                 results_dir = tmpDir, 
-                                 vcf_dir = app.conf$VCF, 
-                                 tabix_path = app.conf$TABIX, 
-                                 population = input$population, 
-                                 tempDir = tmpDir, i = selection)
-        }, error = function(e) {
-          print(e)
-        })
+      tryCatch({
+        ld_results <- computeLDHeatmapFromEnsembl(region = values$global_ranges,
+                                                  requested_variants = requested_variants, 
+                                                  population = input$population)
+      }, error = function(e) {
+        print(e)
+      })
+      
+      if(!is.null(ld_results)){
+        save(ld_results, file = paste0(tmpDir, "/ld_results.rda"))
+        values$ld <- ld_results
+        
+        #notfound <- do.call("c", values$ld[1,])
+        notfound <- values$ld$notfound
+        
+        #### map LD edges ####
+        snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
+        values$all_edges <- snv_edges
+        values$current_edges <- snv_edges
+        
+        visNetworkProxy("my_network") %>%
+          visUpdateEdges(edges = snv_edges)
+        
+        if(length(notfound) > 0){
+          print(paste0('No LD data for the following variants: ', paste(notfound, collapse = ', ')))
+          createAlert(session = session, anchorId = "alert_ld",
+                      alertId = "alert5", title = "Data retrieval",
+                      content = paste0('No LD data for the following variants: ',
+                                       paste(notfound, collapse = ', ')) ,
+                      append = TRUE, style = "warning")
+        } else {
+          print("LD computation succeed for all variants")
+          createAlert(session = session, anchorId = "alert_ld",
+                      alertId = "alert5", title = "Data retrieval",
+                      content = "LD computation succeed for all variants",
+                      append = TRUE, style = "success")
+        }
+        
+        if(!is.null(ld_results)){
+          updateButton(session = session, inputId = "update_ld", 
+                       disabled = FALSE)
+        } else {
+          updateButton(session = session, inputId = "update_ld", 
+                       disabled = TRUE)
+        } 
+        
+        if (!is.null(id))
+          removeNotification(id)
       }
-      return(ld)
-    })
-    
-    save(ld_results, file = paste0(tmpDir, "/ld_results.rda"))
-    values$ld <- ld_results
-    
-    notfound <- do.call("c", values$ld[1,])
-    
-    #### map LD edges ####
-    snv_edges <- build_snv_edges(values, "1", NULL, network_type = input$network_type)
-    values$all_edges <- snv_edges
-    values$current_edges <- snv_edges
-    
-    visNetworkProxy("my_network") %>%
-      visUpdateEdges(edges = snv_edges)
-    
-    if(length(notfound) > 0){
-      print(paste0('No LD data for the following variants: ', paste(notfound, collapse = ', ')))
-      createAlert(session = session, anchorId = "alert_ld",
-                  alertId = "alert5", title = "Data retrieval",
-                  content = paste0('No LD data for the following variants: ',
-                                   paste(notfound, collapse = ', ')) ,
-                  append = TRUE, style = "warning")
-    } else {
-      print("LD computation succeed for all variants")
-      createAlert(session = session, anchorId = "alert_ld",
-                  alertId = "alert5", title = "Data retrieval",
-                  content = "LD computation succeed for all variants",
-                  append = TRUE, style = "success")
     }
-    
-    if(!is.null(ld_results)){
-      updateButton(session = session, inputId = "update_ld", 
-                   disabled = FALSE)
-    } else {
-      updateButton(session = session, inputId = "update_ld", 
-                   disabled = TRUE)
-    } 
-    
-    if (!is.null(id))
-      removeNotification(id)
-    
   })
   
   #### remove LD infos ####
@@ -1114,7 +1087,7 @@ server <- function(input, output, session) {
       visOptions(highlightNearest = TRUE, clickToUse = FALSE, manipulation = FALSE, nodesIdSelection = FALSE) %>%
       visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
       visLayout(randomSeed = 2018) %>% 
-      visPhysics("repulsion", repulsion = list(nodeDistance = 1000))
+      visPhysics("repulsion", repulsion = list(nodeDistance = 1000)) 
   })
   
   #### UPDATE PLOT ####
