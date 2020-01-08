@@ -1524,7 +1524,7 @@ server <- function(input, output, session) {
   
   #### ON STOP ####
   onStop(function() { 
-    old_figures <- dir(path = "www/scores_figures/", full.names = T)
+    old_figures <- dir(path = path_to_images, full.names = T, pattern = ".png")
     file.remove(old_figures)
     temp_files <- dir(path = tmpDir, full.names = T, recursive = T)
     file.remove(temp_files)
