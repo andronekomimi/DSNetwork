@@ -592,9 +592,8 @@ server <- function(input, output, session) {
           #### DISPLAY RESULTS TABLE FOR VARIANTS SELECTION ####
           annotations_fields <- c("query","X_id", 
                                   "cadd.consequence",
-                                  "na_median",
                                   "na_mean",
-                                  "na_last")
+                                  "na_median")
           
           annotations_infos <- values$res[,annotations_fields]
           annotations_infos$cadd.consequence <- sapply(annotations_infos$cadd.consequence, 
@@ -621,8 +620,8 @@ server <- function(input, output, session) {
                           escape = FALSE,
                           rownames = FALSE,
                           colnames = c("query", "hgvs ID","consequences", 
-                                       "OGMR (NA = median)", "OGMR (NA = mean)",
-                                       "OGMR (NA = worst)"),
+                                       "OGMR (NA = mean)", "OGMR (NA = median)"
+                                       ),
                           extensions = c('Scroller','Buttons'),
                           selection = list(mode = 'multiple', selected = n),
                           options = list(dom = 'Bfrtip',
