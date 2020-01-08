@@ -26,7 +26,7 @@ server <- function(input, output, session) {
                            showCancelButton = F, showConfirmButton = F)
   })
   
-  tmpDir <- tempdir() 
+  tmpDir <- tempdir()
   print(tmpDir)
   
   source('helper.R', local = TRUE)
@@ -331,84 +331,118 @@ server <- function(input, output, session) {
           
           #### fetch linsight ####
           incProgress(1/n, detail = "Extracting LINSIGHT scores...")
-          if(file.exists(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))){
-            load(paste0(dataDir,'LINSIGHT/LINSIGHT_',requested_chr,'.rda'))
-            hits <- findOverlaps(query = values$global_ranges, subject = gr)
-            for(i in seq_along(hits)){ 
-              hit <- hits[i]
-              query <- values$global_ranges[queryHits(hit)]$query
-              value <- gr[subjectHits(hit)]$score
+          if(TRUE){
+            hits <- system(command = paste0("tabix ",dataDir,"/LINSIGHT/linsight.bed.bgz ", 
+                                            requested_chr,":",min(start(global_ranges)),"-",
+                                            max(end(global_ranges)) + 1), intern = T)
+            
+            df <- data.frame(stringr::str_split_fixed(hits, "\t",4), stringsAsFactors = F)
+            df[,2:4] <- apply(df[,2:4], 2, as.numeric)
+            
+            for(i in seq_along(global_ranges)){
+              pos <- start(values$global_ranges[i])
+              value <- mean(x = df[(df[,2] <= pos & df[,3]>= pos),4])
+              query <- values$global_ranges[i]$query
               values$res[values$res$query == query,"linsight"] <- value
             }
           }
           
           #### fetch cdts ####
           incProgress(1/n, detail = "Extracting CDTS data...")
-          if(file.exists(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))){
-            load(paste0(dataDir,'CDTS/CDTS_hg19/CDTS_',requested_chr,'.rda'))
-            hits <- findOverlaps(query = values$global_ranges, subject = CDTS)
-            for(i in seq_along(hits)){ 
-              hit <- hits[i]
-              query <- global_ranges[queryHits(hit)]$query
-              value1 <- CDTS[subjectHits(hit)]$CDTS
-              value2 <- CDTS[subjectHits(hit)]$percentile
+          if(available_data$cdts){
+            hits <- system(command = paste0("tabix ",dataDir,"/CDTS/cdts.bed.bgz ", 
+                                            requested_chr,":",min(start(global_ranges)),"-",
+                                            max(end(global_ranges)) + 1), intern = T)
+            
+            df <- data.frame(stringr::str_split_fixed(hits, "\t",5), stringsAsFactors = F)
+            df[,2:5] <- apply(df[,2:5], 2, as.numeric)
+            
+            for(i in seq_along(global_ranges)){
+              pos <- start(values$global_ranges[i])
+              value1 <- mean(x = df[(df[,2] <= pos & df[,3]> pos),4], na.rm = T)
+              value2 <- mean(x = df[(df[,2] <= pos & df[,3]> pos),5], na.rm = T)
+              query <- values$global_ranges[i]$query
               values$res[values$res$query == query,"cdts_score"] <- value1
               values$res[values$res$query == query,"cdts_percentile"] <- value2
             }
-          }
-          
-          #### store CDTS scores on the complete region
-          cdts_hits <- findOverlaps(query = range(values$global_ranges), subject = CDTS, maxgap = 100)
-          
-          if(length(cdts_hits) > 0){
-            cdts_hits <- as.data.frame(CDTS[subjectHits(cdts_hits)])
-            cdts_hits_spread <- NULL
-            for(i in 1:nrow(cdts_hits)){
-              new_rows <- data.frame(seqnames = requested_chr,
-                                     start = seq(cdts_hits[i,]$start, (cdts_hits[i,]$end - 1)), 
-                                     CDTS = cdts_hits[i,]$CDTS, 
-                                     percentile = cdts_hits[i,]$percentile, 
-                                     stringsAsFactors = F)
-              if(!is.null(cdts_hits_spread)){
-                cdts_hits_spread <- rbind(cdts_hits_spread, new_rows)
-              } else {
-                cdts_hits_spread <- new_rows
+            
+            #### store CDTS scores on the complete region
+            cdts_hits <- system(command = paste0("tabix ",dataDir,"/CDTS/cdts.bed.bgz ",
+                                                 requested_chr,":",min(start(global_ranges)) - 100,"-",
+                                                 max(end(global_ranges)) + 100), intern = T)
+            
+            cdts_hits <- data.frame(stringr::str_split_fixed(cdts_hits, "\t",5), 
+                                    stringsAsFactors = F)
+            cdts_hits[,2:5] <- apply(cdts_hits[,2:5], 2, as.numeric)
+            colnames(cdts_hits) = c("seqnames","start","end","CDTS","percentile")
+            
+            if(nrow(cdts_hits) > 0){
+              cdts_hits_spread <- NULL
+              for(i in seq(nrow(cdts_hits))) {
+                new_rows <- data.frame(seqnames = requested_chr,
+                                       start = seq(cdts_hits[i,]$start, (cdts_hits[i,]$end) - 1), 
+                                       CDTS = cdts_hits[i,]$CDTS, 
+                                       percentile = cdts_hits[i,]$percentile, 
+                                       stringsAsFactors = F)
+                if(!is.null(cdts_hits_spread)){
+                  cdts_hits_spread <- rbind(cdts_hits_spread, new_rows)
+                } else {
+                  cdts_hits_spread <- new_rows
+                }
               }
-            }
-            
-            # padding
-            region_start <- min(cdts_hits_spread$start)
-            region_stop <- max(cdts_hits_spread$start)
-            missing_pos <- seq(region_start, region_stop)[!seq(region_start, region_stop) %in% cdts_hits_spread$start]
-            if(length(missing_pos) > 0){
-              new_rows <- data.frame(seqnames = requested_chr,
-                                     start = missing_pos, 
-                                     CDTS = NA, 
-                                     percentile = NA, 
-                                     stringsAsFactors = F)
               
-              cdts_hits_spread <- rbind(cdts_hits_spread, new_rows)
-              cdts_hits_spread <- cdts_hits_spread[order(cdts_hits_spread$start),]
+              # padding
+              region_start <- min(cdts_hits_spread$start)
+              region_stop <- max(cdts_hits_spread$start)
+              missing_pos <- seq(region_start, region_stop)[!seq(region_start, region_stop) %in% cdts_hits_spread$start]
+              if(length(missing_pos) > 0){
+                new_rows <- data.frame(seqnames = requested_chr,
+                                       start = missing_pos, 
+                                       CDTS = NA, 
+                                       percentile = NA, 
+                                       stringsAsFactors = F)
+                
+                cdts_hits_spread <- rbind(cdts_hits_spread, new_rows)
+                cdts_hits_spread <- cdts_hits_spread[order(cdts_hits_spread$start),]
+              }
+              
+              cdts_region <- cdts_hits_spread
+            } else {
+              cdts_region <- data.frame(seqnames = requested_chr,
+                                        start = c(start(global_ranges)-100,
+                                                  start(global_ranges)+100), 
+                                        CDTS = 0, 
+                                        percentile = 0,
+                                        stringsAsFactors = F)
             }
-            
-            values$cdts_region <- cdts_hits_spread
           } else {
-            values$cdts_region <- data.frame(seqnames = requested_chr,
-                                             start = c(start(global_ranges)-100,
-                                                       start(global_ranges)+100), CDTS = 0, 
-                                             percentile = 0,
-                                             stringsAsFactors = F)
+            cdts_region <- data.frame(seqnames = requested_chr,
+                                      start = c(start(global_ranges)-100,
+                                                start(global_ranges)+100), 
+                                      CDTS = 0, 
+                                      percentile = 0,
+                                      stringsAsFactors = F)
           }
+          
+          save(cdts_region, file =  paste0(tmpDir, "/cdts_region.rda"))
+          values$cdts_region <- cdts_region
           
           #### fetch bayesdel
           incProgress(1/n, detail = "Extracting BayesDel scores...")
-          filename <- tempfile(tmpdir = tmpDir, fileext = ".vcf")
-          print(filename)
-          createVCF(session_values = values, filename = filename)
-          value <- extractBayesDel(path_to_victor, filename)
-          
-          if(!is.null(value)){
-            values$res$bayesdel <- value
+          if(available_data$bayesdel){
+            hits <- system(command = paste0("tabix ",dataDir,"/VICTOR/victor.bed.bgz ",
+                                            gsub(x = requested_chr, pattern = "chr", replacement = ""),":",min(start(global_ranges)),"-",
+                                            max(end(global_ranges)) + 1), intern = T)
+            
+            df <- data.frame(stringr::str_split_fixed(hits, "\t",6), stringsAsFactors = F)
+            df[,c(2,3,6)] <- apply(df[,c(2,3,6)], 2, as.numeric)
+            
+            for(i in seq_along(global_ranges)){
+              pos <- start(values$global_ranges[i])
+              value <- mean(x = df[(df[,2] <= pos & df[,3]>= pos),6], na.rm = T)
+              query <- values$global_ranges[i]$query
+              values$res[values$res$query == query,"bayesdel"] <- value
+            }
           }
           
           #### fetch SNPnexus from HTML request ####
