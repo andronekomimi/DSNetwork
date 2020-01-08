@@ -1171,10 +1171,23 @@ server <- function(input, output, session) {
     cdts_region_line$size = 1
     cdts_region_line$shape = "line-ew"
     
-    drawPlot(my_data = my_data, cdts_region_line = cdts_region_line)
+    drawPlot(my_data = my_data, cdts_region_line = cdts_region_line) +
+      coord_cartesian(xlim = ranges$x, ylim = ranges$y, expand = FALSE)
   })
   
-  
+  # When a double-click happens, check if there's a brush on the plot.
+  # If so, zoom to the brush bounds; if not, reset the zoom.
+  observeEvent(input$my_plot_dblclick, {
+    brush <- input$my_plot_brush
+    if (!is.null(brush)) {
+      ranges$x <- c(brush$xmin, brush$xmax)
+      ranges$y <- c(brush$ymin, brush$ymax)
+      
+    } else {
+      ranges$x <- NULL
+      ranges$y <- NULL
+    }
+  })
   # output$my_plot <- plotly::renderPlotly({
   #   pdf(NULL) # to avoid the production of Rplots.pdf
   #   graphics.off()
