@@ -349,7 +349,7 @@ server <- function(input, output, session) {
           
           #### fetch cdts ####
           incProgress(1/n, detail = "Extracting CDTS data...")
-          if(available_data$cdts){
+          if(TRUE){
             hits <- system(command = paste0("tabix ",dataDir,"/CDTS/cdts.bed.bgz ", 
                                             requested_chr,":",min(start(global_ranges)),"-",
                                             max(end(global_ranges)) + 1), intern = T)
@@ -429,7 +429,7 @@ server <- function(input, output, session) {
           
           #### fetch bayesdel
           incProgress(1/n, detail = "Extracting BayesDel scores...")
-          if(available_data$bayesdel){
+          if(TRUE){
             hits <- system(command = paste0("tabix ",dataDir,"/VICTOR/victor.bed.bgz ",
                                             gsub(x = requested_chr, pattern = "chr", replacement = ""),":",min(start(global_ranges)),"-",
                                             max(end(global_ranges)) + 1), intern = T)
