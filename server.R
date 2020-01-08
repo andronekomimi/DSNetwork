@@ -13,6 +13,18 @@ require(ggplot2)
 options(shiny.trace = FALSE)
 
 server <- function(input, output, session) {
+   
+  # check for internet connection
+  tryCatch({
+    network_on <- is.character(RCurl::getURL("www.google.com"))
+  }, error = function(e) {
+    js$collapse("input_box")
+    shinyalert::shinyalert(title = "Network Error", 
+                           html = TRUE, type = "error",
+                           text = paste0("DSNetwork needs an internet connection to work properly.", "</BR>Please check your internet connection and relauch the application."), 
+                           closeOnEsc = F, closeOnClickOutside = F, 
+                           showCancelButton = F, showConfirmButton = F)
+  })
   
   tmpDir <- tempdir() 
   print(tmpDir)
