@@ -28,8 +28,6 @@ server <- function(input, output, session) {
   
   tmpDir <- tempdir() 
   print(tmpDir)
-  #dir.create(path = paste0(tmpDir, "ld_figures"), showWarnings = F)
-  #dir.create(path = paste0(tmpDir, "objects"), showWarnings = F)
   
   source('helper.R', local = TRUE)
   
@@ -56,6 +54,13 @@ server <- function(input, output, session) {
   app.conf <- list(TABIX = tabix_path,
                    VCF =  paste0(dataDir, '1000Genomes/')) 
   path_to_images <- paste0(appDir, 'www/scores_figures/')
+  
+  # overwrite scores_description.tsv file with up to date file
+  # wget https://bitbucket.org/vmtrap/dsnetwork_deploy/src/master/README.md -O ~/Desktop/LOL
+  description_file <- paste0(appDir, '/scores_description.tsv')
+  path_to_remote <- "https://bitbucket.org/vmtrap/dsnetwork_deploy/raw/HEAD/data/"
+  system(command = paste0("wget ", path_to_remote, "scores_description.tsv -O ", description_file))
+  
   
   values <- reactiveValues()
   values$annotations <- as.matrix(data.frame(waiting = ""))
