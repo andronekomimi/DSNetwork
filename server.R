@@ -63,6 +63,7 @@ server <- function(input, output, session) {
   
   
   values <- reactiveValues()
+  values$version <- NULL
   values$annotations <- as.matrix(data.frame(waiting = ""))
   values$all_edges <- NULL
   values$all_nodes <- NULL
@@ -74,6 +75,7 @@ server <- function(input, output, session) {
   values$notfound_id <- NULL
   values$can_run <- FALSE
   values$all_scores_data <- NULL
+  ranges <- reactiveValues(x = NULL, y = NULL)
   
   # A notification ID
   id <- NULL
