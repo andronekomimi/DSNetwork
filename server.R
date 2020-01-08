@@ -82,6 +82,24 @@ server <- function(input, output, session) {
   
   cat("Session start\n")
   
+  get_version <- function(){
+    version_file <- paste0(tmpDir,"/VERSION")
+    system(command = paste0("wget ", path_to_remote, "VERSION -O ", version_file))
+    dsnetwork_version <- read.table(file = version_file, header = F, stringsAsFactors = F)
+    return(dsnetwork_version)
+  }
+  
+  output$version_footer <- renderUI({
+    v <- get_version()
+    local({
+      output$version <- renderUI({
+        return(HTML("<h4>Last update of scores selection: <b>", v[2,],"</b></h4>"))
+      })
+    })
+    return(return(HTML("<h5>VERSION: <b>", v[1,],"</h5>")))
+  })
+  
+  
   observeEvent(c(input$query_file, input$query), ({
     
     if(!is.null(input$query_file) && input$query_file$size > 0){
