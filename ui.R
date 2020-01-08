@@ -7,7 +7,7 @@ require(shinyalert)
 #require(markdown)
 require(ggplot2)
 
-source('ui_modules.R')
+source('ui_modules.R', local = TRUE)
 
 jscode <- "
 shinyjs.collapse = function(boxid) {
