@@ -558,6 +558,47 @@ computeLDHeatmap <- function(region, requested_variants, results_dir,
   }
 }
 
+computeLDHeatmapFromEnsembl <- function(region, requested_variants, population){
+  require(httr)
+  require(jsonlite)
+  
+  region <- setStudyRegion(region + 5)
+  region <- gsub(x = region, pattern = 'chr', replacement = '')
+  region <- gsub(x = region, pattern = '-', replacement = '..')
+  
+  server <- "http://grch37.rest.ensembl.org"
+  ext <- paste0("/ld/human/region/",region, "/1000GENOMES:phase_3:",population,"?")
+  
+  r <- GET(paste(server, ext, sep = ""), content_type("application/json"))
+  r <- fromJSON(toJSON(content(r)))
+  r <- data.frame(apply(X = r, MARGIN = 2, unlist), stringsAsFactors = F)
+  
+  rsids = requested_variants[grepl(x = requested_variants, pattern = 'rs')]
+  snpids = requested_variants[!grepl(x = requested_variants, pattern = 'rs')]
+  
+  
+  m <- matrix(nrow = length(requested_variants), ncol = length(requested_variants), data = NA)
+  colnames(m) <- c(rsids, snpids)
+  rownames(m) <- c(rsids, snpids)
+  
+  for(rsid in rsids){
+    others = rsids[rsids != rsid]
+    others_r2 <- rbind(subset(r, (variation1 == rsid & variation2 %in% others)), subset(r, (variation2 == rsid & variation1 %in% others)))
+    
+    if(nrow(others_r2) > 0){
+      for (i in 1:nrow(others_r2)) {
+        myrow = others_r2[i,]
+        m[myrow$variation1,myrow$variation2] = m[myrow$variation2,myrow$variation1] = as.numeric(myrow$r2)
+      }
+    }
+  }
+  
+  notfound = c(snpids, rsids[ !rsids %in% unique(c(r$variation2, r$variation1)) ])
+  
+  return(list(ld = m,
+              notfound = notfound))
+}
+
 build1000GenomeLDMatrixLDlink <- function(variantsID, population, tempDir, updateProgress = NULL) {
   require(dplyr)
   require(httr)
