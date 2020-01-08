@@ -1412,8 +1412,8 @@ server <- function(input, output, session) {
                                          digits = 4)
       }
       
-      tab <- tableHTML::tableHTML(snv_score_details, class = 'table1', theme = 'scientific', 
-                                  rownames = FALSE)
+      tab <- tableHTML::tableHTML(snv_score_details, class = 'table1',
+                                  rownames = FALSE) %>% tableHTML::add_theme("scientific")
       for (i in 1:nrow(snv_score_details)) { 
         tab <- tab %>% tableHTML::add_css_row(css = list(c('background-color','font-weight','color'), 
                                                          c(color_code[i],'bold', text_color_code[i])), rows = i+1) # first column is header
