@@ -127,7 +127,7 @@ dashboardPage(
               score_desc_module()
       ),
       tabItem(tabName = "about",
-              shiny::includeHTML("ABOUT.Rhtml")
+              shiny::includeHTML(paste0(appDir, "ABOUT.Rhtml"))
       )
     ),#end dashboardPage
     tags$footer(htmlOutput(outputId = "version_footer"), align = "center")
