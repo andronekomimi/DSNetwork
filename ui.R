@@ -7,7 +7,21 @@ require(shinyalert)
 #require(markdown)
 require(ggplot2)
 
-source('ui_modules.R', local = TRUE)
+is.local <- function(){ 
+  return(!grepl(x = system('uname -n',intern=T), pattern = "ulaval"))
+}
+
+if(is.local()){
+  #### CONF ####
+  appDir <- "/home/nekomimi/Workspace/DSNetwork/"
+  dataDir <- "/home/nekomimi/Workspace/DSNetwork/data/"
+} else {
+  #### CONF ####
+  appDir <- "/srv/shiny-server/dsnetwork/"
+  dataDir <- "/mnt/apps_data/dsnetwork/"
+}
+
+source(paste0(appDir, 'ui_modules.R'), local = TRUE)
 
 jscode <- "
 shinyjs.collapse = function(boxid) {

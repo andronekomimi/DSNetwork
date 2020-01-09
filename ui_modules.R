@@ -8,7 +8,21 @@ require(shinyjqui)
 require(shinyjs)
 require(ggplot2)
 
-source('helper.R', local = TRUE)
+is.local <- function(){ 
+  return(!grepl(x = system('uname -n',intern=T), pattern = "ulaval"))
+}
+
+if(is.local()){
+  #### CONF ####
+  appDir <- "/home/nekomimi/Workspace/DSNetwork/"
+  dataDir <- "/home/nekomimi/Workspace/DSNetwork/data/"
+} else {
+  #### CONF ####
+  appDir <- "/srv/shiny-server/dsnetwork/"
+  dataDir <- "/mnt/apps_data/dsnetwork/"
+}
+
+source(paste0(appDir, 'helper.R'), local = TRUE)
 
 populations <- c("African Caribbean in Barbados (ACB)" = 'ACB',
                  "African Ancestry in Southwest US (ASW)" = 'ASW',
